@@ -2,6 +2,26 @@
 
 本ドキュメントは、[fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) リポジトリのコンポーネントを、本リポジトリ（fsxn-cyber-resilience-patterns）のセキュリティレイヤーにマッピングし、統合されたDefense-in-Depthアーキテクチャとしてどう連携するかを説明します。
 
+## どのリポジトリを読むか / Where each question is answered
+
+本リポジトリは**実装のパターン**を持つ。設計判断は
+[FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook) が持ち、実装は observability リポジトリが持つ。
+**同じ内容を 2 か所に置かない。** 置くと片方が更新されなくなり、古い側が長く残る。
+
+| 読者の問い | 読む先 |
+|-----------|--------|
+| SnapLock / Snapshot locking をどう設定するか（テンプレート、CLI、REST） | 本リポジトリ [`docs/ontap-native/`](../ontap-native/) |
+| SnapLock を有効にすべきか、どの保持モードか、**何が不可逆か** | Playbook [`domains/data-protection`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/README.md) |
+| ARP をどう有効化するか、どのモデル世代が適用されるか | 本リポジトリ [`docs/ontap-native/arp-configuration.md`](../ontap-native/arp-configuration.md) |
+| 不可逆操作の承認、監査ログの設計、アクセス認可の層 | Playbook [`domains/security-governance`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/README.md) |
+| ARP / TrendAI / Deep Instinct のどれを選ぶか | 本リポジトリ [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
+| 検知から遮断までの動く実装（Lambda / EMS Webhook / FPolicy サーバー） | [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) |
+| S3 Access Point のライフサイクルとサーバーレス連携 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
+
+**This repository holds the implementation patterns.** Design guidance lives in the Adoption
+Playbook, and working implementations live in the observability repository. The same material is
+not duplicated across them: a copy that stops being updated outlives the one that was corrected.
+
 ## アーキテクチャレイヤーマッピング
 
 以下の表は、Observability リポジトリのどのコンポーネントが、本リポジトリのどのセキュリティレイヤーに接続されるかを示します。

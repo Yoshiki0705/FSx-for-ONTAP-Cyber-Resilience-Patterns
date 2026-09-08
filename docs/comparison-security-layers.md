@@ -56,8 +56,8 @@ Deep learning inference-based preventive security. Analyzes file structure itsel
 | **動作レイヤー** | ストレージコントローラ内 | 外部スキャンサーバー (EC2) | 外部エージェント (EC2) |
 | **追加インフラ** | 不要（ONTAP 内蔵） | Vscan サーバー EC2 必要 | Agent サーバー EC2 必要 |
 | **ブロック能力** | 直接ブロックなし（検知＋Snapshot） | 書き込みブロック可能（FPolicy 連携、**NFS / SMB のみ**） | 書き込みブロック可能（FPolicy 連携、**NFS / SMB のみ**） |
-| **レスポンスタイム** | 秒〜分（パターン蓄積後） | ミリ秒（インラインスキャン） | ミリ秒（推論完了時） |
-| **偽陽性リスク** | 中（学習期間依存） | 低（シグネチャ精度高い） | 低〜中（モデル依存） |
+| **レスポンスタイム** | 分単位。suspect の一覧は先に立つが `attack_probability` は書き込みから 10 分以上遅れる（実測） | ミリ秒（インラインスキャン） | ミリ秒（推論完了時） |
+| **偽陽性リスク** | 中（旧世代 ARP は学習期間に依存。ARP/AI は事前学習モデル） | 低（シグネチャ精度高い） | 低〜中（モデル依存） |
 | **シグネチャ更新** | 不要（行動ベース） | 必要（自動更新） | 不要（モデルベース） |
 | **ONTAP 統合** | ネイティブ（設定のみ） | Vscan/ICAP 標準統合 | FPolicy / API 統合 |
 | **ライセンス** | FSx for ONTAP 利用料に含まれる（追加課金なし） | 別途商用ライセンス | 別途商用ライセンス |
@@ -72,11 +72,11 @@ Deep learning inference-based preventive security. Analyzes file structure itsel
 | 強み / Strengths | トレードオフ / Trade-offs |
 |-----------------|-------------------------|
 | 追加コスト・インフラ不要 | 個別ファイルのマルウェア判定はできない |
-| ストレージレイヤーで完結（低レイテンシ） | 学習期間は ARP のバージョンで異なる。**ARP 5.0（ONTAP 9.16.1 以降の AI 世代）は学習期間を必要とせず、有効化直後から検知した**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。旧世代では行動パターン蓄積に 30 日程度が必要 |
+| ストレージレイヤーで完結（低レイテンシ） | 学習期間はモデル世代で異なる。**ARP/AI（ONTAP 9.16.1 以降。検証クラスタでは `version` が `5.0`）は学習期間を必要とせず、有効化直後から検知した**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。旧世代 ARP（9.10.1〜9.15.1、9.17.1 までの FlexGroup）は NAS FlexVol で 30 日 |
 | 自動 Snapshot による即時復旧ポイント確保 | 低速な暗号化攻撃は検知困難 |
-| 全プロトコル（NFS/SMB/S3 AP）で動作。**S3 AP 経由の書き込み検知は実測済み**（2026-08-26 / ONTAP 9.18.1P3D1、ARP 5.0） | 既知マルウェアのシグネチャ判定はできない |
+| NFS / SMB / S3 AP の各経路で動作。**S3 AP 経由の書き込み検知は実測済み**（2026-08-26 / ONTAP 9.18.1P3D1、ARP/AI。検知理由は高エントロピー） | 既知マルウェアのシグネチャ判定はできない [E-003]。**検知を遮断の根拠に使えない**（遮断は未測定 → [測定計画](ontap-native/arp-active-mode-measurement-plan.md)） |
 | FSx for ONTAP 9.15.1+ で AI 強化版利用可能。バージョンは `security anti-ransomware` の `version` で確認する | 検知精度は ONTAP バージョンに依存 |
-| 学習モード→アクティブモードの段階的有効化（ARP 5.0 では不要） | `attack_probability` は書き込みから 10 分以上遅れて変わる。**この値だけを短時間見ると偽陰性になる**ため suspect の一覧を確認する（実測） |
+| 学習モード→アクティブモードの段階的有効化（ARP/AI では不要。`dry_run` の要求は無言で `enabled` になる） | `attack_probability` は書き込みから 10 分以上遅れて変わる。**この値だけを短時間見ると偽陰性になる**ため suspect の一覧を確認する（実測） |
 
 ### TrendAI Vision One — File Security
 
@@ -136,6 +136,13 @@ graph LR
 | 内部不正（正当アカウントでの大量コピー） | ○ 異常行動として検知 | — 対象外 | — 対象外 |
 
 凡例: ◎ = 最も適した技術、○ = 検知可能、△ = 一定条件下で検知、— = 対象外
+
+> **ARP の操作ベース検知には基準が必要**: 改名・削除・作成のレートは検知入力に入っているが、
+> 判定は「過去に観測された値」に対するサージ率で行われる（[attack-detection-parameters](https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html)、
+> 全文 2026-09-07 取得）。**履歴のないボリュームでは、この列の ◎ / ○ が成立しない可能性がある。**
+> 新規ボリュームで 1,000 件の一括改名・一括削除を行い 30 分以内に判定されなかった観測が 1 件ある
+> （2026-09-07、ONTAP 9.18.1P3D1 / ARP/AI、**NFSv3 経路**。1 回、再現なし）。原因が履歴の不在かどうかは未確認。
+> 詳細と追試の設計は [ARP アクティブモードの挙動 — 測定計画](ontap-native/arp-active-mode-measurement-plan.md) にある。
 
 ---
 
@@ -363,12 +370,15 @@ Partner/SI が顧客環境で最小限の PoC を実施するための手順。
 
 | Day | Activity | 成果物 / Deliverable |
 |-----|----------|---------------------|
-| Day 1 | FSx for ONTAP (Single-AZ) デプロイ + ARP 学習モード有効化 + FPolicy async 設定 | 基盤稼働確認 |
-| Day 2 | テストファイル書き込み + ARP 学習確認 + FPolicy イベント確認 (CloudWatch Logs) | イベントフロー確認 |
+| Day 1 | FSx for ONTAP (Single-AZ) デプロイ + ARP 有効化 + FPolicy async 設定 | 基盤稼働確認 |
+| Day 2 | テストファイル書き込み + ARP 検知確認（suspect の一覧）+ FPolicy イベント確認 (CloudWatch Logs) | イベントフロー確認 |
 | Day 3 | EICAR テストファイルでスキャン検証（TrendAI or DI）+ 隔離動作確認 | End-to-end 検証完了 |
 
-> **Note**: ARP はアクティブモード移行に30日+が必要なため、PoC では学習モードでのイベント確認までとする。
+> **Note**: ONTAP 9.16.1 以降（ARP/AI）は学習期間がないため、**3 日の PoC で検知まで観測できる**。
+> 9.15.1 以下のクラスタでは 30 日の学習が入るので、PoC では有効化の確認までとする。
+> `attack_probability` は 10 分以上遅れて動くので、Day 2 の確認は suspect の一覧で行う。
 > フルスキャン検証には Day 2 で Vscan サーバーまたは DI Agent の追加デプロイが必要。
+> ARP の遮断挙動は未測定（[測定計画](ontap-native/arp-active-mode-measurement-plan.md)）。
 
 ### 段階的導入 / Phased Adoption
 

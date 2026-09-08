@@ -20,5 +20,232 @@
     "then the gate is still live, because a new unattributed claim in any tracked",
     "document fails against the baseline."
   ],
-  "claims": []
+  "claims": [
+    {
+      "id": "E-001",
+      "claim": "ARP/AI's documented response to detected abnormal activity does not include refusing or delaying a write. The response vocabulary is a warning, an automatic snapshot, administrator classification as false positive or potential attack, and resumed monitoring.",
+      "subject": "ONTAP Autonomous Ransomware Protection (ARP/AI), ONTAP 9.16.1 and later",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "The whole response flow is warning, snapshot, classification, clear-suspect. No step refuses an operation."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "The ARP versus ARP/AI comparison table lists snapshot creation as the automatic action. Blocking is not among the listed behaviours."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether ARP/AI ever refuses a write in active mode. The vendor documentation enumerates the response flow, and the remaining uncertainty is about observed behaviour on a specific build rather than about intent, so it is being answered by measurement here rather than by asking."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/ontap-native/arp-configuration.md",
+        "docs/articles/02-ontap-native-security.md"
+      ],
+      "note": "Absence of a documented blocking step is not the same as a measured absence of blocking. The design here treats ARP as detection only, which is the conservative direction; the measurement plan exists to turn this into an observation."
+    },
+    {
+      "id": "E-002",
+      "claim": "A name-mapping deny entry does not block SMB access on a volume with NTFS security style. Access is decided by the Windows credentials, and a user whose mapping fails falls back to the CIFS server's default UNIX user.",
+      "subject": "ONTAP name-mapping (win-unix) on NTFS security style volumes",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/How_does_name-mapping_work_when_CIFS_clients_access_NTFS_security_style_resources",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "States that access is granted or denied on the Windows credentials because the volume is NTFS security style, and that a failed mapping falls back to the default UNIX user."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/smb-admin/security-styles-their-effects-concept.html",
+          "retrieved": "2026-09-07",
+          "read": "selective",
+          "note": "Security styles determine which permission type ONTAP uses for access control."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether name-mapping deny can block SMB on NTFS security style volumes. The vendor KB answers it directly."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-active-mode-measurement-plan.md"
+      ],
+      "note": "A sibling repository's automated-response addendum states the opposite in a table whose justification is reasoned rather than observed. When the Q2 measurement runs, the volume security style is recorded so the two statements can be settled against a run instead of against each other."
+    },
+    {
+      "id": "E-003",
+      "claim": "ARP does not make signature-based malware determinations about individual files. Its detection inputs are file activity, data entropy and file extension types.",
+      "subject": "ONTAP Autonomous Ransomware Protection, all generations",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Detection method is given as file activity, data entropy and extension types for ARP, and an AI model analysing entropy and file behaviour for ARP/AI. Neither is a signature scanner, and the page positions ARP as an additional layer alongside FPolicy and snapshots."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether ARP performs per-file malware identification. The vendor documentation states the detection inputs."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/comparison-security-layers.md"
+      ],
+      "note": "This is why the layered design keeps a scanner (Vscan/ICAP or an agent) alongside ARP rather than treating ARP as a replacement."
+    },
+    {
+      "id": "E-004",
+      "claim": "On ARP/AI, a request to set the volume anti-ransomware state to dry_run lands as enabled, and neither a warning nor an error is returned. The learning mode is not selectable.",
+      "subject": "ONTAP REST API PATCH /storage/volumes/{uuid} anti_ransomware.state, ONTAP 9.18.1P3D1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Documents that ARP/AI has no learning period, which is consistent with dry_run not being a reachable state. The silent substitution itself is not documented."
+        },
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/docs/agent/pitfalls-arp-ems.md",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Sibling repository record of the observation, including the read-back showing enabled."
+        }
+      ],
+      "observation": "2026-08-15, ap-northeast-1, ONTAP 9.18.1P3D1. PATCH with anti_ransomware.state=dry_run returned 200; a subsequent GET of anti_ransomware.state returned enabled. Disabling the same volume left the state at disable_in_progress for more than 10 minutes on a 20 GiB empty volume.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the API should reject or warn on an unreachable state value. Behaviour is observed and reproducible; the design consequence is to read back after PATCH rather than to trust the request, which does not depend on the vendor's answer."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-configuration.md",
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/articles/02-ontap-native-security.md"
+      ],
+      "note": "The design consequence: a verification plan cannot use learning mode as a safety net, and a handler must not echo the requested state back to a caller."
+    },
+    {
+      "id": "E-005",
+      "claim": "ARP's operation-rate detection inputs (file create, rename, delete) do not fire on an absolute rate. They fire on a surge relative to the historically observed value for that volume, so a volume with no history has nothing for the surge to be measured against. Separately, the never-seen-before-file-extension threshold counts files created or renamed with one new extension, not the number of distinct new extensions.",
+      "subject": "ONTAP anti-ransomware volume attack-detection-parameters",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Each of based-on-file-create-rate, -rename-rate and -delete-rate is described as an attack when the per-timeslot count surges by the corresponding notify percentage compared to the historically observed value. The never-seen-before duration parameter states that the threshold is a number of files created or renamed with the new extension within the duration."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9161/security-anti-ransomware-volume-attack-detection-parameters-modify.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "States the threshold as the number of files observed with a new file extension for create/rename operations, which is the clearer wording of the two pages. Neither page scopes the create/rename/delete parameters by protocol."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "How the surge baseline is established on a volume with no operation history. The CLI reference states the comparison is against the historically observed value; whether a fresh volume therefore never fires is a question for measurement, not for the vendor."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/comparison-security-layers.md",
+        "docs/ontap-native/arp-configuration.md"
+      ],
+      "note": "Corrects one reading and bounds another. Bulk rename or delete is not outside ARP's inputs, it is outside the threshold. On the never-seen-before input, an adjacent run (2026-09-07, ONTAP 9.18.1P3D1, ARP/AI, NFSv3, freshly created volumes) did exceed the file-count condition -- 1,000 files on one new extension against a threshold of 5 -- and saw no detection within 30 minutes against a 48-hour duration parameter. Whether that run tested the input at all depends on whether \"for this duration\" means within the window or sustained across it, which the reference does not settle. The retest is designed to satisfy either reading rather than to pick one. A separate point found while checking this: the parameter table is the set of toggleable inputs, not the set of detection inputs. Both pages document two always-enabled paths independent of these parameters -- per-file high-entropy detection, and combined extension-and-entropy detection -- so a non-detection cannot be attributed to any one parameter's behaviour."
+    },
+    {
+      "id": "E-006",
+      "claim": "The set of file extensions ONTAP treats as popular, and therefore safe, when relaxing-popular-file-extensions is true is not published. A tester cannot confirm that a chosen extension is outside that set.",
+      "subject": "ONTAP anti-ransomware relaxing-popular-file-extensions",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Describes the parameter as treating a predetermined commonly used extension such as .mp3 as safe, and gives one example rather than the set. No enumeration appears on the page."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the popular-extension set can be enumerated. It only affects test design here -- a ransomware extension is very unlikely to be in it -- so the measurement records the parameter value and states the assumption rather than resting on the answer."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-active-mode-measurement-plan.md"
+      ],
+      "note": "Recorded so that a later run does not read 'the extension was not popular' as established. It is an assumption, and the ledger says so."
+    },
+    {
+      "id": "E-007",
+      "claim": "The Attack Detected By field cannot identify which detection input raised an attack, and the reference does not settle what the field returns. The parameter line enumerates file and block while the description immediately below gives file_analysis and encryption_percentage_analysis. Even on the description's reading, two values stand against five or more toggleable inputs plus two always-enabled paths, so the field distinguishes neither individual inputs nor toggleable from always-on.",
+      "subject": "ONTAP security anti-ransomware volume show, -attack-detected-by",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-show.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Gives two different value sets for the same field on one page: 'The possible values are file, block' followed by descriptions of file_analysis and encryption_percentage_analysis. The state field is inconsistent the same way -- the parameter enumeration carries seven values including paused, the prose below lists six and drops paused. Also gives the attack-probability value set."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9161/security-anti-ransomware-volume-attack-detection-parameters-modify.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "Enumerates the toggleable inputs and the two always-enabled paths, which is the other half of the mismatch."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a finer attribution of the detecting input is exposed anywhere. The measurement works around it by recording per-suspect reasons and the entropy-stat output instead, so the answer would refine the method rather than unblock it."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/ontap-native/arp-configuration.md"
+      ],
+      "note": "Recorded because a measurement that reports 'detected by file_analysis' invites the reader to conclude which parameter fired. It does not support that, and the value itself may not be what the page's description says. Raised as a request from the Adoption Playbook side to attribute detections to always-on versus toggleable paths; this field cannot answer it. The handling is to record the observed value verbatim and to read the seven-value state enumeration rather than the six-value prose, so that paused is not dropped."
+    }
+  ]
 }

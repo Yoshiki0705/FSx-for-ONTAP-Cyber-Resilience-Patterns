@@ -95,7 +95,25 @@ curl -X POST "https://<management-ip>/api/storage/volumes/{volume-uuid}/snapshot
 - ロック済み Snapshot の保持期間延長: 可能
 - ロック済み Snapshot の保持期間短縮: **不可**
 
+## 不可逆な決定の確認先 / Where the irreversible decisions are discussed
+
+Snapshot locking の有効化は、ロック済み Snapshot の保持期間が満了するまで戻せない。承認の
+取り方と影響範囲（どのボリューム・どの SVM・どのファイルシステムがいつまで削除できなくなるか）は
+FSx for ONTAP Adoption Playbook のモジュールハブにある。本リポジトリは実装手順を持ち、
+Playbook が設計判断を持つ。同じ内容を両方に置かない。
+
+Enabling snapshot locking cannot be undone until the locked snapshots' retention expires. How to
+gate it, and which resources become undeletable for how long, is covered in the Adoption Playbook
+module hubs. This repository holds the implementation steps; the Playbook holds the design
+guidance. The material is not duplicated.
+
+| モジュール / Module | 扱う範囲 / Scope |
+|---|---|
+| [データ保護 / Data Protection](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/README.md) （[EN](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/data-protection/README.md)） | Snapshot、SnapMirror、SnapLock、バックアップ、ランサムウェア対策の設計判断 |
+| [セキュリティ・ガバナンス / Security & Governance](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/README.md) （[EN](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/README.md)） | 不可逆操作の承認、監査ログ、アクセス認可の層 |
+
 ## 参照 / References
 
 - [NetApp ONTAP — Tamper-proof Snapshots](https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html)
 - [FSx for ONTAP — Snapshot Locking](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/snapshot-locking.html)
+- [SnapLock Configuration](snaplock-configuration.md)

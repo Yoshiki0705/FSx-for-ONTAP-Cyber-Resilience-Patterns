@@ -2,6 +2,23 @@
 
 This document maps the components in the [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) repository to the security layers defined in this cyber-resilience-patterns repository, and explains how they work together as a unified defense-in-depth architecture.
 
+## Where each question is answered
+
+**This repository holds the implementation patterns.** Design guidance lives in the
+[FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook), and working implementations live in the observability
+repository. **The same material is not duplicated across them** -- a copy that stops being updated
+outlives the one that was corrected.
+
+| Reader's question | Where it is answered |
+|-------------------|----------------------|
+| How to configure SnapLock or snapshot locking (templates, CLI, REST) | Here, [`docs/ontap-native/`](../ontap-native/) |
+| Whether to enable SnapLock, which retention mode, **what is irreversible** | Playbook [`domains/data-protection`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/data-protection/README.md) |
+| How to enable ARP, and which model generation applies | Here, [`docs/ontap-native/arp-configuration.md`](../ontap-native/arp-configuration.md) |
+| Approval for irreversible operations, audit log design, authorization layers | Playbook [`domains/security-governance`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/README.md) |
+| Choosing among ARP, TrendAI File Security and Deep Instinct | Here, [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
+| Working implementation from detection to blocking (Lambda, EMS webhook, FPolicy server) | [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) |
+| S3 access point lifecycle and serverless integration | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
+
 ## Architecture Layer Mapping
 
 The table below shows which components from the observability repo plug into each security layer of this repo.
