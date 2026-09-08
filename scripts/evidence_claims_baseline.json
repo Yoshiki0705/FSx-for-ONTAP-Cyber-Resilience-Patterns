@@ -1,0 +1,44 @@
+{
+  "$comment": [
+    "Claims of vendor absence that predate scripts/check_evidence_claims.py.",
+    "Not an approval. The gate ratchets: nothing new may be added without a",
+    "ledger entry, and an entry here that no longer matches any line fails too,",
+    "so a line cannot be edited while leaving its old fingerprint behind.",
+    "Shrinking this file is the work. Regenerate with --update-baseline only",
+    "after deciding that each newly added line genuinely predates the gate."
+  ],
+  "baseline": {
+    "docs/articles/01-architecture-overview.md": [
+      "3e339cba91",
+      "a69fc68248"
+    ],
+    "docs/comparison-security-layers.md": [
+      "62e916eec2",
+      "d985384949"
+    ],
+    "docs/deployment-guide-existing-fsxn.md": [
+      "8bf8c7d17f"
+    ],
+    "docs/en/cyber-resilience-framework-mapping.md": [
+      "49fe026e8c",
+      "537259f05d",
+      "e879948ae8"
+    ],
+    "docs/en/deployment-guide.md": [
+      "1d5b59372f"
+    ],
+    "docs/ja/cyber-resilience-framework-mapping.md": [
+      "3cb73d8077",
+      "d57320ef91"
+    ],
+    "docs/ontap-native/fsxadmin-limitations.md": [
+      "2664510bba"
+    ],
+    "docs/ontap-native/snaplock-configuration.md": [
+      "e56229444d"
+    ],
+    "docs/quickstart-deployment.md": [
+      "b8ec3663db"
+    ]
+  }
+}

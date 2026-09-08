@@ -12,6 +12,12 @@ on:
       - 'requirements*.txt'
       - '.cfnlintrc'
       - '.github/workflows/ci.yml'
+      # The evidence gate reads tracked markdown. Without these, a documentation-only
+      # pull request skipped the whole job, so the one change the gate exists to catch
+      # -- a new claim of vendor absence in a document -- was the change it never saw.
+      - 'docs/**'
+      - '**/*.md'
+      - 'scripts/**'
   pull_request:
     branches: [main]
     paths:
@@ -23,6 +29,12 @@ on:
       - 'requirements*.txt'
       - '.cfnlintrc'
       - '.github/workflows/ci.yml'
+      # The evidence gate reads tracked markdown. Without these, a documentation-only
+      # pull request skipped the whole job, so the one change the gate exists to catch
+      # -- a new claim of vendor absence in a document -- was the change it never saw.
+      - 'docs/**'
+      - '**/*.md'
+      - 'scripts/**'
 
 permissions:
   contents: read
@@ -85,6 +97,14 @@ jobs:
           done
           echo "All Lambda packages valid."
 
+      # The half the local hook cannot cover: ~/.kiro/ is in nobody's checkout, so a
+      # pull request opened from anywhere else would not be checked. Runs the gate's own
+      # tests first, because a checker that reports success without evaluating its rules
+      # is the same shape as the problem it exists to catch.
+      - name: Check evidence for claims of vendor absence
+        run: |
+          pytest scripts/tests/ --tb=short -q
+          python3 scripts/check_evidence_claims.py
       - name: Run pytest
         env:
           AWS_DEFAULT_REGION: ap-northeast-1

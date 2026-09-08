@@ -1,4 +1,4 @@
-.PHONY: help lint guard test security validate deploy clean setup
+.PHONY: help lint guard test security validate deploy clean setup check-evidence
 
 # Default target
 help: ## Show this help
@@ -37,9 +37,19 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: ## Run all tests (cfn-lint + pytest)
+test: check-evidence ## Run all tests (cfn-lint + pytest + evidence gate)
 	cfn-lint templates/*.yaml || test $$? -le 12
 	pytest tests/ shared/tests/ -v --tb=short
+
+# A claim that a vendor cannot do something, used as a design premise, with nobody
+# having asked the vendor. Its own tests run first: this gate has been wrong four times
+# so far -- a Japanese pattern that matched only the passive voice, a missing
+# `does not expose`, a stale-baseline rule that failed every single-path run, and an
+# empty ledger that blocked every commit on the day of adoption -- and a test found each
+# one. A gate never seen to fail is not evidence that it runs.
+check-evidence: ## Check evidence for claims that a vendor cannot do something
+	pytest scripts/tests/ --tb=short -q
+	python3 scripts/check_evidence_claims.py
 
 test-cov: ## Run tests with coverage report
 	pytest tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
