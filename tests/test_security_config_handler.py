@@ -125,7 +125,9 @@ class TestHandleUpdate:
 
         assert result["fpolicy_updated"] is True
         # Should enable ARP on newly added volume
-        mock_ontap_client.enable_arp.assert_called_once_with("vol-uuid-002", state="dry_run")
+        # `enabled` rather than `dry_run`: dry_run is not reachable on ARP/AI, and a
+        # default that silently means something else is worse than one that means what it says.
+        mock_ontap_client.enable_arp.assert_called_once_with("vol-uuid-002", state="enabled")
 
     @patch("security_config_handler._get_ontap_client")
     def test_update_no_new_volumes(self, mock_get_client, mock_ontap_client, base_properties):

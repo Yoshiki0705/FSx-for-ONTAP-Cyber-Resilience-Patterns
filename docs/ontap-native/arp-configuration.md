@@ -104,6 +104,11 @@ disabled | enabled | dry-run | paused | dry-run-paused | enable-paused | disable
 **同じページがパラメータの列挙で 7 値、直後の説明で 6 値を示しており、説明側だけを読むと
 `paused` が漏れる。** 実装が返しうる値として 7 値を扱う。
 
+本リポジトリのコードは `classify_arp_state()`（`solutions/shared/ontap_client.py`）で
+7 値を `protecting` / `not_protecting` / `transitional` / `unknown` に分類する。
+**列挙に無い値は `unknown` になり、`not_protecting` には落ちない。** コンプライアンス
+レポート（`solutions/compliance/compliance_collector.py`）は 4 分類を別々に数える。
+
 > **遷移中の値を「無効」と同じ表示にしない。** 列挙に無い値が `switch` の `default` に落ちると、
 > **まだ有効なボリュームを無効と表示する。** `disable_in_progress` で実際に起きた形で、
 > `paused` 系の 3 値にも同じ穴が空く。遷移中は第 3 の状態として扱う（ONTAP のトークンは動詞から
@@ -154,6 +159,11 @@ ARP 設定は CloudFormation ネイティブリソースでサポートされな
 # 3. Lambda タイムアウト: 300秒
 # 4. Create/Update/Delete ハンドラ実装
 ```
+
+Custom Resource は `ArpState` プロパティを受け取り、既定は `enabled` である。`dry_run` を
+指定できるのは旧世代 ARP のクラスタだけで、ARP/AI では要求が無言で `enabled` になる。
+**ハンドラは PATCH の後に読み直した状態を返し、要求と違えばその旨を添える** ので、
+出力の `state` を見る。`requested` は要求値であって結果ではない。
 
 > **制約**: Custom Resource が到達するのはボリュームレベルの有効化まで。
 > **旧世代 ARP でのみ**、30 日後のアクティブ移行が別の手順（9.13.1 以降は自動切替、
