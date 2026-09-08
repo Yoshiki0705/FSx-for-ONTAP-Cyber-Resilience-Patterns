@@ -96,7 +96,25 @@ SnapLock ボリュームは以下の特性がある:
 - SnapLock Compliance ボリュームの削除: 全ファイルの保持期間満了後のみ
 - SnapLock タイプの変更: 不可（作成時に決定）
 
+## 不可逆な決定の確認先 / Where the irreversible decisions are discussed
+
+SnapLock の有効化、保持モードの選択、privileged delete の永久無効化は**それぞれ別の不可逆な
+決定**である。承認の取り方、および「どのリソースがいつまで削除できなくなるか」という影響範囲の
+整理は、FSx for ONTAP Adoption Playbook のモジュールハブにある。本リポジトリは実装手順を持ち、
+Playbook が設計判断を持つ。同じ内容を両方に置かない。
+
+Enabling SnapLock, choosing the retention mode, and permanently disabling privileged delete are
+three separate irreversible decisions. How to gate them, and which resources become undeletable
+for how long, is covered in the Adoption Playbook module hubs. This repository holds the
+implementation steps; the Playbook holds the design guidance. The material is not duplicated.
+
+| モジュール / Module | 扱う範囲 / Scope |
+|---|---|
+| [データ保護 / Data Protection](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/README.md) （[EN](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/data-protection/README.md)） | Snapshot、SnapMirror、SnapLock、バックアップ、ランサムウェア対策の設計判断 |
+| [セキュリティ・ガバナンス / Security & Governance](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/README.md) （[EN](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/README.md)） | 不可逆操作の承認、監査ログ、アクセス認可の層 |
+
 ## 参照 / References
 
 - [NetApp ONTAP — SnapLock](https://docs.netapp.com/us-en/ontap/snaplock/)
 - [FSx for ONTAP — SnapLock](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/snaplock.html)
+- [Tamperproof Snapshot Configuration](tamperproof-snapshot.md)

@@ -106,6 +106,7 @@ flowchart TB
 
 | リポジトリ | 関係 |
 |-----------|------|
+| [FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook) | **本リポジトリのパターンの上に載る設計判断。** どの制御を選ぶか、何が不可逆か、承認をどう取るか。**手順はこちら、可否と理由は Playbook** |
 | [FSx for ONTAP Observability Integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) | 検知 & 応答プリミティブ（自動遮断、EMS パイプライン、検証済み復旧） |
 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) | 監査 & 復旧ワークフローで使用する S3 AP ライフサイクルパターン |
 | [FSx for ONTAP Agentic Access-Aware RAG](https://github.com/Yoshiki0705/FSx-for-ONTAP-Agentic-Access-Aware-RAG) | 本リポジトリが保護する同じデータ上でのパーミッション認識 AI/RAG |

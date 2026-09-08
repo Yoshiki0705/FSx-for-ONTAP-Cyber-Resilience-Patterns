@@ -111,6 +111,7 @@ Framework mapping: [NIST CSF 2.0 / SP 800-61 / IR 8374 (EN)](docs/en/cyber-resil
 
 | Repository | Relationship |
 |-----------|--------------|
+| [FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook) | **Design guidance built on these patterns.** Which control to choose, what is irreversible, how to get approval. This repository holds the how; the Playbook holds the whether and why |
 | [FSx for ONTAP Observability Integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) | Detection & response primitives (automated blocking, EMS pipeline, verified recovery) |
 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) | S3 AP lifecycle patterns used by audit & recovery workflows |
 | [FSx for ONTAP Agentic Access-Aware RAG](https://github.com/Yoshiki0705/FSx-for-ONTAP-Agentic-Access-Aware-RAG) | Permission-aware AI/RAG on the same data this repo protects |
