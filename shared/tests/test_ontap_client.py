@@ -148,30 +148,57 @@ class TestVolumeOperations:
 class TestArpOperations:
     """Tests for ARP (Autonomous Ransomware Protection) operations."""
 
-    def test_enable_arp_dry_run(self, client):
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.data = json.dumps({"state": "dry_run"}).encode()
+    @staticmethod
+    def _responses(client, *states):
+        """Return one mock response per state, in order.
 
-        client._http.request = MagicMock(return_value=mock_response)
-        result = client.enable_arp("vol-uuid-1")
+        Args:
+            client: Client whose transport is replaced.
+            states: ARP states the successive calls should report.
+        """
+        mocks = []
+        for state in states:
+            response = MagicMock()
+            response.status = 200
+            response.data = json.dumps({"state": state}).encode()
+            mocks.append(response)
+        client._http.request = MagicMock(side_effect=mocks)
 
-        assert result["state"] == "dry_run"
-        call_args = client._http.request.call_args
-        body = json.loads(call_args[1]["body"])
-        assert body["state"] == "dry_run"
+    def test_enable_arp_reads_the_state_back(self, client):
+        """The PATCH is followed by a GET, and the GET is what gets reported."""
+        self._responses(client, "enabled", "enabled")
 
-    def test_enable_arp_active(self, client):
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.data = json.dumps({"state": "enabled"}).encode()
+        result = client.enable_arp("vol-uuid-1", state="enabled")
 
-        client._http.request = MagicMock(return_value=mock_response)
-        client.enable_arp("vol-uuid-1", state="enabled")
-
-        call_args = client._http.request.call_args
-        body = json.loads(call_args[1]["body"])
+        assert result["state"] == "enabled"
+        assert result["requested"] == "enabled"
+        assert result["differs"] is False
+        methods = [call[0][0] for call in client._http.request.call_args_list]
+        assert methods == ["PATCH", "GET"]
+        body = json.loads(client._http.request.call_args_list[0][1]["body"])
         assert body["state"] == "enabled"
+
+    def test_a_dry_run_request_that_lands_as_enabled_is_reported_as_enabled(self, client):
+        """ARP/AI has no learning period: dry_run returns 200 and lands as enabled.
+
+        Measured 2026-08-15 on ONTAP 9.18.1P3D1. Echoing the request would report a volume
+        that is actively protecting as still learning, so the difference is surfaced.
+        """
+        self._responses(client, "dry_run", "enabled")
+
+        result = client.enable_arp("vol-uuid-1", state="dry_run")
+
+        assert result["state"] == "enabled"
+        assert result["requested"] == "dry_run"
+        assert result["differs"] is True
+
+    def test_hyphen_and_underscore_spellings_compare_equal(self, client):
+        """REST returns underscores and the CLI prints hyphens; neither is a difference."""
+        self._responses(client, "disable_in_progress", "disable-in-progress")
+
+        result = client.enable_arp("vol-uuid-1", state="disable_in_progress")
+
+        assert result["differs"] is False
 
     def test_get_arp_status(self, client):
         mock_response = MagicMock()

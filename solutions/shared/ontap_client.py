@@ -30,6 +30,60 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
+#: ARP volume states, grouped by what they mean for protection.
+#:
+#: Seven values, not six. The CLI reference enumerates seven in the parameter list and
+#: then describes six in the prose below it, dropping ``paused``; reading only the prose
+#: leaves a value that reaches production and matches nothing. A value missing from a
+#: mapping falls through to whatever the default branch says, and when that branch reads
+#: "not protected" a volume that is still protected gets reported as unprotected. That
+#: failure is silent -- nothing raises -- so a test that never supplies the value passes.
+#:
+#: REST returns underscores (``disable_in_progress``) and the CLI prints hyphens
+#: (``disable-in-progress``); the tokens come from the verb, so it is ``disable_``, never
+#: ``disabled_``. Normalize before comparing.
+ARP_PROTECTING = frozenset({"enabled", "dry_run"})
+ARP_NOT_PROTECTING = frozenset({"disabled", "paused", "dry_run_paused", "enable_paused"})
+#: Still protecting, on the way out. Discarding the learned state took more than 10
+#: minutes on a 20 GiB empty volume, so this is a state operators will observe.
+ARP_TRANSITIONAL = frozenset({"disable_in_progress"})
+
+
+def _normalize_arp_state(state: Any) -> str:
+    """Reduce an ARP state to a comparable token.
+
+    Args:
+        state: Value from REST or the CLI, in either spelling.
+
+    Returns:
+        The lowercase underscore form, or an empty string when absent.
+    """
+    if not isinstance(state, str):
+        return ""
+    return state.strip().lower().replace("-", "_")
+
+
+def classify_arp_state(state: Any) -> str:
+    """Say what an ARP state means for protection.
+
+    Args:
+        state: Value from REST or the CLI, in either spelling.
+
+    Returns:
+        ``protecting``, ``not_protecting``, ``transitional`` or ``unknown``. An
+        unrecognised value is ``unknown`` and never silently ``not_protecting``: the
+        caller has to decide what to do with a value this code has not seen, rather than
+        inheriting an answer from a default branch.
+    """
+    token = _normalize_arp_state(state)
+    if token in ARP_PROTECTING:
+        return "protecting"
+    if token in ARP_NOT_PROTECTING:
+        return "not_protecting"
+    if token in ARP_TRANSITIONAL:
+        return "transitional"
+    return "unknown"
+
 
 @dataclass
 class OntapApiError(Exception):
@@ -258,21 +312,41 @@ class OntapClient:
     # ARP operations
     # ------------------------------------------------------------------
 
-    def enable_arp(self, volume_uuid: str, state: str = "dry_run") -> dict[str, Any]:
+    def enable_arp(self, volume_uuid: str, state: str = "enabled") -> dict[str, Any]:
         """Enable Autonomous Ransomware Protection on a volume.
+
+        **The requested state is not the resulting state.** On ARP/AI (ONTAP 9.16.1 and
+        later) there is no learning period, so a request for ``dry_run`` returns 200 and
+        the volume lands in ``enabled`` with neither a warning nor an error (measured
+        2026-08-15 on ONTAP 9.18.1P3D1). Returning the request would report a volume as
+        learning while it is actively protecting, so this reads the state back and says
+        whether the two differ. Callers must report ``state``, never the value they asked
+        for.
+
+        The default is ``enabled`` rather than ``dry_run`` because ``dry_run`` is not
+        reachable on the current model, and a default that silently means something else
+        is worse than one that means what it says.
 
         Args:
             volume_uuid: Target volume UUID.
-            state: ARP state - 'dry_run' (learning) or 'enabled' (active).
+            state: Requested ARP state. ``enabled`` for active protection; ``dry_run``
+                only on the original ARP model (ONTAP 9.10.1 to 9.15.1, and FlexGroup
+                through 9.17.1).
 
         Returns:
-            Updated ARP configuration.
+            The ARP configuration as read back, plus ``requested`` (what was asked for)
+            and ``differs`` (whether ONTAP landed somewhere else).
         """
-        return self._request(
+        self._request(
             "PATCH",
             f"/security/anti-ransomware/volumes/{volume_uuid}",
             body={"state": state},
         )
+        actual = self.get_arp_status(volume_uuid)
+        result = dict(actual)
+        result["requested"] = state
+        result["differs"] = _normalize_arp_state(actual.get("state")) != _normalize_arp_state(state)
+        return result
 
     def get_arp_status(self, volume_uuid: str) -> dict[str, Any]:
         """Get ARP status for a volume."""

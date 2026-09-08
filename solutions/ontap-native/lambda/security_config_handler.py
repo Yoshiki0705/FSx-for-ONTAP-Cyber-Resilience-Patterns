@@ -75,7 +75,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def _handle_create(properties: dict[str, Any]) -> dict[str, Any]:
-    """Handle Create: Enable ARP (learning) and configure FPolicy.
+    """Handle Create: Enable ARP and configure FPolicy.
 
     Args:
         properties: Custom Resource properties.
@@ -87,6 +87,7 @@ def _handle_create(properties: dict[str, Any]) -> dict[str, Any]:
     svm_uuid = properties["SvmUuid"]
     volume_uuids = properties.get("VolumeUuids", [])
     fpolicy_config = properties.get("FPolicyConfig", {})
+    arp_state = properties.get("ArpState", "enabled")
 
     results: dict[str, Any] = {
         "arp_volumes": [],
@@ -94,12 +95,22 @@ def _handle_create(properties: dict[str, Any]) -> dict[str, Any]:
         "mav_configured": False,
     }
 
-    # Step 1: Enable ARP in learning mode on specified volumes
+    # Step 1: Enable ARP on the specified volumes. ARP lands in the state ONTAP
+    # chooses, not the one requested: on ARP/AI (9.16.1+) dry_run is not reachable.
     for vol_uuid in volume_uuids:
         try:
-            client.enable_arp(vol_uuid, state="dry_run")
-            results["arp_volumes"].append({"uuid": vol_uuid, "state": "dry_run"})
-            logger.info(f"ARP enabled (learning) on volume {vol_uuid}")
+            arp = client.enable_arp(vol_uuid, state=arp_state)
+            landed = arp.get("state", "unknown")
+            entry = {"uuid": vol_uuid, "state": landed, "requested": arp_state}
+            if arp.get("differs"):
+                # Reporting the request would describe an actively protecting volume
+                # as learning, which is the difference an operator acts on.
+                entry["note"] = "ONTAP landed in a state other than the one requested"
+                logger.warning(
+                    f"ARP on volume {vol_uuid}: requested {arp_state}, landed {landed}"
+                )
+            results["arp_volumes"].append(entry)
+            logger.info(f"ARP on volume {vol_uuid} is {landed}")
         except Exception as e:
             logger.warning(f"Failed to enable ARP on volume {vol_uuid}: {e}")
             results["arp_volumes"].append({"uuid": vol_uuid, "error": str(e)})
@@ -124,14 +135,16 @@ def _handle_update(
     properties: dict[str, Any],
     old_properties: dict[str, Any],
 ) -> dict[str, Any]:
-    """Handle Update: Reconfigure FPolicy settings.
+    """Handle Update: Reconfigure FPolicy, and enable ARP on volumes that were added.
 
-    ARP state changes (learning → active) require manual trigger or
-    separate Step Functions workflow after 30+ days.
+    On the original ARP model (ONTAP 9.10.1 to 9.15.1, and FlexGroup through 9.17.1) a
+    volume enabled here begins learning, and reaching active mode is a later step. On
+    ARP/AI it protects immediately and there is no later step.
     """
     client = _get_ontap_client(properties)
     svm_uuid = properties["SvmUuid"]
     fpolicy_config = properties.get("FPolicyConfig", {})
+    arp_state = properties.get("ArpState", "enabled")
 
     results: dict[str, Any] = {"fpolicy_updated": False}
 
@@ -147,8 +160,8 @@ def _handle_update(
 
     for vol_uuid in added_volumes:
         try:
-            client.enable_arp(vol_uuid, state="dry_run")
-            logger.info(f"ARP enabled (learning) on new volume {vol_uuid}")
+            arp = client.enable_arp(vol_uuid, state=arp_state)
+            logger.info(f"ARP on new volume {vol_uuid} is {arp.get('state', 'unknown')}")
         except Exception as e:
             logger.warning(f"Failed to enable ARP on new volume {vol_uuid}: {e}")
 

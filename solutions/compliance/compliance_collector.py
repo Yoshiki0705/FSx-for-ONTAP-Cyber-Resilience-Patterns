@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -53,7 +54,7 @@ CONTROLS = [
         "id": "CR-ARP-001",
         "name": "ARP enabled on production volumes",
         "check": "_check_arp_status",
-        "expected": "enabled or dry_run",
+        "expected": "every volume protecting (enabled or dry_run)",
         "soc2": "CC6.1",
         "iso27001": "A.12.4",
     },
@@ -152,19 +153,51 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def _check_arp_status(client: Any) -> tuple[str, bool, dict]:
-    """Check ARP status across all volumes."""
+    """Check ARP status across all volumes.
+
+    ARP has seven states. Testing membership of the two that mean "protected" and
+    treating everything else as unprotected loses the distinction that matters to whoever
+    reads the report: a volume mid-transition is still protected, a paused volume is not,
+    and a state this code has not seen is neither. Each is counted separately, and an
+    unrecognised value is reported as such rather than folded into a count of failures.
+
+    Args:
+        client: ONTAP client.
+
+    Returns:
+        The rendered count, whether every volume is protecting, and the per-volume detail
+        including its classification.
+    """
+    # Deferred, and from the flat module name: the Lambda package puts ontap_client at
+    # the top level, so a `shared.` prefix resolves in the repository and fails once
+    # deployed. The existing collector imports OntapClient the same way.
+    from ontap_client import classify_arp_state
+
     volumes = client.list_volumes()
     arp_states = []
     for vol in volumes:
         try:
             status = client.get_arp_status(vol["uuid"])
-            arp_states.append({"volume": vol["name"], "state": status.get("state", "unknown")})
+            raw = status.get("state", "unknown")
+            arp_states.append(
+                {"volume": vol["name"], "state": raw, "classification": classify_arp_state(raw)}
+            )
         except Exception:
-            arp_states.append({"volume": vol["name"], "state": "unavailable"})
+            arp_states.append(
+                {"volume": vol["name"], "state": "unavailable", "classification": "unknown"}
+            )
 
-    all_protected = all(s["state"] in ("enabled", "dry_run") for s in arp_states)
-    actual = f"{sum(1 for s in arp_states if s['state'] in ('enabled', 'dry_run'))}/{len(arp_states)} protected"
-    return actual, all_protected, {"volumes": arp_states}
+    counts = Counter(s["classification"] for s in arp_states)
+    protecting = counts["protecting"]
+    total = len(arp_states)
+    all_protected = total > 0 and protecting == total
+
+    actual = f"{protecting}/{total} protecting"
+    for label in ("transitional", "not_protecting", "unknown"):
+        if counts[label]:
+            actual += f", {counts[label]} {label.replace('_', ' ')}"
+
+    return actual, all_protected, {"volumes": arp_states, "counts": dict(counts)}
 
 
 def _check_fpolicy_status(client: Any) -> tuple[str, bool, dict]:

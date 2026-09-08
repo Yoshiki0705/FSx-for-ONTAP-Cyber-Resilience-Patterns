@@ -86,48 +86,83 @@ def _transition_arp(
     table: Any,
     sns: Any,
 ) -> None:
-    """Transition a volume's ARP from dry_run to enabled.
+    """Move a volume's ARP to active, if it is not already there.
+
+    Reads the volume's actual state first. Two reasons, both observed rather than
+    supposed:
+
+    - **The volume may already be active.** ARP/AI (ONTAP 9.16.1 and later) has no
+      learning period, and a request for ``dry_run`` lands as ``enabled`` with no warning.
+      A tracker row saying ``dry_run`` then describes a volume that has been protecting
+      since the day it was registered, and announcing a transition after 30 days would
+      report an event that did not happen.
+    - **The notification used to precede the work.** It claimed the transition before
+      calling ONTAP, so a failed call still produced a message saying protection was now
+      active. The notification now follows the state that was read back.
 
     Args:
         volume_uuid: Target volume UUID.
         table: DynamoDB table resource.
         sns: SNS client.
     """
-    # Notify before transition
-    sns.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Subject=f"ARP Transition: Volume {volume_uuid[:8]}... ready for active mode",
-        Message=json.dumps(
-            {
-                "action": "arp_transition",
-                "volume_uuid": volume_uuid,
-                "from_state": "dry_run",
-                "to_state": "enabled",
-                "message": "Learning period complete. Transitioning to active protection.",
-            }
-        ),
-    )
 
-    # Perform transition via ONTAP REST API
     from ontap_client import OntapClient
 
     client = OntapClient(
         management_endpoint=MANAGEMENT_ENDPOINT,
         secret_arn=FSX_SECRET_ARN,
     )
-    client.enable_arp(volume_uuid, state="enabled")
 
-    # Update DynamoDB state
+    before = client.get_arp_status(volume_uuid).get("state", "unknown")
+    already_active = before.replace("-", "_").lower() == "enabled"
+
+    if already_active:
+        logger.info(f"Volume {volume_uuid} is already enabled; no transition to perform")
+        landed = before
+    else:
+        landed = client.enable_arp(volume_uuid, state="enabled").get("state", "unknown")
+
+    # The tracker records what was read back, so a row never claims a state ONTAP did not
+    # report.
     table.update_item(
         Key={"volume_uuid": volume_uuid},
-        UpdateExpression="SET current_state = :state, transition_date = :date",
+        UpdateExpression=(
+            "SET current_state = :state, transition_date = :date, "
+            "state_before_transition = :before"
+        ),
         ExpressionAttributeValues={
-            ":state": "enabled",
+            ":state": landed,
             ":date": datetime.now(timezone.utc).isoformat(),
+            ":before": before,
         },
     )
 
-    logger.info(f"ARP transitioned to enabled for volume {volume_uuid}")
+    if already_active:
+        subject = f"ARP: Volume {volume_uuid[:8]}... was already active"
+        message = (
+            "No transition was needed. The volume was already enabled, which is expected "
+            "on ARP/AI (ONTAP 9.16.1 and later), where there is no learning period."
+        )
+    else:
+        subject = f"ARP: Volume {volume_uuid[:8]}... moved to active protection"
+        message = "Learning period complete. ARP is now in the state reported below."
+
+    sns.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Subject=subject,
+        Message=json.dumps(
+            {
+                "action": "arp_transition",
+                "volume_uuid": volume_uuid,
+                "from_state": before,
+                "to_state": landed,
+                "transition_performed": not already_active,
+                "message": message,
+            }
+        ),
+    )
+
+    logger.info(f"ARP state for volume {volume_uuid}: {before} -> {landed}")
 
 
 def register_volume(

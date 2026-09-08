@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Patch env vars before importing module
 os.environ["STATE_TABLE_NAME"] = "test-arp-state"
@@ -110,26 +113,73 @@ class TestArpLifecycleHandler:
 class TestTransitionArp:
     """Tests for the ARP state transition function."""
 
-    @patch("ontap_client.OntapClient")
-    def test_transition_calls_ontap_and_updates_dynamo(self, mock_client_class):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
+    @staticmethod
+    def _run(mock_client_class, before, landed):
+        """Drive one transition with a given observed state.
 
-        mock_table = MagicMock()
-        mock_sns = MagicMock()
+        Args:
+            mock_client_class: Patched OntapClient class.
+            before: State the volume reports before the call.
+            landed: State reported after enable_arp, when it is called.
+
+        Returns:
+            The client, table and SNS mocks.
+        """
+        client = MagicMock()
+        client.get_arp_status.return_value = {"state": before}
+        client.enable_arp.return_value = {"state": landed}
+        mock_client_class.return_value = client
+        table, sns = MagicMock(), MagicMock()
 
         with patch("arp_lifecycle.MANAGEMENT_ENDPOINT", "test.endpoint"):
             with patch("arp_lifecycle.FSX_SECRET_ARN", "test-secret"):
-                arp_lifecycle._transition_arp("vol-001", mock_table, mock_sns)
+                arp_lifecycle._transition_arp("vol-001", table, sns)
+        return client, table, sns
 
-        # SNS notification sent
-        mock_sns.publish.assert_called_once()
-        assert "vol-001" in mock_sns.publish.call_args[1]["Subject"]
+    @patch("ontap_client.OntapClient")
+    def test_transition_calls_ontap_and_records_the_state_read_back(self, mock_client_class):
+        client, table, sns = self._run(mock_client_class, before="dry_run", landed="enabled")
 
-        # ONTAP API called
-        mock_client.enable_arp.assert_called_once_with("vol-001", state="enabled")
+        client.enable_arp.assert_called_once_with("vol-001", state="enabled")
 
-        # DynamoDB updated
-        mock_table.update_item.assert_called_once()
-        update_args = mock_table.update_item.call_args[1]
-        assert update_args["ExpressionAttributeValues"][":state"] == "enabled"
+        payload = json.loads(sns.publish.call_args[1]["Message"])
+        assert payload["from_state"] == "dry_run"
+        assert payload["to_state"] == "enabled"
+        assert payload["transition_performed"] is True
+        assert "vol-001" in sns.publish.call_args[1]["Subject"]
+
+        values = table.update_item.call_args[1]["ExpressionAttributeValues"]
+        assert values[":state"] == "enabled"
+        assert values[":before"] == "dry_run"
+
+    @patch("ontap_client.OntapClient")
+    def test_a_volume_already_enabled_is_not_transitioned(self, mock_client_class):
+        """On ARP/AI the volume is active from the day it was registered.
+
+        Announcing a transition then reports an event that did not happen.
+        """
+        client, table, sns = self._run(mock_client_class, before="enabled", landed="enabled")
+
+        client.enable_arp.assert_not_called()
+
+        payload = json.loads(sns.publish.call_args[1]["Message"])
+        assert payload["transition_performed"] is False
+        assert payload["from_state"] == "enabled"
+        assert "already active" in sns.publish.call_args[1]["Subject"]
+
+    @patch("ontap_client.OntapClient")
+    def test_the_notification_follows_the_call(self, mock_client_class):
+        """A failed enable must not produce a message saying protection is now active."""
+        client = MagicMock()
+        client.get_arp_status.return_value = {"state": "dry_run"}
+        client.enable_arp.side_effect = RuntimeError("ONTAP unreachable")
+        mock_client_class.return_value = client
+        table, sns = MagicMock(), MagicMock()
+
+        with patch("arp_lifecycle.MANAGEMENT_ENDPOINT", "test.endpoint"):
+            with patch("arp_lifecycle.FSX_SECRET_ARN", "test-secret"):
+                with pytest.raises(RuntimeError):
+                    arp_lifecycle._transition_arp("vol-001", table, sns)
+
+        sns.publish.assert_not_called()
+        table.update_item.assert_not_called()
