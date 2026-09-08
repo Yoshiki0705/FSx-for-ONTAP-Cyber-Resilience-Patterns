@@ -374,7 +374,7 @@ echo "All resources deleted."
 | 2 | NAT Gateway | 不要 (scanners なし) | **必須** (署名更新) |
 | 3 | Scanner HA (ASG) | 1 instance | **2+ instances (Multi-AZ)** |
 | 4 | ARP mode | dry_run (学習) | **enabled** (30日後) |
-| 5 | FPolicy is_mandatory | false | 要件に応じて選択 |
+| 5 | FPolicy is_mandatory | false | 要件に応じて選択。**`true` にしても S3 Access Point 経由の操作は遮断されない**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。AP 経由の経路に強制境界を置くならアクセスポイントポリシーと IAM で表現する |
 | 6 | Lambda concurrency | デフォルト | **Reserved 設定済み** |
 | 7 | KMS CMK | aws/ebs default | **専用 CMK 推奨** |
 | 8 | VPC Flow Logs | ✅ | ✅ |

@@ -5,7 +5,11 @@
 FPolicy はファイルアクセスイベント（create, open, write, rename, delete）を外部サーバーへ通知し、
 リアルタイムでのスキャン判定やイベント駆動ワークフローのトリガーとして機能する。
 
-FPolicy notifies external servers of file access events and can block or allow operations
+FPolicy notifies external servers of file access events and can block or allow operations.
+**Scope: NFS and SMB only.** An FPolicy event accepts `cifs`, `nfsv3` or `nfsv4` as its
+protocol; there is no value for the S3 access path. Operations arriving through an FSx for
+ONTAP S3 access point raise no notification and are not blocked even by a `mandatory`
+synchronous policy (measured 2026-08-26, ONTAP 9.18.1P3D1). ARP does cover that path
 based on external verdict — enabling real-time file scanning and event-driven security workflows.
 
 ## モード設計 / Mode Design
@@ -206,7 +210,7 @@ vserver fpolicy policy scope modify \
 
 - FPolicy の作成・変更・削除: 可能
 - FPolicy ステータス確認: 可能
-- FPolicy passthrough-read: 設定可能（S3 AP 関連）
+- FPolicy passthrough-read: 設定可能。**S3 Access Point 経由の操作の監視には関係しない**（AP 経由の操作は FPolicy に通知されない。実測 2026-08-26）
 - cluster-level FPolicy 設定: 不可（SVM レベルのみ）
 
 ## 参照 / References

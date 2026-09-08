@@ -11,7 +11,7 @@
 | **Govern（統制）** | ⚠️ | CloudFormation-as-code 監査証跡、cfn-guard コンプライアンスルール、`solutions/compliance/` 証跡収集 | CloudWatch Logs + SNS 通知証跡 | リスク戦略、役割、取締役会レベルの監督は組織的決定；ツーリングは証跡アーティファクトのみ提供 |
 | **Identify（識別）** | ✅ | データ分類マトリクス（`docs/`）、CFn によるアセットタギング | コンテンツレベル PII スキャナー（Amazon Comprehend）、スキーマレベルフィールド分類 | テキスト/構造化データはカバー済み；Office/PDF 抽出は未実装 |
 | **Protect（保護）** | ✅ | SnapLock（WORM）、MAV（マルチ管理者検証）、TrendAI インラインスキャン、Deep Instinct AI 防御、export-policy/name-mapping 強化、KMS 暗号化 | ONTAP Snapshot、export-policy、Tamperproof Snapshot | ストレージ層の保護策は完全 |
-| **Detect（検知）** | ✅ | ARP/AI 設定（`solutions/ontap-native/`）、FPolicy イベントキャプチャ、CloudWatch アラーム（`templates/observability.yaml`） | EMS Webhook パイプライン（~30秒）、CloudWatch Log Alarm（~90秒）、FPolicy 外部サーバー | 行動 ML ベースラインは SIEM（Datadog/Elastic/Splunk ML）に委任 |
+| **Detect（検知）** | ✅ | ARP/AI 設定（`solutions/ontap-native/`。**S3 Access Point 経由の書き込みも検知する**。実測 2026-08-26）、FPolicy イベントキャプチャ（**NFS / SMB のみ**）、CloudWatch アラーム（`templates/observability.yaml`） | EMS Webhook パイプライン（~30秒）、CloudWatch Log Alarm（~90秒）、FPolicy 外部サーバー | 行動 ML ベースラインは SIEM（Datadog/Elastic/Splunk ML）に委任 |
 | **Respond（対応）** | ✅ | Step Functions オーケストレーション（隔離、承認ワークフロー）、Security Hub 連携 | Lambda 直接ブロック（1.8秒実測、コールドスタート込みで +10-15秒）：name-mapping deny + export-policy deny + NACL deny + セッション切断 + 保護 Snapshot、フォレンジクスダッシュボード（4 SIEM） | ソース非依存の緩和ツーリングとして完全（SNS 経由）。注: SMB name-mapping deny は NTFS セキュリティスタイルのボリュームでは無効 |
 | **Recover（復旧）** | ⚠️ | SnapMirror ラグ監視（`templates/dr-replication.yaml`）、DR レプリケーションパターン | 検証済みクリーン復旧ポイント（FlexClone + 拡張子スキャン + 判定）、TTL 自動ブロック解除 | 完全なリストアリハーサルは AWS Backup restore testing を推奨；RC.CO（ステークホルダーコミュニケーション）は最小限 |
 
@@ -61,7 +61,7 @@
 |------------------|----|--------------------|
 | Data Encrypted for Impact | T1486 | ARP/AI 検知 → 自動ブロック（name-mapping deny + export-policy deny + NACL deny） |
 | Inhibit System Recovery | T1490 | SnapLock（削除不可）+ Tamperproof Snapshot（管理者権限でも改竄不可） |
-| Data Destruction | T1485 | FPolicy によるファイル操作リアルタイム検知 → EventBridge → Step Functions 隔離 |
+| Data Destruction | T1485 | FPolicy によるファイル操作リアルタイム検知 → EventBridge → Step Functions 隔離。**検知範囲は NFS / SMB のみ。S3 Access Point 経由の書き込みは FPolicy に届かない**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。AP 経由の経路は ARP が検知する |
 | Account Manipulation | T1098 | Multi-Admin Verification（MAV）— 重要な管理操作に複数管理者の承認を要求 |
 | Valid Accounts | T1078 | 監査ログパイプライン（全アクセスのトレーサビリティ）+ CloudWatch Log Alarm — 検知/可視性コントロール（防止ではない） |
 
@@ -81,7 +81,7 @@
 | **Control 3**: データ保護 | KMS 暗号化、SnapLock WORM、Tamperproof Snapshot |
 | **Control 8**: 監査ログ管理 | S3 AP 監査パイプライン（365 日保持）、CloudWatch Logs |
 | **Control 11**: データリカバリ | Snapshot + SnapMirror + 検証済み復旧ポイント |
-| **Control 13**: ネットワーク監視 | FPolicy + CloudWatch + VPC Flow Logs |
+| **Control 13**: ネットワーク監視 | FPolicy（NFS / SMB のみ）+ CloudWatch + VPC Flow Logs |
 | **Control 17**: インシデント対応管理 | 自動ブロック + Step Functions オーケストレーション + DLQ アラーム |
 
 ## ガバナンス報告ガイダンス
@@ -119,7 +119,7 @@
 - **誤検知ハンドリング**: 自動ブロックには誤検知のリスクが内在する。TTL 自動ブロック解除コンパニオンスタックがロックアウト期間を制限する。必ず非本番ユーザーで事前テストし、レスポンスパイプラインに接続する前に上流の検知ルールをチューニングすること。
 - **影響範囲（ブラストレディウス）**: SMB name-mapping deny と NFS export-policy deny はいずれも **SVM 全体** に影響する — ターゲット SVM 内の全ボリュームと共有が対象。マルチテナント SVM 設計ではこれを考慮すること。
 - **同一サブネット NACL 制限**: NACL deny ルールはサブネット境界を越えるトラフィックにのみ適用される。攻撃者のクライアントと FSx for ONTAP ENI が同一サブネットにある場合、NACL は無効 — export-policy deny（ONTAP レイヤー）のみが有効なブロックメカニズムとなる。
-- **データ窃取のギャップ**: ARP/AI はファイル暗号化（エントロピー + 拡張子変更）を検知するが、暗号化を伴わないデータ窃取（二重恐喝におけるデータ持ち出しのみ）は検知しない。FPolicy ベースのボリューム監視と SIEM 行動分析がこのギャップを部分的にカバーする。
+- **データ窃取のギャップ**: ARP/AI はファイル暗号化（エントロピー + 拡張子変更）を検知するが、暗号化を伴わないデータ窃取（二重恐喝におけるデータ持ち出しのみ）は検知しない。**さらに FPolicy による補完は NFS / SMB 経路に限られる**（S3 Access Point 経由の読み取りは FPolicy に届かない。実測 2026-08-26）。AP 経由の読み取りを追うなら ONTAP ネイティブ監査ログ（`Source=HTTP` / `Source=S3`）になるが、要求者は記録されない。FPolicy ベースのボリューム監視と SIEM 行動分析がこのギャップを部分的にカバーする。
 - **Domain Admin バイパス**: `FileSystemAdministratorsGroup` のメンバー（通常 Domain Admins）は name-mapping deny ルールを完全にバイパスする。必ず非管理者ユーザーでテストすること。
 - **レスポンスログ内の個人データ**: 自動レスポンスログ（CloudWatch Logs、SNS メッセージ）にはユーザー名、ドメイン、クライアント IP などの個人データが含まれる。データ保護要件に応じたアクセス制御と保持ポリシーを適用すること。
 - **証跡の改竄耐性**: イミュータブル保持モードの CloudWatch Logs は、レスポンス監査証跡の改竄耐性のあるストレージを提供し、chain of custody 要件をサポートする。

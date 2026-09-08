@@ -95,7 +95,7 @@ FSx for ONTAP に組み込まれたセキュリティ機能。追加コンポー
 | Component | 機能 / Function | 防御フェーズ / Phase |
 |-----------|----------------|---------------------|
 | **ARP** (Autonomous Ransomware Protection) | ファイル操作パターンの異常検知、自動 Snapshot 作成 | 検知 (Detect) |
-| **FPolicy** | ファイルアクセスイベントの監視・通知・ブロック | 検知・防御 (Detect / Protect) |
+| **FPolicy** | ファイルアクセスイベントの監視・通知・ブロック。**対象は NFS / SMB のみ。S3 Access Point 経由の操作は通知されず、`mandatory` 指定でも遮断されない**（実測 2026-08-26 / ONTAP 9.18.1P3D1） | 検知・防御 (Detect / Protect)、ただし NFS / SMB 経路のみ |
 | **SnapLock** | WORM によるデータ不変性（Compliance / Enterprise） | 防御 (Protect) |
 | **Tamperproof Snapshot** | 管理者でも削除不可能な Snapshot | 防御 (Protect) |
 | **Multi-Admin Verification** | 破壊的操作の多者承認 | 防御 (Protect) |
@@ -185,7 +185,7 @@ sequenceDiagram
     FSx->>FPolicy: Notify file event
     FPolicy->>Scanner: Scan request
     Scanner-->>FPolicy: MALICIOUS
-    FPolicy-->>FSx: Block write
+    FPolicy-->>FSx: Block write (NFS / SMB only)
     FSx-->>Client: Access denied
 
     FPolicy->>SQS: Security event
@@ -330,8 +330,8 @@ graph TD
 |------------------------|-------------------------------------------|
 | **Govern** | データ分類、ポリシー定義、MAV による変更管理、役割分離 |
 | **Identify** | 資産管理 (SVM/Volume/Share 単位), データ分類レベル定義 |
-| **Protect** | FPolicy ブロック, SnapLock, Tamperproof Snapshot, MAV, File Scanning, Export Policy |
-| **Detect** | ARP 異常検知, FPolicy 監視, File Scanning verdict, CloudWatch Alarms |
+| **Protect** | FPolicy ブロック（**NFS / SMB のみ**。S3 Access Point 経由は遮断されない）, SnapLock, Tamperproof Snapshot, MAV, File Scanning, Export Policy |
+| **Detect** | ARP 異常検知（S3 Access Point 経由の書き込みも検知する。実測）, FPolicy 監視（**NFS / SMB のみ**）, File Scanning verdict, CloudWatch Alarms |
 | **Respond** | Step Functions 自動隔離, 通知, フォレンジック, Human-in-the-loop 承認 |
 | **Recover** | ARP Snapshot 復元, SnapMirror DR, FlexClone 検証環境, ランブック |
 

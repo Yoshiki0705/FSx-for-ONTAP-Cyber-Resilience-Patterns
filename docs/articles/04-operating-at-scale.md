@@ -133,7 +133,7 @@ Reports stored in S3 with Object Lock (COMPLIANCE mode, 365-day retention).
 ## Lessons Learned
 
 1. **Start ARP in learning mode** — production traffic patterns vary; false positives without learning are disruptive
-2. **FPolicy `is_mandatory: false`** — availability over security for most workloads; compensate with monitoring
+2. **FPolicy `is_mandatory: false`** — availability over security for most workloads; compensate with monitoring. Note that `true` would not close the S3 access point path either: operations arriving that way are not notified to FPolicy and are not blocked (measured 2026-08-26, ONTAP 9.18.1P3D1). ARP does see that path
 3. **Lambda packaging matters** — content-hash-based idempotent packaging saves deployment time and avoids unnecessary updates
 4. **Test the quarantine workflow** — send synthetic malware events; verify the full flow before you need it in production
 5. **Monitor DLQ** — events in the DLQ mean your pipeline has gaps; alarm at ≥1

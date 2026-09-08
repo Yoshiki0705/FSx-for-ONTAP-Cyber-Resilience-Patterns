@@ -69,5 +69,5 @@ aws autoscaling start-instance-refresh \
 | Condition | Escalate to |
 |-----------|-------------|
 | 30分以上全スキャナー不可 | Security lead + Storage lead |
-| FPolicy mandatory モードで I/O ブロック中 | Immediate: Storage lead |
+| FPolicy mandatory モードで I/O ブロック中（**NFS / SMB のみ。S3 Access Point 経由の I/O はブロックされず通り続ける**） | Immediate: Storage lead |
 | AMI/Launch Template 問題 | DevOps lead |

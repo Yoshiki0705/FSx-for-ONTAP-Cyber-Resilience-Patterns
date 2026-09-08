@@ -11,7 +11,7 @@ This repository is designed against [NIST Cybersecurity Framework (CSF) 2.0](htt
 | **Govern (GV)** | ⚠️ | CloudFormation-as-code audit trail, cfn-guard compliance rules, `solutions/compliance/` evidence collection | CloudWatch Logs + SNS notification trails | Risk strategy, roles, board oversight remain organizational decisions; tooling provides evidence artifacts only |
 | **Identify (ID)** | ✅ | Data classification matrix (`docs/`), asset tagging via CFn | Content-level PII scanner (Amazon Comprehend), schema-level field classification | Text/structured-data covered; Office/PDF extraction not yet implemented |
 | **Protect (PR)** | ✅ | SnapLock (WORM), MAV (multi-admin verification), TrendAI inline scan, Deep Instinct AI prevention, export-policy/name-mapping hardening, KMS encryption | ONTAP Snapshot, export-policy, Tamperproof Snapshot | Full for storage-layer safeguards |
-| **Detect (DE)** | ✅ | ARP/AI configuration (`solutions/ontap-native/`), FPolicy event capture, CloudWatch alarms (`templates/observability.yaml`) | EMS webhook pipeline (~30s), CloudWatch Log Alarm (~90s), FPolicy external server | Behavioral ML baseline delegated to SIEM (Datadog/Elastic/Splunk ML) |
+| **Detect (DE)** | ✅ | ARP/AI configuration (`solutions/ontap-native/`; **also detects writes through an S3 access point**, measured 2026-08-26), FPolicy event capture (**NFS / SMB only**), CloudWatch alarms (`templates/observability.yaml`) | EMS webhook pipeline (~30s), CloudWatch Log Alarm (~90s), FPolicy external server | Behavioral ML baseline delegated to SIEM (Datadog/Elastic/Splunk ML) |
 | **Respond (RS)** | ✅ | Step Functions orchestration (quarantine, approval workflows), Security Hub integration | Lambda direct blocking (1.8s measured execution; +10-15s for cold start): name-mapping deny + export-policy deny + NACL deny + session disconnect + protective Snapshot, forensics dashboards (4 SIEMs) | Full for mitigation tooling (source-agnostic via SNS). Note: SMB name-mapping deny is ineffective on NTFS security-style volumes |
 | **Recover (RC)** | ⚠️ | SnapMirror lag monitoring (`templates/dr-replication.yaml`), DR replication patterns | Verified-clean recovery point (FlexClone + extension scan + verdict), TTL auto-unblock | Full restore rehearsal recommended via AWS Backup restore testing; RC.CO (stakeholder communication) is minimal |
 
@@ -63,7 +63,7 @@ The project maps to SP 800-61's incident handling phases as follows:
 |------------------|----|--------------------|
 | Data Encrypted for Impact | T1486 | ARP/AI detection → automated blocking (name-mapping deny + export-policy deny + NACL deny) |
 | Inhibit System Recovery | T1490 | SnapLock (undeletable) + Tamperproof Snapshot (even admin cannot tamper) |
-| Data Destruction | T1485 | FPolicy real-time file operation detection → EventBridge → Step Functions quarantine |
+| Data Destruction | T1485 | FPolicy real-time file operation detection → EventBridge → Step Functions quarantine. **Coverage is NFS / SMB only — writes arriving through an S3 access point do not reach FPolicy** (measured 2026-08-26, ONTAP 9.18.1P3D1). ARP covers that path |
 | Account Manipulation | T1098 | Multi-Admin Verification (MAV) — critical admin operations require multi-admin approval |
 | Valid Accounts | T1078 | Audit log pipeline (full access traceability) + CloudWatch Log Alarm — detection/visibility control, not prevention |
 
@@ -83,7 +83,7 @@ The project maps to SP 800-61's incident handling phases as follows:
 | **Control 3**: Data Protection | KMS encryption, SnapLock WORM, Tamperproof Snapshot |
 | **Control 8**: Audit Log Management | S3 AP audit pipeline (365-day retention), CloudWatch Logs |
 | **Control 11**: Data Recovery | Snapshot + SnapMirror + verified recovery point |
-| **Control 13**: Network Monitoring | FPolicy + CloudWatch + VPC Flow Logs |
+| **Control 13**: Network Monitoring | FPolicy (NFS / SMB only) + CloudWatch + VPC Flow Logs |
 | **Control 17**: Incident Response Management | Automated blocking + Step Functions orchestration + DLQ alarm |
 
 ## Governance Reporting Guidance
@@ -121,7 +121,7 @@ Key caveats identified through multi-stakeholder review:
 - **False-positive handling**: Automated blocking carries inherent false-positive risk. The TTL auto-unblock companion stack limits lockout duration. Always test with non-production users first.
 - **Blast radius**: Both SMB name-mapping deny and NFS export-policy deny are **SVM-wide** — they affect all volumes and shares within the target SVM. Factor this into multi-tenant SVM designs.
 - **Same-subnet NACL limitation**: NACL deny rules only apply to traffic crossing subnet boundaries. If attacker client and FSx for ONTAP ENIs are in the same subnet, only the export-policy deny is effective.
-- **Data exfiltration gap**: ARP/AI detects file encryption but not data exfiltration without encryption (pure data theft). FPolicy-based monitoring and SIEM behavioral analytics cover this gap partially.
+- **Data exfiltration gap**: ARP/AI detects file encryption but not data exfiltration without encryption (pure data theft). FPolicy-based monitoring and SIEM behavioral analytics cover this gap partially — **and only for NFS / SMB**: a read through an S3 access point does not reach FPolicy (measured 2026-08-26). Tracing such reads means the ONTAP native audit log (`Source=HTTP` / `Source=S3`), which records the operation but not the requester.
 - **Domain Admin bypass**: Users in `FileSystemAdministratorsGroup` bypass name-mapping deny rules entirely. Always test with non-admin users.
 - **Privacy in response logs**: Response logs contain personal data (username, domain, client IP). Apply appropriate access controls and retention policies per your data protection requirements.
 - **Evidence tamper-resistance**: CloudWatch Logs in immutable retention mode provides tamper-resistant storage for response audit trails.

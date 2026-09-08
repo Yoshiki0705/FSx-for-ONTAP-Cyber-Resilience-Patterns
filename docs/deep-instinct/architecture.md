@@ -29,11 +29,12 @@ sequenceDiagram
     else Malicious
         Model-->>DI: MALICIOUS (confidence > 0.80)
         DI-->>FPolicy: INFECTED
-        FPolicy-->>FSx: Block
+        FPolicy-->>FSx: Block (NFS / SMB only)
         Note over FSx: Event → EventBridge → Quarantine
+        Note over FPolicy: S3 access point writes never reach FPolicy
     else Suspicious
         Model-->>DI: SUSPICIOUS (0.50 < confidence < 0.80)
-        DI-->>FPolicy: Allow (Detection mode) or Block (Prevention mode)
+        DI-->>FPolicy: Allow (Detection mode) or Block (Prevention mode, NFS / SMB only)
         Note over DI: Logged for human review
     end
     

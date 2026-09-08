@@ -26,8 +26,9 @@ sequenceDiagram
         FSx-->>Client: Write success
     else Infected
         Vscan-->>FPolicy: INFECTED verdict
-        FPolicy-->>FSx: Block
+        FPolicy-->>FSx: Block (NFS / SMB only)
         FSx-->>Client: Access denied
+        Note over FPolicy: S3 access point writes never reach FPolicy
         Note over FSx: Event forwarded to EventBridge
     end
     
@@ -69,7 +70,7 @@ Key settings:
 | Scenario | Behavior | Recovery |
 |----------|----------|---------|
 | Vscan server unreachable | FPolicy passthrough (allow write) | CloudWatch alarm → investigate |
-| Scan timeout (>30s) | FPolicy passthrough | Retry via S3 AP batch scan |
+| Scan timeout (>30s) | FPolicy passthrough | Retry via S3 AP batch scan. **A write arriving through the S3 access point is never scanned in the first place** — FPolicy is not notified of it (measured 2026-08-26, ONTAP 9.18.1P3D1) |
 | Vscan server crash | Auto-recovery via ASG | Secondary server takes over |
 
 ## Performance Impact
