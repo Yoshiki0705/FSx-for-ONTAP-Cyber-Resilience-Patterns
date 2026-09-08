@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "Every claim that a vendor capability is absent, limited, or impossible.",
+    "",
+    "scripts/check_evidence_claims.py fails when such a claim appears in a tracked",
+    "document without an entry here, and fails again when an entry is used as a design",
+    "premise while its evidence is still an inference nobody put to the vendor.",
+    "",
+    "Publishable fields only. A support case number, an account ID or a resource ID",
+    "belongs in the file named by support_inquiry.private_ref, which is gitignored.",
+    "",
+    "tier: documented (a vendor document says so; needs a source read in full)",
+    "      verified   (observed by running something here; needs an observation)",
+    "      hypothesis (reasoned from adjacent facts; the vendor has not said it)",
+    "      open       (not established either way)",
+    "",
+    "premise: true means the design relies on this being true.",
+    "",
+    "Seeded empty on install. The first claim goes in when someone writes one; until",
+    "then the gate is still live, because a new unattributed claim in any tracked",
+    "document fails against the baseline."
+  ],
+  "claims": []
+}
