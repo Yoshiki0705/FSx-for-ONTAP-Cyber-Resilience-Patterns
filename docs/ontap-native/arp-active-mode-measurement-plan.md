@@ -12,7 +12,7 @@ The table below is the whole of what is established as of 2026-09-07.
 |---|---|---|
 | (a) アクティブモードは書き込みを遮断するのか、警告だけか | **未測定。** ベンダー文書の応答手順に書き込み拒否が現れない [E-001] | [Respond to abnormal activity (ARP/AI)](https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html) を全文で読んだ（2026-09-07） |
 | (b) 拒否されたときクライアントが受け取るもの | **未測定。** (a) が拒否を示さない限り ARP 自身については観測対象が存在しない | — |
-| (c) S3 Access Point 経由の書き込みが評価対象に入るか | **検知は測定済み**（2026-08-26 / ONTAP 9.18.1P3D1、ARP/AI）。NFS 対照とともに両経路で suspect が立った。検知理由は高エントロピーのみ | `fsxn-observability-integrations` の `docs/ja/verification-results-fpolicy-s3ap-and-session.md`（[リポジトリ](https://github.com/Yoshiki0705/fsxn-observability-integrations)。執筆時点で未マージのブランチにある） |
+| (c) S3 Access Point 経由の書き込みが評価対象に入るか | **検知は測定済み**（2026-08-26 / ONTAP 9.18.1P3D1、ARP/AI）。NFS 対照とともに両経路で suspect が立った。検知理由は高エントロピーのみ | [FPolicy / 監査ログ / ARP の経路別カバレッジ実測](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/ja/verification-results-fpolicy-s3ap-and-session.md)（`fsxn-observability-integrations`） |
 | (c') 高エントロピー以外の検知理由でも経路差がないか | **未測定。** 観測されたのは `High Entropy` だけ | 同上 |
 
 > **(c) について**: Adoption Playbook が S3 Access Point 経路の穴を ARP に帰しているのは、
@@ -331,4 +331,5 @@ itself the finding.**
 - [ARP Configuration](arp-configuration.md) — 有効化手順
 - [Security Layer Comparison](../comparison-security-layers.md) — ARP / TrendAI / Deep Instinct の比較
 - [ARP/AI と EMS の罠](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/docs/agent/pitfalls-arp-ems.md) — `dry_run` の扱い、無効化の遅さ、EMS の `message.severity`
-- [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) — FPolicy / 監査ログ / ARP の経路別カバレッジ測定
+- [経路別カバレッジの実測記録](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/ja/verification-results-fpolicy-s3ap-and-session.md) — FPolicy / 監査ログ / ARP を経路ごとに測った記録
+- [その測定から導かれる設計判断](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/ja/s3ap-monitoring-coverage-implications.md) — 設計パターンごとの影響
