@@ -341,9 +341,9 @@ graph TD
 
 | Project | Relationship |
 |---------|-------------|
-| [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) | 監査ログ SIEM 配信基盤（本プロジェクトの Observability Layer 基盤） |
+| [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) | 監査ログ SIEM 配信基盤（本プロジェクトの Observability Layer 基盤） |
 | [FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) | S3 AP パターン参照実装、FPolicy イベント処理パターン |
-| [blea-fsxn-usecase](https://github.com/Yoshiki0705/blea-fsxn-usecase) | BLEA Cyber Resilience ユースケース CDK 実装 |
+| [BLEA-FSx-for-ONTAP-Usecase](https://github.com/Yoshiki0705/BLEA-FSx-for-ONTAP-Usecase) | BLEA Cyber Resilience ユースケース CDK 実装 |
 
 ---
 

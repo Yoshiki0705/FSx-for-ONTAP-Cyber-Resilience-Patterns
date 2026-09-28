@@ -1,6 +1,6 @@
 # コンパニオンリポジトリ統合ガイド
 
-本ドキュメントは、[fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) リポジトリのコンポーネントを、本リポジトリ（fsxn-cyber-resilience-patterns）のセキュリティレイヤーにマッピングし、統合されたDefense-in-Depthアーキテクチャとしてどう連携するかを説明します。
+本ドキュメントは、[FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) リポジトリのコンポーネントを、本リポジトリ（FSx-for-ONTAP-Cyber-Resilience-Patterns）のセキュリティレイヤーにマッピングし、統合されたDefense-in-Depthアーキテクチャとしてどう連携するかを説明します。
 
 ## どのリポジトリを読むか / Where each question is answered
 
@@ -15,7 +15,7 @@
 | ARP をどう有効化するか、どのモデル世代が適用されるか | 本リポジトリ [`docs/ontap-native/arp-configuration.md`](../ontap-native/arp-configuration.md) |
 | 不可逆操作の承認、監査ログの設計、アクセス認可の層 | Playbook [`domains/security-governance`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/README.md) |
 | ARP / TrendAI / Deep Instinct のどれを選ぶか | 本リポジトリ [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
-| 検知から遮断までの動く実装（Lambda / EMS Webhook / FPolicy サーバー） | [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) |
+| 検知から遮断までの動く実装（Lambda / EMS Webhook / FPolicy サーバー） | [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) |
 | S3 Access Point のライフサイクルとサーバーレス連携 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
 
 **This repository holds the implementation patterns.** Design guidance lives in the Adoption
@@ -40,7 +40,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  fsxn-cyber-resilience-patterns（本リポジトリ）                    │
+│  FSx-for-ONTAP-Cyber-Resilience-Patterns（本リポジトリ）           │
 │                                                                 │
 │  多層防御アーキテクチャを定義:                                      │
 │  • TrendAI File Security（インラインスキャン）                     │
@@ -51,7 +51,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 │  • コンプライアンス証跡 & マルチアカウントパターン                    │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  fsxn-observability-integrations（コンパニオンリポジトリ）           │
+│  FSx-for-ONTAP-Observability-integrations（コンパニオンリポジトリ）  │
 │                                                                 │
 │  検知と応答のプリミティブを実装:                                     │
 │  • 監査ログ配信（S3 AP → Lambda → 9 ベンダー）                    │
@@ -160,15 +160,15 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 
 | トピック | 本リポジトリ | Observability リポジトリ |
 |---------|------------|------------------------|
-| 自動応答アーキテクチャ | `solutions/event-driven-response/` | [automated-response-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-guide.md) |
-| ONTAP REST API パターン | `solutions/shared/` | [ontap-rest-api-reference.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/ontap-rest-api-reference.md) |
-| ARP インシデント対応 | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
-| EMS イベントリファレンス | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
-| FPolicy 運用 | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
-| NIST CSF 2.0 完全マッピング | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
-| 復旧検証 | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
-| セキュリティ補遺 | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
-| デプロイ前提条件 | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/prerequisites.md) |
+| 自動応答アーキテクチャ | `solutions/event-driven-response/` | [automated-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md) |
+| ONTAP REST API パターン | `solutions/shared/` | [ontap-rest-api-reference.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ontap-rest-api-reference.md) |
+| ARP インシデント対応 | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
+| EMS イベントリファレンス | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
+| FPolicy 運用 | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
+| NIST CSF 2.0 完全マッピング | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
+| 復旧検証 | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
+| セキュリティ補遺 | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
+| デプロイ前提条件 | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |
 
 ## 関連記事
 

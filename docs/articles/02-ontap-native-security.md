@@ -26,7 +26,7 @@ snapshot, and manual classification — no step refuses an operation [E-001], an
 behaviour has not been measured on any build here. Refusing a write is the job of the FPolicy
 scanner path (NFS / SMB only) or, on the S3 access point path, of the access point policy and
 IAM. See the
-[ARP active-mode measurement plan](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/ontap-native/arp-active-mode-measurement-plan.md).
+[ARP active-mode measurement plan](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/arp-active-mode-measurement-plan.md).
 
 ### ARP Lifecycle: Learning → Active
 
@@ -127,10 +127,10 @@ Both feed into the same EventBridge event pipeline for unified response.
 
 Full implementation with CloudFormation templates, Custom Resource handler, and configuration documentation:
 
-- [FPolicy Configuration Guide](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/ontap-native/fpolicy-configuration.md)
-- [ARP Configuration Guide](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/ontap-native/arp-configuration.md)
-- [ARP Active-Mode Measurement Plan](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/ontap-native/arp-active-mode-measurement-plan.md)
-- [Security Config Custom Resource](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/solutions/ontap-native/lambda/security_config_handler.py)
+- [FPolicy Configuration Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/fpolicy-configuration.md)
+- [ARP Configuration Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/arp-configuration.md)
+- [ARP Active-Mode Measurement Plan](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/arp-active-mode-measurement-plan.md)
+- [Security Config Custom Resource](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/solutions/ontap-native/lambda/security_config_handler.py)
 
 ## 日本語サマリ
 

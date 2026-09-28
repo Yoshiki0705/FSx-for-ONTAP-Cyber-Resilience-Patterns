@@ -4,7 +4,7 @@ Published articles covering the detection and automated response capabilities th
 
 ## Automated Access Blocking (Respond Layer)
 
-These articles describe the automated response module (`ontap_response.py`) from the companion [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) repository. The module implements storage-layer access blocking triggered by any detection source via SNS — the same Respond-phase mechanism that connects to this repo's event-driven response layer.
+These articles describe the automated response module (`ontap_response.py`) from the companion [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) repository. The module implements storage-layer access blocking triggered by any detection source via SNS — the same Respond-phase mechanism that connects to this repo's event-driven response layer.
 
 | Article | Language | Platform | Published |
 |---------|----------|----------|-----------|
@@ -47,14 +47,14 @@ The articles above are Part 18 (EN) / Part 6 (JA) of the "Serverless Observabili
 
 The implementation code referenced in the articles lives in the observability repo:
 
-- **Response module**: [`shared/python/ontap_response.py`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/python/ontap_response.py)
-- **CloudFormation template**: [`shared/templates/automated-response.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/automated-response.yaml)
-- **TTL auto-unblock**: [`shared/templates/automated-response-ttl.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/automated-response-ttl.yaml)
-- **Recovery verification**: [`shared/templates/restore-verification.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/restore-verification.yaml)
-- **CLI helper**: [`shared/scripts/automated-response-cli.sh`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/scripts/automated-response-cli.sh)
-- **Detailed guide**: [`docs/en/automated-response-guide.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-guide.md)
-- **NIST CSF 2.0 map**: [`docs/en/cyber-resilience-capability-map.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md)
-- **Security addendum**: [`docs/en/automated-response-security-addendum.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-security-addendum.md)
+- **Response module**: [`shared/python/ontap_response.py`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/python/ontap_response.py)
+- **CloudFormation template**: [`shared/templates/automated-response.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/automated-response.yaml)
+- **TTL auto-unblock**: [`shared/templates/automated-response-ttl.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/automated-response-ttl.yaml)
+- **Recovery verification**: [`shared/templates/restore-verification.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/restore-verification.yaml)
+- **CLI helper**: [`shared/scripts/automated-response-cli.sh`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/scripts/automated-response-cli.sh)
+- **Detailed guide**: [`docs/en/automated-response-guide.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md)
+- **NIST CSF 2.0 map**: [`docs/en/cyber-resilience-capability-map.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md)
+- **Security addendum**: [`docs/en/automated-response-security-addendum.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md)
 
 ## How to Use This Information
 

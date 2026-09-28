@@ -3,11 +3,11 @@
 ## 概要 / Overview
 
 セキュリティイベントの収集、フィルタリング、可視化、アラートの設計。
-既存の fsxn-observability-integrations プロジェクトを基盤とし、本プロジェクトではセキュリティ特化の監視を追加。
+既存の FSx-for-ONTAP-Observability-integrations プロジェクトを基盤とし、本プロジェクトではセキュリティ特化の監視を追加。
 
-## fsxn-observability-integrations との責務分担
+## FSx-for-ONTAP-Observability-integrations との責務分担
 
-| Aspect | fsxn-observability-integrations | This project |
+| Aspect | FSx-for-ONTAP-Observability-integrations | This project |
 |--------|-------------------------------|--------------|
 | 監査ログ収集・SIEM 配信 | ✅ Primary | 参照のみ |
 | セキュリティイベントフィルタリング | — | ✅ Primary |

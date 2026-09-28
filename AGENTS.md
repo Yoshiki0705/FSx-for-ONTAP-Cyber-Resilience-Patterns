@@ -9,7 +9,7 @@ FSx for ONTAP Cyber Resilience Patterns — multi-layered security reference arc
 - TrendAI Vision One File Security (Vscan/ICAP, S3 AP integration)
 - Deep Instinct for NetApp ONTAP (AI-powered zero-day prevention)
 - Event-driven automated response (FPolicy → EventBridge → Step Functions)
-- Audit & observability (integrates with fsxn-observability-integrations)
+- Audit & observability (integrates with FSx-for-ONTAP-Observability-integrations)
 
 ## Core Commands
 
