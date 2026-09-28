@@ -110,12 +110,12 @@ Alarms trigger at:
 
 Full source code with 285 tests:
 
-**Repository**: [github.com/Yoshiki0705/fsxn-cyber-resilience-patterns](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns)
+**Repository**: [github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 
 Key files:
-- [`templates/event-driven.yaml`](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/templates/event-driven.yaml) — CloudFormation template
-- [`solutions/event-driven-response/lambda/`](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/tree/main/solutions/event-driven-response/lambda) — Lambda implementations
-- [`docs/runbooks/ransomware-recovery.md`](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/runbooks/ransomware-recovery.md) — Recovery runbook
+- [`templates/event-driven.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/templates/event-driven.yaml) — CloudFormation template
+- [`solutions/event-driven-response/lambda/`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/tree/main/solutions/event-driven-response/lambda) — Lambda implementations
+- [`docs/runbooks/ransomware-recovery.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/runbooks/ransomware-recovery.md) — Recovery runbook
 
 ## 日本語サマリ
 

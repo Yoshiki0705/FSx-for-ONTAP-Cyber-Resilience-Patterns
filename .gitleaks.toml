@@ -1,4 +1,4 @@
-title = "gitleaks config for fsxn-cyber-resilience-patterns"
+title = "gitleaks config for FSx-for-ONTAP-Cyber-Resilience-Patterns"
 
 [extend]
 useDefault = true

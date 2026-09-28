@@ -1,6 +1,6 @@
 # Companion Repository Integration Guide
 
-This document maps the components in the [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) repository to the security layers defined in this cyber-resilience-patterns repository, and explains how they work together as a unified defense-in-depth architecture.
+This document maps the components in the [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) repository to the security layers defined in this cyber-resilience-patterns repository, and explains how they work together as a unified defense-in-depth architecture.
 
 ## Where each question is answered
 
@@ -16,7 +16,7 @@ outlives the one that was corrected.
 | How to enable ARP, and which model generation applies | Here, [`docs/ontap-native/arp-configuration.md`](../ontap-native/arp-configuration.md) |
 | Approval for irreversible operations, audit log design, authorization layers | Playbook [`domains/security-governance`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/README.md) |
 | Choosing among ARP, TrendAI File Security and Deep Instinct | Here, [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
-| Working implementation from detection to blocking (Lambda, EMS webhook, FPolicy server) | [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) |
+| Working implementation from detection to blocking (Lambda, EMS webhook, FPolicy server) | [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) |
 | S3 access point lifecycle and serverless integration | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
 
 ## Architecture Layer Mapping
@@ -37,7 +37,7 @@ The table below shows which components from the observability repo plug into eac
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  fsxn-cyber-resilience-patterns (THIS REPO)                     │
+│  FSx-for-ONTAP-Cyber-Resilience-Patterns (THIS REPO)            │
 │                                                                 │
 │  Defines the multi-layered architecture:                        │
 │  • TrendAI File Security (inline scan)                          │
@@ -48,7 +48,7 @@ The table below shows which components from the observability repo plug into eac
 │  • Compliance evidence & multi-account patterns                 │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  fsxn-observability-integrations (COMPANION REPO)               │
+│  FSx-for-ONTAP-Observability-integrations (COMPANION REPO)      │
 │                                                                 │
 │  Implements detection and response primitives:                  │
 │  • Audit log shipping (S3 AP → Lambda → 9 vendors)             │
@@ -157,15 +157,15 @@ This is a critical Recover-phase capability (NIST CSF 2.0 RC.RP) that bridges th
 
 | Topic | This Repo | Observability Repo |
 |-------|-----------|-------------------|
-| Automated response architecture | `solutions/event-driven-response/` | [automated-response-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-guide.md) |
-| ONTAP REST API patterns | `solutions/shared/` | [ontap-rest-api-reference.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/ontap-rest-api-reference.md) |
-| ARP incident response | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
-| EMS event reference | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
-| FPolicy operations | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
-| Full NIST CSF 2.0 map | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
-| Recovery verification | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
-| Security addendum | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
-| Deployment prerequisites | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/prerequisites.md) |
+| Automated response architecture | `solutions/event-driven-response/` | [automated-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md) |
+| ONTAP REST API patterns | `solutions/shared/` | [ontap-rest-api-reference.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ontap-rest-api-reference.md) |
+| ARP incident response | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
+| EMS event reference | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
+| FPolicy operations | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
+| Full NIST CSF 2.0 map | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
+| Recovery verification | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
+| Security addendum | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
+| Deployment prerequisites | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |
 
 ## Related Articles
 

@@ -35,5 +35,5 @@ metrics.record_scan_latency(latency_ms=25.3)
 
 ## Integration
 
-- fsxn-observability-integrations: 監査ログ収集・SIEM 配信 (別リポジトリ)
+- FSx-for-ONTAP-Observability-integrations: 監査ログ収集・SIEM 配信 (別リポジトリ)
 - 本モジュール: セキュリティ特化のメトリクス・ダッシュボード・アラート

@@ -14,8 +14,8 @@ Thank you for your interest in contributing! This project welcomes contributions
 
 ```bash
 # Clone
-git clone https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns.git
-cd fsxn-cyber-resilience-patterns
+git clone https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns.git
+cd FSx-for-ONTAP-Cyber-Resilience-Patterns
 
 # Install dev dependencies
 python3 -m pip install -r requirements-dev.txt

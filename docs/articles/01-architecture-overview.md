@@ -84,16 +84,16 @@ This reduces Mean Time to Contain (MTTC) from hours to seconds.
 
 The complete implementation is open-source:
 
-**Repository**: [github.com/Yoshiki0705/fsxn-cyber-resilience-patterns](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns)
+**Repository**: [github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 
 ```bash
-git clone https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns.git
-cd fsxn-cyber-resilience-patterns
+git clone https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns.git
+cd FSx-for-ONTAP-Cyber-Resilience-Patterns
 make setup && source .venv/bin/activate
 make test  # 285 tests, no AWS credentials needed
 ```
 
-For step-by-step deployment instructions, see the [Quick Start Deployment Guide](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/blob/main/docs/quickstart-deployment.md).
+For step-by-step deployment instructions, see the [Quick Start Deployment Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/quickstart-deployment.md).
 
 ## Series Outline
 

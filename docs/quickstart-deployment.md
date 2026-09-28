@@ -69,8 +69,8 @@ zip --version
 ## Step 0: リポジトリのセットアップ
 
 ```bash
-git clone https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns.git
-cd fsxn-cyber-resilience-patterns
+git clone https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns.git
+cd FSx-for-ONTAP-Cyber-Resilience-Patterns
 
 # Python 仮想環境 + 依存関係インストール
 make setup

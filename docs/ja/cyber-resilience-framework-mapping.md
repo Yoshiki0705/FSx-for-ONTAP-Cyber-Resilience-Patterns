@@ -6,7 +6,7 @@
 
 ## NIST CSF 2.0 機能カバレッジ
 
-| CSF 2.0 機能 | 状態 | 本リポジトリ | コンパニオンリポジトリ ([observability](https://github.com/Yoshiki0705/fsxn-observability-integrations)) | ギャップ / 組織的責任 |
+| CSF 2.0 機能 | 状態 | 本リポジトリ | コンパニオンリポジトリ ([observability](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations)) | ギャップ / 組織的責任 |
 |-------------|:----:|------------|---------------------|-----|
 | **Govern（統制）** | ⚠️ | CloudFormation-as-code 監査証跡、cfn-guard コンプライアンスルール、`solutions/compliance/` 証跡収集 | CloudWatch Logs + SNS 通知証跡 | リスク戦略、役割、取締役会レベルの監督は組織的決定；ツーリングは証跡アーティファクトのみ提供 |
 | **Identify（識別）** | ✅ | データ分類マトリクス（`docs/`）、CFn によるアセットタギング | コンテンツレベル PII スキャナー（Amazon Comprehend）、スキーマレベルフィールド分類 | テキスト/構造化データはカバー済み；Office/PDF 抽出は未実装 |
@@ -128,9 +128,9 @@
 - **NTFS ボリュームの代替手段**: NTFS セキュリティスタイルのボリュームでは、AD アカウント無効化、NTFS ACL からの削除、または NACL deny を name-mapping の代わりに使用する。
 - **Zero Trust との整合**: deny-by-default、明示的な検証、侵害前提の 3 原則を実装。ファイルレベルのマイクロセグメンテーションは未実装。
 - **AWS 固有の実装**: オーケストレーションは AWS ネイティブサービス（Lambda、Step Functions、CloudFormation）を使用。ONTAP REST API パターン自体は移植可能だが、自動化レイヤーは AWS 固有。
-- **日本国内規制との整合**: 個人情報保護法のもとでレスポンスログ内のユーザー名/IP は個人データに該当しうる。FISC 安全対策基準への対応については、コンパニオンリポジトリの [セキュリティ補遺](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) に FISC ガイドライン節がある。自動応答ポリシーの事前承認や年次レビュー等の手続き要件はこちらを参照。
+- **日本国内規制との整合**: 個人情報保護法のもとでレスポンスログ内のユーザー名/IP は個人データに該当しうる。FISC 安全対策基準への対応については、コンパニオンリポジトリの [セキュリティ補遺](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) に FISC ガイドライン節がある。自動応答ポリシーの事前承認や年次レビュー等の手続き要件はこちらを参照。
 - **単一障害点の認識**: レスポンスパイプライン（SNS → Lambda → ONTAP REST API）は IAM ロールの完全性と ONTAP へのネットワーク到達性に依存する。Lambda の実行ロールが侵害されるか、VPC 接続が失われた場合、自動レスポンス全体が無効化される。DLQ アラームは失敗した実行を検知するが、完全に沈黙した呼び出し（例: SNS サブスクリプションの削除）は検知できない。
-- **データレジデンシー**: レスポンスログと監査証跡はスタックがデプロイされた AWS リージョンに留まる。マルチリージョン要件にはリージョンごとに独立したスタックをデプロイする。追加ガイダンスはコンパニオンリポジトリの [data-residency guide](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/data-residency.md) を参照。
+- **データレジデンシー**: レスポンスログと監査証跡はスタックがデプロイされた AWS リージョンに留まる。マルチリージョン要件にはリージョンごとに独立したスタックをデプロイする。追加ガイダンスはコンパニオンリポジトリの [data-residency guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/data-residency.md) を参照。
 
 ## 参考フレームワーク・文献
 
@@ -146,4 +146,4 @@
 
 - [companion-repos-integration.md](companion-repos-integration.md) — Observability リポジトリとのレイヤーマッピング
 - [related-articles.md](related-articles.md) — 関連記事インデックス
-- [Cyber Resilience Capability Map (EN, companion repo)](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) — 6 機能の完全な機能マッピング（代替実装パス含む）
+- [Cyber Resilience Capability Map (EN, companion repo)](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) — 6 機能の完全な機能マッピング（代替実装パス含む）

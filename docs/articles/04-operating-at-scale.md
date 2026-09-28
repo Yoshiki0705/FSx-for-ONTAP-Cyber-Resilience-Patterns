@@ -150,7 +150,7 @@ Reports stored in S3 with Object Lock (COMPLIANCE mode, 365-day retention).
 | Lambda cold start (measured) | ~480ms (Python 3.12 ARM64, 128MB) |
 | Event processing (SQS → EventBridge) | ~320ms |
 
-**Repository**: [github.com/Yoshiki0705/fsxn-cyber-resilience-patterns](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns)
+**Repository**: [github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 
 ## 日本語サマリ
 

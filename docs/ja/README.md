@@ -1,7 +1,7 @@
 # FSx for ONTAP Cyber Resilience Patterns
 
-[![CI](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/badge)](https://scorecard.dev/viewer/?uri=github.com/Yoshiki0705/fsxn-cyber-resilience-patterns)
+[![CI](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/badge)](https://scorecard.dev/viewer/?uri=github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
 🌐 **Language**: [English](../../README.md) | 日本語
@@ -107,7 +107,7 @@ flowchart TB
 | リポジトリ | 関係 |
 |-----------|------|
 | [FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook) | **本リポジトリのパターンの上に載る設計判断。** どの制御を選ぶか、何が不可逆か、承認をどう取るか。**手順はこちら、可否と理由は Playbook** |
-| [FSx for ONTAP Observability Integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) | 検知 & 応答プリミティブ（自動遮断、EMS パイプライン、検証済み復旧） |
+| [FSx for ONTAP Observability Integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) | 検知 & 応答プリミティブ（自動遮断、EMS パイプライン、検証済み復旧） |
 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) | 監査 & 復旧ワークフローで使用する S3 AP ライフサイクルパターン |
 | [FSx for ONTAP Agentic Access-Aware RAG](https://github.com/Yoshiki0705/FSx-for-ONTAP-Agentic-Access-Aware-RAG) | 本リポジトリが保護する同じデータ上でのパーミッション認識 AI/RAG |
 
@@ -165,7 +165,7 @@ make test                                  # テスト実行 (285 tests)
 
 **Yoshiki Fujiwara** — NetApp Cloud Solutions Architect, AWS Community Builder (Storage)
 
-> 本プロジェクトは個人のコミュニティ貢献であり、NetApp・AWS の公式ドキュメントではありません。セキュリティ層の比較はベンダー中立で対称的なトレードオフ記述を使用しています。フィードバックは [Issues](https://github.com/Yoshiki0705/fsxn-cyber-resilience-patterns/issues) まで。
+> 本プロジェクトは個人のコミュニティ貢献であり、NetApp・AWS の公式ドキュメントではありません。セキュリティ層の比較はベンダー中立で対称的なトレードオフ記述を使用しています。フィードバックは [Issues](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/issues) まで。
 
 ---
 

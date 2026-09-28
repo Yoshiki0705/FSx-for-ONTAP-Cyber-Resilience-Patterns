@@ -4,7 +4,7 @@
 
 ## 自動アクセス遮断（Respond レイヤー）
 
-以下の記事は、コンパニオンリポジトリ [fsxn-observability-integrations](https://github.com/Yoshiki0705/fsxn-observability-integrations) の自動応答モジュール（`ontap_response.py`）を解説しています。任意の検知ソースから SNS 経由でトリガーされるストレージ層アクセス遮断を実装しており、本リポジトリのイベント駆動型レスポンスレイヤーに接続される Respond フェーズのメカニズムです。
+以下の記事は、コンパニオンリポジトリ [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) の自動応答モジュール（`ontap_response.py`）を解説しています。任意の検知ソースから SNS 経由でトリガーされるストレージ層アクセス遮断を実装しており、本リポジトリのイベント駆動型レスポンスレイヤーに接続される Respond フェーズのメカニズムです。
 
 | 記事 | 言語 | プラットフォーム | 公開時期 |
 |------|------|----------------|---------|
@@ -47,14 +47,14 @@
 
 記事で参照されている実装コードは Observability リポジトリにあります:
 
-- **応答モジュール**: [`shared/python/ontap_response.py`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/python/ontap_response.py)
-- **CloudFormation テンプレート**: [`shared/templates/automated-response.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/automated-response.yaml)
-- **TTL 自動ブロック解除**: [`shared/templates/automated-response-ttl.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/automated-response-ttl.yaml)
-- **復旧検証**: [`shared/templates/restore-verification.yaml`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/templates/restore-verification.yaml)
-- **CLI ヘルパー**: [`shared/scripts/automated-response-cli.sh`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/shared/scripts/automated-response-cli.sh)
-- **詳細ガイド**: [`docs/en/automated-response-guide.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-guide.md)
-- **NIST CSF 2.0 マップ**: [`docs/en/cyber-resilience-capability-map.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md)
-- **セキュリティ補遺**: [`docs/en/automated-response-security-addendum.md`](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/automated-response-security-addendum.md)
+- **応答モジュール**: [`shared/python/ontap_response.py`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/python/ontap_response.py)
+- **CloudFormation テンプレート**: [`shared/templates/automated-response.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/automated-response.yaml)
+- **TTL 自動ブロック解除**: [`shared/templates/automated-response-ttl.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/automated-response-ttl.yaml)
+- **復旧検証**: [`shared/templates/restore-verification.yaml`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/templates/restore-verification.yaml)
+- **CLI ヘルパー**: [`shared/scripts/automated-response-cli.sh`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/shared/scripts/automated-response-cli.sh)
+- **詳細ガイド**: [`docs/en/automated-response-guide.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md)
+- **NIST CSF 2.0 マップ**: [`docs/en/cyber-resilience-capability-map.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md)
+- **セキュリティ補遺**: [`docs/en/automated-response-security-addendum.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md)
 
 ## 使い方
 

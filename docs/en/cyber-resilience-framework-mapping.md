@@ -6,7 +6,7 @@ This repository is designed against [NIST Cybersecurity Framework (CSF) 2.0](htt
 
 ## NIST CSF 2.0 Function Coverage
 
-| CSF 2.0 Function | Status | This Repo | Companion Repo ([observability](https://github.com/Yoshiki0705/fsxn-observability-integrations)) | Gap / Organizational Responsibility |
+| CSF 2.0 Function | Status | This Repo | Companion Repo ([observability](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations)) | Gap / Organizational Responsibility |
 |-------------------|:------:|-----------|---------------------|-----|
 | **Govern (GV)** | ⚠️ | CloudFormation-as-code audit trail, cfn-guard compliance rules, `solutions/compliance/` evidence collection | CloudWatch Logs + SNS notification trails | Risk strategy, roles, board oversight remain organizational decisions; tooling provides evidence artifacts only |
 | **Identify (ID)** | ✅ | Data classification matrix (`docs/`), asset tagging via CFn | Content-level PII scanner (Amazon Comprehend), schema-level field classification | Text/structured-data covered; Office/PDF extraction not yet implemented |
@@ -131,7 +131,7 @@ Key caveats identified through multi-stakeholder review:
 - **Zero Trust alignment**: Implements deny-by-default, verify explicitly, and assume breach. Does not implement file-level microsegmentation.
 - **AWS-specific**: Orchestration uses AWS-native services (Lambda, Step Functions, CloudFormation). ONTAP REST API patterns are portable; the automation layer is not.
 - **Single-point-of-failure awareness**: The response pipeline (SNS → Lambda → ONTAP REST API) depends on IAM role integrity and network reachability. If the Lambda's execution role is compromised or VPC connectivity to ONTAP is lost, the entire automated response is disabled. DLQ alarms detect failed executions, but cannot detect a completely silenced invocation (e.g., SNS subscription removed).
-- **Data residency**: Response logs and audit trails remain in the AWS Region where the stack is deployed. For multi-region requirements, deploy per-region stacks independently. See the companion repo's [data-residency guide](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/data-residency.md) for additional guidance.
+- **Data residency**: Response logs and audit trails remain in the AWS Region where the stack is deployed. For multi-region requirements, deploy per-region stacks independently. See the companion repo's [data-residency guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/data-residency.md) for additional guidance.
 
 ## References
 
@@ -147,4 +147,4 @@ Key caveats identified through multi-stakeholder review:
 
 - [companion-repos-integration.md](companion-repos-integration.md) — Layer mapping with the observability repo
 - [related-articles.md](related-articles.md) — Related articles index
-- [Cyber Resilience Capability Map (companion repo)](https://github.com/Yoshiki0705/fsxn-observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) — Full 6-function mapping with alternative implementation paths and vendor-neutral comparison
+- [Cyber Resilience Capability Map (companion repo)](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) — Full 6-function mapping with alternative implementation paths and vendor-neutral comparison
