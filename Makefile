@@ -37,7 +37,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: check-evidence ## Run all tests (cfn-lint + pytest + evidence gate)
+test: check-evidence ai-style ## Run all tests (cfn-lint + pytest + evidence + writing-quality gates)
 	cfn-lint templates/*.yaml || test $$? -le 12
 	pytest tests/ shared/tests/ -v --tb=short
 
@@ -52,12 +52,12 @@ check-evidence: ## Check evidence for claims that a vendor cannot do something
 	python3 scripts/check_evidence_claims.py
 
 # The writing-quality detector is a byte-for-byte copy of the Hub's tools/ai_style_rules.py;
-# criteria live at the Hub doc linked from AGENTS.md. Report-only for now (no --fail): the corpus
-# still carries 4 D1 findings in docs/ontap-native/arp-active-mode-measurement-plan.md, so gating
-# would turn make test / CI red before those are fixed. articles/* is the author's first-person
+# criteria live at the Hub doc linked from AGENTS.md. Gating (--fail): exits non-zero on any
+# fail-tier finding (D1/D2/D5/D14). The fail-tier corpus is clean, so this is wired into `make
+# test`. Warning-tier rules print counts and never gate. articles/* is the author's first-person
 # blog and is excluded by design.
-ai-style: ## Report writing-quality findings (report-only; not wired to lint/test/CI yet)
-	python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --summary
+ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings print only
+	python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
 
 test-cov: ## Run tests with coverage report
 	pytest tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80

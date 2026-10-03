@@ -154,5 +154,29 @@ class CopyableCli(unittest.TestCase):
         self.assertEqual(self.run_cli("--selftest").returncode, 0)
 
 
+class TheGateIsWiredToFail(unittest.TestCase):
+    """The spoke's `make ai-style` must gate (--fail), not report only, and `make test`
+    must depend on it. A revert to report-only would otherwise pass unnoticed."""
+
+    def setUp(self) -> None:
+        self.makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
+    def test_ai_style_target_passes_fail_flag(self) -> None:
+        recipe = next(
+            line
+            for line in self.makefile.splitlines()
+            if "ai_style_rules.py" in line and line.lstrip().startswith("python3")
+        )
+        self.assertIn("--fail", recipe)
+
+    def test_test_target_depends_on_ai_style(self) -> None:
+        test_rule = next(
+            line
+            for line in self.makefile.splitlines()
+            if line.startswith("test:")
+        )
+        self.assertIn("ai-style", test_rule.split(":", 1)[1].split("##", 1)[0])
+
+
 if __name__ == "__main__":
     unittest.main()
