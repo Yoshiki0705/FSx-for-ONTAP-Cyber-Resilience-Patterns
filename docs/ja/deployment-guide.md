@@ -289,15 +289,20 @@ Custom Resource Lambda が既存ファイルシステムに ARP と FPolicy を�
 
 ## Day 2 運用
 
-### ARP モード移行（デプロイ後 30 日）
+### ARP モード移行（旧世代 ARP のみ、デプロイ後 30 日）
 
-ARP は `dry-run`（学習）モードで起動する。30 日間の学習後、`active` モードに移行:
+この手順が要るのは旧世代 ARP（NAS FlexVol で 9.10.1〜9.15.1、FlexGroup で 9.17.1 まで）に限る。
+旧世代は `dry-run`（学習）モードで起動する。30 日間の学習後、次のコマンドで `active` へ移行する。
 
 ```bash
 ssh fsxadmin@<management-endpoint>
 security anti-ransomware volume show -vserver <svm> -fields state
 security anti-ransomware volume enable -vserver <svm> -volume <vol> -state active
 ```
+
+ARP/AI（FlexVol は 9.16.1 以降、FlexGroup は 9.18.1 以降）は学習期間がなく、有効化直後から
+能動的に保護する。この世代では `dry_run` を要求しても無言で `enabled` になるため、移行手順は
+不要になる。世代の判別と実測の根拠は [ARP 設定ガイド](../ontap-native/arp-configuration.md) を参照。
 
 ### スキャナー署名更新
 
