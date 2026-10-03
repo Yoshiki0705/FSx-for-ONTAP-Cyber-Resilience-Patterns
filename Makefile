@@ -1,4 +1,4 @@
-.PHONY: help lint guard test security validate deploy clean setup check-evidence
+.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style
 
 # Default target
 help: ## Show this help
@@ -37,7 +37,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: check-evidence ## Run all tests (cfn-lint + pytest + evidence gate)
+test: check-evidence ai-style ## Run all tests (cfn-lint + pytest + evidence + writing-quality gates)
 	cfn-lint templates/*.yaml || test $$? -le 12
 	pytest tests/ shared/tests/ -v --tb=short
 
@@ -50,6 +50,14 @@ test: check-evidence ## Run all tests (cfn-lint + pytest + evidence gate)
 check-evidence: ## Check evidence for claims that a vendor cannot do something
 	pytest scripts/tests/ --tb=short -q
 	python3 scripts/check_evidence_claims.py
+
+# The writing-quality detector is a byte-for-byte copy of the Hub's tools/ai_style_rules.py;
+# criteria live at the Hub doc linked from AGENTS.md. Gating (--fail): exits non-zero on any
+# fail-tier finding (D1/D2/D5/D14). The fail-tier corpus is clean, so this is wired into `make
+# test`. Warning-tier rules print counts and never gate. articles/* is the author's first-person
+# blog and is excluded by design.
+ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings print only
+	python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
 
 test-cov: ## Run tests with coverage report
 	pytest tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80

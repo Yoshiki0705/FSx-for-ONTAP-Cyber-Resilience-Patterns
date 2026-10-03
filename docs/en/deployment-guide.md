@@ -289,15 +289,22 @@ The Custom Resource Lambda configures ARP and FPolicy on the existing file syste
 
 ## Day 2 Operations
 
-### ARP Mode Transition (30 days post-deployment)
+### ARP Mode Transition (original ARP only, 30 days post-deployment)
 
-ARP starts in `dry-run` (learning) mode. After 30 days of learning, transition to `active`:
+This step applies only to original-generation ARP (9.10.1–9.15.1 on NAS FlexVol, up to 9.17.1 on
+FlexGroup). Original ARP starts in `dry-run` (learning) mode and transitions to `active` after
+30 days of learning:
 
 ```bash
 ssh fsxadmin@<management-endpoint>
 security anti-ransomware volume show -vserver <svm> -fields state
 security anti-ransomware volume enable -vserver <svm> -volume <vol> -state active
 ```
+
+ARP/AI (9.16.1+ on FlexVol, 9.18.1+ on FlexGroup) has no learning period and protects actively from
+the moment it is enabled. On that generation a requested `dry_run` silently becomes `enabled`, so no
+transition step is needed. For how to tell the generations apart and the measured basis, see the
+[ARP configuration guide](../ontap-native/arp-configuration.md).
 
 ### Scanner Signature Updates
 

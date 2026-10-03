@@ -16,7 +16,7 @@ This prevents damage even if a single admin's credentials are compromised.
 
 ## 対象操作リスト（推奨）
 
-以下の操作に MAV を設定する:
+MAV を設定する推奨操作と、その対象とした理由を次に示す。
 
 | Operation | Risk Level | Rationale |
 |-----------|-----------|-----------|
