@@ -78,6 +78,18 @@ jobs:
         run: |
           ruff check solutions/ tests/ shared/ --output-format=github
 
+      # The ai-style gate was wired into `make test`, but CI runs its checks as discrete
+      # steps and never invokes `make test`, so the gate never executed on a pull request.
+      # A gate that cannot fail is no gate. This runs the detector the way `make ai-style`
+      # does (--fail on D1/D2/D5/D14), with its own selftest first so a checker that reports
+      # success without evaluating its rules is caught. The detector is stdlib-only, so it
+      # runs under system python3 directly rather than through make, which would pull in
+      # heavier security tooling.
+      - name: AI writing-style gate (fail-tier)
+        run: |
+          python3 tools/ai_style_rules.py --selftest
+          python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
+
       - name: Run Bandit (Python SAST)
         run: |
           pip install bandit

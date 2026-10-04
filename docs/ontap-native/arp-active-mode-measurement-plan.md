@@ -181,7 +181,7 @@ ARP の検知入力は、ファイル内容から決まるもの（エントロ�
 |---|---|
 | `based-on-high-entropy-data-rate` | ボリューム単位の高エントロピーデータレート |
 | `based-on-never-seen-before-file-extension` | ボリュームで初見の拡張子。**エントロピーを見ない**ので、内容を変えずに拡張子だけ書き換える種類に効く |
-| `based-on-file-create-rate` / `-rename-rate` / `-delete-rate` | 各操作レートが `...-surge-notify-percentage` の割合だけ**「過去に観測された値」より跳ねたとき** |
+| `based-on-file-create-rate` / `-rename-rate` / `-delete-rate` | 各操作レートが `...-surge-notify-percentage` の割合だけ「過去に観測された値」より**跳ねたとき** |
 | `never-seen-before-file-extn-count-notify-threshold` | **1 つの新しい拡張子について、その拡張子で create / rename されたファイル数**。期間は `-duration-in-hours` |
 | `relaxing-popular-file-extensions` | `true` なら `.mp3` のような一般的な拡張子は安全扱い |
 
@@ -241,7 +241,7 @@ Adoption Playbook 側で 1 回測定された（ONTAP 9.18.1P3D1 / ARP/AI、**�
 C1 をこの形にすると `for this duration` がどちらの読みでも満たされる。**待ちは既存ボリューム上の
 書き込みループなので追加コストは出ない。**
 
-C1 の拡張子に一般的なものを使わない。ただし**「一般的」とみなされる拡張子の一覧は公開されていない**
+C1 の拡張子に一般的なものを使わない。ただし「一般的」とみなされる拡張子の一覧は**公開されていない**
 [E-006] ため、該当しないことは確認できない。
 
 S3 プロトコルに rename が無いので、C2 は S3 経路では copy + delete か put + delete の列になる。

@@ -133,6 +133,11 @@ This project compares multiple security technologies. Always:
 
 - JA/EN parity を維持（セクション構成/数の一致、inline note の対応）。片方を変更したら同じ変更で両方に反映。
 
+### Writing quality（AI 調・可読性の検出）
+
+- 判定基準の本体は Hub の 1 ファイル: https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/agent/writing-quality.md
+- このリポジトリの検出器は `tools/ai_style_rules.py`（Hub からのバイト単位コピー）。`make ai-style` は fail-tier の所見（D1/D2/D5/D14）で gate し、`make test` の前提として走る。warning は件数の表示のみ。
+
 ### Before committing docs
 
 ```bash

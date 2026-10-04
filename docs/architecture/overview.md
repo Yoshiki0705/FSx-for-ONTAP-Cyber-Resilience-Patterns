@@ -349,15 +349,18 @@ graph TD
 
 ## 次のステップ / Next Steps
 
-**Phase 1 Complete (現在):**
-- ✅ Network Stack + Storage Stack (CloudFormation)
-- ✅ ONTAP Native Security 設定 (ARP / FPolicy Custom Resource)
-- ✅ Event-Driven Response パイプライン (SQS → EventBridge → Step Functions)
-- ✅ File Scanning テンプレート (TrendAI / Deep Instinct EC2)
-- ✅ Observability Dashboard + Alarms (CloudWatch)
-- ✅ Lambda コードパッケージング + S3 デプロイ
-- ✅ セキュリティ強化 (IMDSv2, VPC Flow Logs, Lambda concurrency)
-- ✅ CI/CD (cfn-lint, cfn-guard, pytest, coverage)
+Phase 1 Complete (現在):
+
+| 状態 | コンポーネント |
+|:---:|---|
+| ✅ | Network Stack + Storage Stack (CloudFormation) |
+| ✅ | ONTAP Native Security 設定 (ARP / FPolicy Custom Resource) |
+| ✅ | Event-Driven Response パイプライン (SQS → EventBridge → Step Functions) |
+| ✅ | File Scanning テンプレート (TrendAI / Deep Instinct EC2) |
+| ✅ | Observability Dashboard + Alarms (CloudWatch) |
+| ✅ | Lambda コードパッケージング + S3 デプロイ |
+| ✅ | セキュリティ強化 (IMDSv2, VPC Flow Logs, Lambda concurrency) |
+| ✅ | CI/CD (cfn-lint, cfn-guard, pytest, coverage) |
 
 **Phase 2 (Production Readiness):**
 1. Multi-AZ Scanner HA (Auto Scaling Group)
