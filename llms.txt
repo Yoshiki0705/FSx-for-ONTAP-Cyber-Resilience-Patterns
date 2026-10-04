@@ -1,0 +1,78 @@
+# FSx for ONTAP Cyber Resilience Patterns
+
+> Multi-layered cyber resilience reference patterns for Amazon FSx for NetApp ONTAP, deployed as
+> CloudFormation on AWS. It combines storage-native security (Autonomous Ransomware Protection,
+> FPolicy, SnapLock, Tamperproof Snapshot, Multi-Admin Verification), file scanning with TrendAI
+> Vision One File Security and Deep Instinct for NetApp ONTAP, and event-driven automated response
+> (FPolicy to Amazon EventBridge to AWS Step Functions), with Snapshot, SnapMirror and FlexClone for
+> recovery. The documentation describes how each control works, its trade-offs, and what is
+> irreversible; it never instructs enabling a WORM or retention feature on its own.
+
+## How to read this repository
+
+The README is the primary hub (English at the repository root `README.md`; the Japanese hub is at
+`docs/ja/README.md`). The repository compares several security technologies, and every comparison
+states trade-offs symmetrically and includes a "how to choose" section rather than ranking vendors.
+
+Safety note: SnapLock and other WORM/retention features make data undeletable for a retention period
+and are irreversible — the file system can stay undeletable until the period expires, even for
+administrators. This repository documents these features but does not enable them, and the
+CloudFormation template that would create locked storage is intentionally not offered as a one-step
+deploy. A reader must make an explicit retention decision before enabling any such feature.
+
+## Entry points
+
+- [README (English)](README.md): Primary hub. Overview, get-started table, architecture, constraints.
+- [README (Japanese)](docs/ja/README.md): Japanese hub, same structure.
+- [AGENTS.md](AGENTS.md): Conventions, naming, neutrality and public-output rules for coding agents.
+- [CONTRIBUTING.md](CONTRIBUTING.md): Authoring conventions and the review gate.
+
+## Architecture
+
+- [Architecture Overview](docs/architecture/overview.md): The security layers, how detection flows into event-driven response, and what each layer is responsible for.
+- [Companion Repository Integration Guide](docs/en/companion-repos-integration.md): How this repository's patterns relate to the adoption, observability, S3 Access Points and RAG repositories.
+- [Cyber Resilience Framework Mapping](docs/en/cyber-resilience-framework-mapping.md): Mapping of the controls to NIST CSF 2.0, SP 800-61 and IR 8374.
+
+## Storage-native security (ONTAP)
+
+- [ARP (Autonomous Ransomware Protection) Configuration](docs/ontap-native/arp-configuration.md): Configuring ONTAP's on-box ransomware detection and how its alerts feed the response pipeline.
+- [ARP Active-Mode Behaviour: Measurement Plan](docs/ontap-native/arp-active-mode-measurement-plan.md): The plan for measuring ARP active-mode behaviour, with the environment to be stated alongside any result.
+- [FPolicy Configuration](docs/ontap-native/fpolicy-configuration.md): Configuring FPolicy so file events can drive automated response.
+- [Multi-Admin Verification (MAV) Configuration](docs/ontap-native/mav-configuration.md): Requiring multiple administrators to approve privileged operations, limiting the blast radius of a compromised admin.
+- [fsxadmin Permissions & Limitations](docs/ontap-native/fsxadmin-limitations.md): What the fsxadmin role can and cannot do on FSx for ONTAP, and where management-plane limits affect these patterns.
+- [SnapLock Configuration](docs/ontap-native/snaplock-configuration.md): Reference for ONTAP SnapLock WORM behaviour and its irreversibility. Describes the feature; it is not a deploy step, and enabling WORM requires an explicit retention decision.
+- [Tamperproof Snapshot Configuration](docs/ontap-native/tamperproof-snapshot.md): Snapshot locking that prevents deletion of recovery points until a retention period expires, including by administrators. Reference reading; prerequisites and licensing depend on your ONTAP and FSx for ONTAP version and should be checked against current AWS documentation.
+
+## File scanning and AI prevention
+
+- [TrendAI File Security — Vscan/ICAP Architecture](docs/trendai-file-security/architecture-vscan.md): Real-time malware scanning of file access via ONTAP Vscan over ICAP.
+- [TrendAI File Security — S3 Access Points Batch Scan Architecture](docs/trendai-file-security/architecture-s3ap.md): Batch scanning of data reached through FSx for ONTAP S3 Access Points.
+- [Deep Instinct for NetApp ONTAP — Architecture](docs/deep-instinct/architecture.md): AI-based zero-day threat prevention integrated with ONTAP.
+- [Security Layer Comparison](docs/comparison-security-layers.md): ONTAP ARP, TrendAI File Security and Deep Instinct compared with symmetric trade-offs and a how-to-choose section.
+
+## Observability
+
+- [Security Monitoring Design](docs/observability/security-monitoring-design.md): Security metrics and Amazon CloudWatch dashboard design for these patterns.
+
+## Operate and recover
+
+- [Quick Start: Deployment Guide](docs/quickstart-deployment.md): Deploying the patterns into a new environment.
+- [Deployment Guide: Existing FSx for ONTAP Environment](docs/deployment-guide-existing-fsxn.md): Adding these patterns to an existing FSx for ONTAP file system.
+- [Deployment Guide (EN)](docs/en/deployment-guide.md): English deployment walkthrough.
+- [ARP Alert Triage Runbook](docs/runbooks/arp-alert-triage.md): First response when an ARP alert fires.
+- [Ransomware Recovery Runbook](docs/runbooks/ransomware-recovery.md): Recovering from a ransomware event using snapshots and clones.
+- [Scanner Failover Runbook](docs/runbooks/scanner-failover.md): Handling failover of the file-scanning layer.
+- [Operational Considerations (EN)](docs/en/operational-considerations.md): SVM-wide block scope, NTFS name-mapping limits, admin bypass, NACL and NFS caching caveats.
+
+## Reference and comparison
+
+- [Verification Environment: Licenses & Costs](docs/verification-environment-cost.md): The environment used for verification, with licenses and costs listed rather than estimated.
+- [Related Articles Index (EN)](docs/en/related-articles.md): Published articles on these patterns.
+
+## Related repositories and articles
+
+- [FSx for ONTAP Adoption Playbook — llms.txt](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/llms.txt): The Hub. Design guidance built on these patterns — which control to choose, what is irreversible, how to get approval.
+- [FSx for ONTAP Adoption Playbook — workload entry map](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/reference/workload-entry-map.md): Maps workloads to the entry points across the Hub and Spoke repositories.
+- [FSx for ONTAP Observability Integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations): Detection and response primitives (automated blocking, EMS pipeline, verified recovery).
+- [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns): S3 Access Points lifecycle patterns used by audit and recovery workflows.
+- [FSx for ONTAP Agentic Access-Aware RAG](https://github.com/Yoshiki0705/FSx-for-ONTAP-Agentic-Access-Aware-RAG): Permission-aware AI/RAG on the same data these patterns protect.
