@@ -56,7 +56,7 @@ export-policy rule show -vserver svm-prod-dev -policyname default
 ## 偽陽性の防止 / False Positive Prevention
 
 ARP の偽陽性が繰り返し発生する場合:
-1. ARP 学習期間の延長 (30→60日)
+1. ARP 学習期間の延長 (30→60日。旧世代 ARP のみ。ARP/AI には学習期間がないため対象外。[ARP 設定ガイド](../ontap-native/arp-configuration.md))
 2. 除外パスの設定 (バッチ処理ディレクトリ)
 3. 業務アプリケーションパターンの ARP ホワイトリスト化
 
