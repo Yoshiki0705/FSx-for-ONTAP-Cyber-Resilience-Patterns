@@ -26,10 +26,12 @@ if [ -n "$STAGED_WORKFLOWS" ]; then
 fi
 
 # --- Sensitive data patterns ---
+# Generic detection lives in scripts/check_sensitive_patterns.py. Values specific to
+# your environment go in .sensitive-patterns.local (gitignored), one per line.
 echo "🔍 Checking for sensitive data patterns..."
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v '\.githooks/')
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 if [ -n "$STAGED_FILES" ]; then
-    if echo "$STAGED_FILES" | xargs grep -lE '/Users/|178625946981|3\.112\.208' 2>/dev/null; then
+    if ! echo "$STAGED_FILES" | tr '\n' '\0' | xargs -0 python3 scripts/check_sensitive_patterns.py; then
         echo "❌ Sensitive data detected in staged files!"
         exit 1
     fi

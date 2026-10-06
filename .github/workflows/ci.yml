@@ -117,6 +117,11 @@ jobs:
         run: |
           pytest scripts/tests/ --tb=short -q
           python3 scripts/check_evidence_claims.py
+      # Generic detection only (account IDs, public IPs, emails, home paths). No
+      # SENSITIVE_PATTERNS secret is configured for this repository, so the
+      # environment-specific list stays local in .sensitive-patterns.local.
+      - name: Check tracked files for sensitive data
+        run: python3 scripts/check_sensitive_patterns.py --tracked
       - name: Run pytest
         env:
           AWS_DEFAULT_REGION: ap-northeast-1
