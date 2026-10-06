@@ -373,7 +373,7 @@ echo "All resources deleted."
 | 1 | Multi-AZ FSx for ONTAP | Single-AZ | **Multi-AZ 必須** |
 | 2 | NAT Gateway | 不要 (scanners なし) | **必須** (署名更新) |
 | 3 | Scanner HA (ASG) | 1 instance | **2+ instances (Multi-AZ)** |
-| 4 | ARP mode | dry_run (学習) | **enabled** (30日後) |
+| 4 | ARP mode | dry_run (学習。旧世代 ARP のみ) | **enabled**（旧世代 ARP は 30 日の学習後。ARP/AI（FlexVol は 9.16.1 以降、FlexGroup は 9.18.1 以降）は学習期間がなく、`dry_run` を要求しても `enabled` になる。[ARP 設定ガイド](ontap-native/arp-configuration.md)） |
 | 5 | FPolicy is_mandatory | false | 要件に応じて選択。**`true` にしても S3 Access Point 経由の操作は遮断されない**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。AP 経由の経路に強制境界を置くならアクセスポイントポリシーと IAM で表現する |
 | 6 | Lambda concurrency | デフォルト | **Reserved 設定済み** |
 | 7 | KMS CMK | aws/ebs default | **専用 CMK 推奨** |

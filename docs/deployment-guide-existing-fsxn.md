@@ -218,9 +218,10 @@ aws sqs send-message \
   }'
 ```
 
-## Step 8: ARP 学習確認（30日後）
+## Step 8: ARP 学習確認（旧世代 ARP のみ、30日後）
 
-ARP 有効化から30日経過後にアクティブモードへ移行:
+この手順が要るのは旧世代 ARP（NAS FlexVol で 9.10.1〜9.15.1、FlexGroup で 9.17.1 まで）に限る。
+旧世代では ARP 有効化から30日経過後にアクティブモードへ移行:
 
 ```bash
 ssh fsxadmin@<management-endpoint>
@@ -231,6 +232,10 @@ security anti-ransomware volume show -vserver <svm-name> -fields state
 # If ready, switch to active
 security anti-ransomware volume enable -vserver <svm-name> -volume <volume-name> -state active
 ```
+
+ARP/AI（FlexVol は 9.16.1 以降、FlexGroup は 9.18.1 以降）は学習期間がなく、有効化直後から
+能動的に保護する。この世代では `dry_run` を要求しても無言で `enabled` になるため、この手順は
+不要になる。世代の判別と実測の根拠は [ARP 設定ガイド](ontap-native/arp-configuration.md) を参照。
 
 ## クリーンアップ / Cleanup
 
