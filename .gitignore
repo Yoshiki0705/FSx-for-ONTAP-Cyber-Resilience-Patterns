@@ -46,6 +46,8 @@ htmlcov/
 
 # Private notes (review provenance, persona details)
 .private/
+# Environment-specific leak patterns read by scripts/check_sensitive_patterns.py
+.sensitive-patterns.local
 
 # Internal specs (not for public consumption)
 # .kiro/ — private local configuration (never publish)

@@ -1,4 +1,4 @@
-.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style
+.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive
 
 # Default target
 help: ## Show this help
@@ -37,7 +37,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: check-evidence ai-style ## Run all tests (cfn-lint + pytest + evidence + writing-quality gates)
+test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak gates)
 	cfn-lint templates/*.yaml || test $$? -le 12
 	pytest tests/ shared/tests/ -v --tb=short
 
@@ -59,6 +59,10 @@ check-evidence: ## Check evidence for claims that a vendor cannot do something
 ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings print only
 	python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
 
+# Generic leak detection over every tracked file. Environment-specific values are read
+# from .sensitive-patterns.local (gitignored) when present; nothing real is tracked here.
+check-sensitive: ## Fail on account IDs, public IPs, emails, or home paths in tracked files
+	python3 scripts/check_sensitive_patterns.py --tracked
 test-cov: ## Run tests with coverage report
 	pytest tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
 
