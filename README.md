@@ -6,11 +6,11 @@
 
 🌐 **Language**: English | [日本語](docs/ja/README.md)
 
-> Ransomware encrypting files on your NAS? This project detects it within seconds and automatically blocks the attacker at the storage layer — before a human can even open their laptop. Everything deploys as CloudFormation on AWS.
+> Ransomware encrypting files on your NAS? Paired with the companion observability repository, the storage-layer block lands in under 2 minutes from ARP detection (measured on ONTAP 9.17.1P7D1). This repository adds approval-based quarantine with Step Functions. How long ARP itself takes to detect depends on load and model generation. Everything deploys as CloudFormation on AWS.
 
 Multi-layered cyber resilience patterns for Amazon FSx for NetApp ONTAP — combining storage-native security, AI-powered threat prevention, and event-driven automated response.
 
-## はじめる / Get Started
+## はじめ方 / Get Started
 
 | やりたいこと | ガイド | 所要時間 |
 |-------------|--------|---------|
@@ -20,6 +20,18 @@ Multi-layered cyber resilience patterns for Amazon FSx for NetApp ONTAP — comb
 | ARP アラートに対応する | [ARP Alert Triage Runbook](docs/runbooks/arp-alert-triage.md) | 5 min |
 | ランサムウェア復旧を実行する | [Recovery Runbook](docs/runbooks/ransomware-recovery.md) | 15 min |
 | セキュリティ層を比較する | [Security Layer Comparison](docs/comparison-security-layers.md) | 10 min |
+| NIST CSF 2.0 で全体像と限界を把握する | [Framework Mapping](docs/en/cyber-resilience-framework-mapping.md) | 15 min |
+| 情報漏洩（持ち出し）を疑ったときに対応する | [Data Exfiltration Response Runbook](docs/runbooks/data-exfiltration-response.md) | 10 min |
+| 管理面の侵害に備えて隔離バックアップを設計する | [Logically Air-Gapped Vault Guide](docs/data-protection/aws-backup-logically-air-gapped-vault.md) | 15 min |
+
+## 役割別の読む順序 / Reading Order by Role
+
+| Role | Reading order |
+|------|---------------|
+| Decision maker | [Framework mapping](docs/en/cyber-resilience-framework-mapping.md) (summary, governance reporting guidance) → [layer comparison: how to choose](docs/comparison-security-layers.md#選び方--how-to-choose) → [Adoption Playbook data protection module](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/README.md) |
+| Architect | [Architecture Overview](docs/architecture/overview.md) → [framework mapping](docs/en/cyber-resilience-framework-mapping.md) → [logically air-gapped vault](docs/data-protection/aws-backup-logically-air-gapped-vault.md) → `docs/ontap-native/` ([SnapLock](docs/ontap-native/snaplock-configuration.md), [Tamperproof Snapshot](docs/ontap-native/tamperproof-snapshot.md), [MAV](docs/ontap-native/mav-configuration.md)) |
+| Operator | [ARP Alert Triage](docs/runbooks/arp-alert-triage.md) → [Ransomware Recovery](docs/runbooks/ransomware-recovery.md) → [Data Exfiltration Response](docs/runbooks/data-exfiltration-response.md) → [Operational Considerations](docs/en/operational-considerations.md) |
+| AI agent | [`llms.txt`](llms.txt) → [`AGENTS.md`](AGENTS.md) (Start here) → [framework mapping](docs/en/cyber-resilience-framework-mapping.md) → [`docs/agent/evidence-ledger.json`](docs/agent/evidence-ledger.json) |
 
 ## Architecture
 
@@ -67,7 +79,7 @@ flowchart TB
 | File scanning | TrendAI Vision One File Security | Real-time malware detection (Vscan/ICAP) |
 | AI prevention | Deep Instinct for NetApp ONTAP | Zero-day threat prevention |
 | Event-driven | FPolicy → EventBridge → Step Functions | Automated quarantine & response |
-| Data protection | Snapshot, SnapMirror, FlexClone | Recovery & evidence preservation |
+| Data protection | Snapshot, SnapMirror, FlexClone, AWS Backup logically air-gapped vault (documentation only, no template) | Recovery & evidence preservation |
 
 <details>
 <summary>📂 全パターン一覧 / All Patterns</summary>
@@ -95,8 +107,9 @@ flowchart TB
 | SMB block is SVM-wide | All shares affected, not just target volume | Isolate high-risk workloads in dedicated SVMs |
 | NTFS volumes: name-mapping deny ineffective | Must use AD account disable or NACL | See [operational considerations](docs/en/operational-considerations.md) |
 | Domain Admins bypass blocking | Members of `FileSystemAdministratorsGroup` are unaffected | Test with non-admin users |
-| Same-subnet NACL has no effect | Only export-policy deny works for same-subnet | Place clients and FSx ENIs in separate subnets |
+| Same-subnet NACL has no effect | Only export-policy deny works for same-subnet | Place clients and FSx for ONTAP ENIs in separate subnets |
 | NFS client-side caching (up to 60s) | Already-mounted clients may perform I/O briefly | Use NACL for cross-subnet immediate block |
+| ARP is not relied on for read-only exfiltration | Its documented inputs are write-side behaviour, so reads without encryption are not among its detection premises (inference) [E-012] | Use file access auditing and a SIEM; see the [Data Exfiltration Response Runbook](docs/runbooks/data-exfiltration-response.md) |
 
 Full details: [Operational Considerations (EN)](docs/en/operational-considerations.md) | [運用上の注意事項 (JA)](docs/ja/operational-considerations.md)
 
