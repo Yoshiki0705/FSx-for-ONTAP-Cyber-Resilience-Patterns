@@ -270,9 +270,223 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/ontap-native/tamperproof-snapshot.md"
+        "docs/ontap-native/tamperproof-snapshot.md",
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
       ],
       "note": "The NetApp statement is about FabricPool on ONTAP. FSx for ONTAP documentation was not found to state how snapshot locking interacts with capacity pool tiering, so that part is not established."
+    },
+    {
+      "id": "E-008",
+      "claim": "Malware Protection for AWS Backup does not scan FSx for ONTAP recovery points. The feature availability table leaves the Malware Protection column blank for FSx for ONTAP, and the GuardDuty page names EBS snapshots, EC2 AMIs and S3 recovery points.",
+      "subject": "AWS Backup feature availability, Malware Protection for AWS Backup",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/backup-feature-availability.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The FSx for ONTAP row has check marks for cross-Region, cross-account, Audit Manager, incremental, restore testing and logically air-gapped vault, and blanks for continuous backup, full management, cold storage, item-level restore, backup search, backup tiering, Malware Protection and access points."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/guardduty/latest/ug/malware-protection-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "Overview names EBS snapshots, EC2 AMIs and S3 recovery points as examples of what is scanned."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether Malware Protection for AWS Backup covers FSx for ONTAP recovery points. The feature availability table answers it for the current release; the design keeps recovery point checks on FlexClone plus a scan through S3 Access Points either way."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Coverage tables change. Recheck the table before relying on this."
+    },
+    {
+      "id": "E-009",
+      "claim": "A backup of a resource without full AWS Backup management that is encrypted with an AWS managed key cannot be copied to a logically air-gapped vault. FSx for ONTAP lacks full management and defaults to an AWS managed key.",
+      "subject": "AWS Backup logically air-gapped vault, resources without full AWS Backup management (FSx for ONTAP)",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Resources not supporting full management and encrypted with AWS managed keys cannot be copied to logically air-gapped vaults; the backup job completes in the standard vault with a 'Completed with issues - Unsupported encryption key' message. Amazon FSx is named among resources that go through a temporary recovery point."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Compatible encryption: for resource types that are not fully managed, the source must be encrypted with a customer managed key; AWS managed keys are not supported for them."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/encryption-at-rest.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The AWS managed KMS key is the default key for FSx for ONTAP file systems and backups."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/backup-feature-availability.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The Full management column is blank for FSx for ONTAP."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether an FSx for ONTAP file system on an AWS managed key can have its backups copied to a logically air-gapped vault. The developer guide states the constraint and the resulting job status."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
+    },
+    {
+      "id": "E-010",
+      "claim": "FSx for ONTAP volume backups cover RW volumes only. DP, LSM, FlexCache and SnapMirror destination volumes, and SnapLock FlexGroup volumes, are not backed up, and a non-SnapLock backup cannot be restored as a SnapLock volume.",
+      "subject": "Amazon FSx for NetApp ONTAP volume backups",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/using-backups.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Backups support OntapVolumeType RW; DP, LSM and FlexCache or SnapMirror destination volumes are not supported. A SnapLock FlexGroup volume cannot be backed up. A SnapLock backup restores as SnapLock or non-SnapLock; a non-SnapLock backup cannot be restored as SnapLock."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Which FSx for ONTAP volume types can be backed up. The user guide lists them."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "A SnapMirror destination in a DR file system is therefore not a source for AWS Backup; back up the RW source volume instead."
+    },
+    {
+      "id": "E-014",
+      "claim": "Logically air-gapped vault sharing through AWS RAM targets individual account IDs, not organisations or OUs. A shared account can view and restore recovery points but cannot copy them.",
+      "subject": "AWS Backup logically air-gapped vault sharing through AWS RAM",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "A vault can be shared with individual AWS account IDs only, including accounts in another organisation, not with an organisation or OU. Shared accounts can view or restore a backup but not create a copy."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Sharing scope and rights for a shared logically air-gapped vault. The developer guide states both."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "The recovery account design depends on this: it restores, it does not hold its own copies."
+    },
+    {
+      "id": "E-017",
+      "claim": "Restore testing, recovery point indexing and malware scanning ignore temporary recovery points with a DELETE_AFTER_COPY lifecycle, which is the path FSx for ONTAP backups take into a logically air-gapped vault.",
+      "subject": "AWS Backup temporary recovery points (DELETE_AFTER_COPY) for logically air-gapped vaults",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Restore testing, indexing and scanning item: these ignore temporary recovery points with a DELETE_AFTER_COPY lifecycle. Amazon FSx is named among resources that cannot back up directly to the vault and go through a temporary recovery point, which is billed during its retention."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether restore testing can use the temporary recovery point. The developer guide states it does not; the design tests against recovery points in the vault instead."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Restore testing still covers FSx for ONTAP; it is the temporary recovery point that is excluded."
+    },
+    {
+      "id": "E-020",
+      "claim": "A logically air-gapped vault's encryption key is set when the vault is created and cannot be changed afterwards, and Vault Lock compliance mode is always on for the vault.",
+      "subject": "AWS Backup logically air-gapped vault, encryption key and Vault Lock mode",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "A KMS key can only be selected during vault creation and the vault cannot be changed or migrated to a different key. The comparison table says the vault is always locked with a vault lock in compliance mode."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the vault key or lock mode can be changed after creation. The developer guide states both are fixed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Both are irreversible decisions made at vault creation; the approval for them is routed to the Adoption Playbook."
+    },
+    {
+      "id": "E-021",
+      "claim": "Concurrent copy jobs into a logically air-gapped vault for Amazon FSx resources are limited to 5, and the quota is not adjustable (checked 2026-10-08).",
+      "subject": "AWS Backup quotas, concurrent copy jobs into a logically air-gapped vault for Amazon FSx",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/aws-backup-limits.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Logically air-gapped vault quotas: the quotas are currently not adjustable; the FSx row gives 5 as the maximum number of concurrent copies."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the concurrent copy limit can be raised. The quotas page marks it as not adjustable; the design fits backup frequency to it."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Quotas change; the figure carries its check date."
     }
   ]
 }
