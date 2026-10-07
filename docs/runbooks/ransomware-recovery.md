@@ -86,7 +86,9 @@ volume modify -vserver svm-prod-dev -volume vol_prod_dev -policy quarantine_poli
 volume snapshot create -vserver svm-prod-dev -volume vol_prod_dev \
   -snapshot "evidence-$(date +%Y%m%d-%H%M%S)" \
   -snapmirror-label evidence \
-  -expiry-time "$(date -d '+90 days' --iso-8601=seconds)"
+  -snaplock-expiry-time "<MM/DD/YYYY HH:MM:SS>"
+# Takes effect only when snapshot-locking-enabled is true on the volume;
+# otherwise the snapshot is created without retention.
 ```
 
 ## Phase 3: 調査 (Investigation)

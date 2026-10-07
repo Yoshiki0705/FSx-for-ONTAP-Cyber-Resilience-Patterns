@@ -112,7 +112,7 @@ This project compares multiple security technologies. Always:
 
 > ユーザーレベル Kiro グローバル steering のミラー。steering 未ロードの環境でも従えるようにする。
 
-> CI: `.github/workflows/agent-output-audit.yml`（命名/中立性/リーク/parity）と `gitleaks.yml`（シークレット）。
+> CI: `.github/workflows/ci.yml`（根拠ゲート `check_evidence_claims.py`、文体ゲート `ai_style_rules.py`、漏洩ゲート `check_sensitive_patterns.py --tracked`、cfn-lint、pytest）と `gitleaks.yml`（シークレット）。ローカルでは `make test` が同じゲートを回す。命名・中立性・JA/EN parity を見る CI ゲートはないので、下の規則を手で確かめる。
 
 ### Naming (NetApp / AWS)
 
@@ -142,5 +142,5 @@ This project compares multiple security technologies. Always:
 
 ```bash
 gitleaks detect --config .gitleaks.toml --no-git --source .
-# CI が agent-output チェックをミラー: .github/workflows/agent-output-audit.yml
+make test   # check-evidence, ai-style, check-sensitive, cfn-lint, pytest (CI: .github/workflows/ci.yml)
 ```

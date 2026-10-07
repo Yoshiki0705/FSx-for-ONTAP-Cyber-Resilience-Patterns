@@ -219,7 +219,7 @@ graph LR
 
 ### Pattern D: 多層防御フル構成（ARP + TrendAI + Deep Instinct）
 
-全レイヤーを組み合わせた最高レベルの防御。
+ARP、TrendAI（Vscan）、Deep Instinct の 3 つの検知レイヤーをすべて組み合わせる構成。検知の経路が増える一方で、運用対象（スキャンサーバー、エージェント、ライセンス）とコストも 3 製品分になる。
 
 ```mermaid
 graph LR

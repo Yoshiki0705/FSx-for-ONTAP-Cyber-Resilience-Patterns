@@ -12,47 +12,59 @@ an attacker gains admin credentials.
 
 ## 前提条件
 
-- FSx for ONTAP 9.12.1 以降
-- SnapLock Compliance ライセンス（Tamperproof Snapshot の内部実装に必要）
+- ONTAP 9.12.1 以降（CLI で設定する場合、クラスタの全ノード）
+  ONTAP 9.12.1 or later on all nodes in the cluster when you configure it with the CLI.
+- SnapLock ライセンス（ONTAP One に含まれる）がインストールされ、コンプライアンスクロックが初期化されていること（documented、[snapshot-lock-concept.html](https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html)）。FSx for ONTAP でのライセンスの手続きと課金の扱いは確認できていない
+  The SnapLock license (included in ONTAP One) must be installed and the compliance clock initialized (documented, snapshot-lock-concept.html); how FSx for ONTAP handles the license and its billing is not established.
 - ボリュームレベルで設定
+  Configured per volume.
+- Tamperproof Snapshot と FabricPool は同じボリュームで併用できない [E-016]。FSx for ONTAP の容量プールへの階層化を使うボリュームにも同じ制約がかかるかは（推論。未確認）
+  Tamperproof snapshots and FabricPool cannot be enabled on the same volume [E-016]; whether the same applies to volumes that tier to the FSx for ONTAP capacity pool is an inference and unverified.
+- 手動で作成する Snapshot の保持期間（`-snaplock-expiry-time`）が効くのは、ボリュームで `snapshot-locking-enabled` が true のとき（documented、[volume-snapshot-create.html](https://docs.netapp.com/us-en/ontap-cli/volume-snapshot-create.html)）
+  A retention period set on a manually created snapshot takes effect when `snapshot-locking-enabled` is true on the volume (documented, volume-snapshot-create.html).
 
 ## 設定手順
 
-### Step 1: Snapshot ポリシーの保持期間設定
+### Step 1: ボリュームでの snapshot locking の有効化
+
+保持期間はボリュームで snapshot locking を有効にしてから効くので、先にボリュームを設定する。
+Retention takes effect once snapshot locking is enabled on the volume, so configure the volume first.
 
 ```bash
 ssh fsxadmin@<management-ip>
 
-# Create a snapshot policy with locking
-snapshot policy create -vserver svm-prod-dev \
+# Enable snapshot locking on the volume
+volume modify -vserver svm-prod-dev \
+  -volume vol_prod_dev \
+  -snapshot-locking-enabled true
+```
+
+### Step 2: 保持期間付き Snapshot ポリシーの作成と適用
+
+```bash
+# Create a snapshot policy with a retention (lock) period
+volume snapshot policy create -vserver svm-prod-dev \
   -policy tamperproof-hourly \
   -enabled true \
   -schedule1 hourly \
   -count1 24 \
   -snapmirror-label1 hourly \
   -retention-period1 "72 hours"
-```
 
-### Step 2: ボリュームに適用
-
-```bash
-# Apply the tamperproof snapshot policy to volume
+# Apply the tamperproof snapshot policy to the volume
 volume modify -vserver svm-prod-dev \
   -volume vol_prod_dev \
   -snapshot-policy tamperproof-hourly
-
-# Enable snapshot locking on the volume
-volume snapshot locking enable -vserver svm-prod-dev -volume vol_prod_dev
 ```
 
 ### Step 3: 確認
 
 ```bash
-# Verify snapshot locking is enabled
-volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields snapshot-locking-enabled
+# Verify snapshot locking is enabled on the volume
+volume show -vserver svm-prod-dev -volume vol_prod_dev -fields snapshot-locking-enabled
 
-# Show locked snapshots
-volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields expiry-time
+# Show the lock expiry of each snapshot
+volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields snaplock-expiry-time
 ```
 
 ## REST API での設定
@@ -70,9 +82,12 @@ curl -X POST "https://<management-ip>/api/storage/volumes/{volume-uuid}/snapshot
   -H "Content-Type: application/json" \
   -d '{
     "name": "tamperproof-manual-2026-06-25",
-    "expiry_time": "2026-09-25T00:00:00Z"
+    "snaplock_expiry_time": "2026-09-25T00:00:00Z"
   }'
 ```
+
+Snapshot の `expiry_time` は通常の有効期限で、ロックの期限は `snaplock_expiry_time` で指定する（documented、ONTAP REST API の `POST /storage/volumes/{volume.uuid}/snapshots`）。
+On a snapshot, `expiry_time` is the ordinary expiry; the lock expiry is set with `snaplock_expiry_time` (documented, ONTAP REST API `POST /storage/volumes/{volume.uuid}/snapshots`).
 
 ## 推奨 Snapshot ポリシー（Cyber Resilience）
 
@@ -82,9 +97,13 @@ curl -X POST "https://<management-ip>/api/storage/volumes/{volume-uuid}/snapshot
 | Daily | 14 | 30 days | 中期復旧 |
 | Weekly | 4 | 90 days | 長期復旧 + コンプライアンス |
 
+CLI の `volume snapshot restore` で戻せるのは、最新のロック済み Snapshot（documented、snapshot-lock-concept.html）。
+With the CLI, `volume snapshot restore` restores the most recent locked snapshot (documented, snapshot-lock-concept.html).
+
 ## ARP Snapshot との関係
 
-- ARP が自動作成する Snapshot も Tamperproof 化可能
+- ARP が自動作成する Snapshot も Tamperproof 化可能（推論。未確認）
+  Snapshots that ARP creates can also be locked (inference, unverified).
 - ARP Snapshot 名: `anti_ransomware_backup.*`
 - ARP 検知 → 自動 Snapshot 作成 → ロック付与 の自動化を検討
 
@@ -115,5 +134,4 @@ guidance. The material is not duplicated.
 ## 参照 / References
 
 - [NetApp ONTAP — Tamper-proof Snapshots](https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html)
-- [FSx for ONTAP — Snapshot Locking](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/snapshot-locking.html)
 - [SnapLock Configuration](snaplock-configuration.md)

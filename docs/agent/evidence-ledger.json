@@ -246,6 +246,33 @@
         "docs/ontap-native/arp-configuration.md"
       ],
       "note": "Recorded because a measurement that reports 'detected by file_analysis' invites the reader to conclude which parameter fired. It does not support that, and the value itself may not be what the page's description says. Raised as a request from the Adoption Playbook side to attribute detections to always-on versus toggleable paths; this field cannot answer it. The handling is to record the observed value verbatim and to read the seven-value state enumeration rather than the six-value prose, so that paused is not dropped."
+    },
+    {
+      "id": "E-016",
+      "claim": "Tamperproof snapshots and FabricPool cannot be enabled on the same ONTAP volume; how this applies to FSx for ONTAP capacity pool tiering is not established.",
+      "subject": "ONTAP snapshot locking (tamperproof snapshots), ONTAP 9.12.1 and later",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Lists FabricPool under unsupported features: because FabricPool requires the ability to delete data, FabricPool and snapshot locks cannot be enabled on the same volume."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the FabricPool restriction applies to FSx for ONTAP capacity pool tiering. The documents here state it as an inference and mark it unverified; no design decision rests on the answer."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/tamperproof-snapshot.md"
+      ],
+      "note": "The NetApp statement is about FabricPool on ONTAP. FSx for ONTAP documentation was not found to state how snapshot locking interacts with capacity pool tiering, so that part is not established."
     }
   ]
 }

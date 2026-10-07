@@ -295,31 +295,21 @@ graph TB
 graph TD
     MAIN["main.yaml<br/>(Root Nested Stack)"]
     NET["network.yaml<br/>(VPC, Subnets, SG, Endpoints)"]
-    STOR["storage.yaml<br/>(FSx for ONTAP, SVM, Volumes)"]
-    NATIVE["security-native.yaml<br/>(Custom Resource: ARP, FPolicy, SnapLock, MAV)"]
-    SCAN_STACK["scanning.yaml<br/>(Vscan EC2, DI Agent)"]
+    STOR["storage.yaml<br/>(FSx for ONTAP, KMS CMK, SVMs, Volumes incl. SnapLock)"]
     EVT["event-driven.yaml<br/>(SQS, EB, Step Functions)"]
-    OBS_STACK["observability.yaml<br/>(CloudWatch, Dashboards)"]
-    DP["data-protection.yaml<br/>(Backup policies)"]
-
     MAIN --> NET
     MAIN --> STOR
-    MAIN --> NATIVE
-    MAIN --> SCAN_STACK
     MAIN --> EVT
-    MAIN --> OBS_STACK
-    MAIN --> DP
-
     NET --> STOR
-    NET --> SCAN_STACK
-    STOR --> NATIVE
     STOR --> EVT
-    NATIVE --> EVT
-    SCAN_STACK --> EVT
-    EVT --> OBS_STACK
 ```
 
-各テンプレートは Nested Stack として `main.yaml` から参照されるか、個別にデプロイ可能。
+`main.yaml` が nested stack として参照するのは上の 3 本。次の 8 本は個別にデプロイする: scanning、scanning-ha、observability、cost-scheduler、dr-replication、siem-integration、hub-aggregation、spoke-monitoring。
+`main.yaml` nests only the three stacks above. These 8 templates are deployed separately: scanning, scanning-ha, observability, cost-scheduler, dr-replication, siem-integration, hub-aggregation, spoke-monitoring.
+
+ARP と FPolicy の設定用の Custom Resource ハンドラ（`solutions/ontap-native/lambda/security_config_handler.py`）はあるが、2026-10 時点でどのテンプレートからも参照されていない。設定は `docs/ontap-native/` の CLI / REST の手順で行う。
+A Custom Resource handler for ARP and FPolicy settings exists (`solutions/ontap-native/lambda/security_config_handler.py`), but as of 2026-10 no template references it. Configure these settings with the CLI / REST steps in `docs/ontap-native/`.
+
 環境別パラメータは `parameters/dev.json`, `parameters/staging.json`, `parameters/production.json` で管理。
 
 ---
