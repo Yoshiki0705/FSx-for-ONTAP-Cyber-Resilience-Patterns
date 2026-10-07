@@ -2,7 +2,7 @@
 
 本ドキュメントは、[FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) リポジトリのコンポーネントを、本リポジトリ（FSx-for-ONTAP-Cyber-Resilience-Patterns）のセキュリティレイヤーにマッピングし、統合されたDefense-in-Depthアーキテクチャとしてどう連携するかを説明します。
 
-## どのリポジトリを読むか / Where each question is answered
+## 問いごとに読むリポジトリ / Where each question is answered
 
 本リポジトリは**実装のパターン**を持つ。設計判断は
 [FSx for ONTAP Adoption Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook) が持ち、実装は observability リポジトリが持つ。
@@ -75,7 +75,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 | 自動応答 | Step Functions オーケストレーション（隔離ワークフロー） | Lambda 直接応答（1.8秒実測、コールドスタート込み worst-case 12-15秒） |
 | 復旧検証 | DR レプリケーション監視（SnapMirror ラグ） | 検証済みクリーン復旧ポイント（FlexClone + スキャン） |
 | SIEM 連携 | Security Hub + SIEM コネクタテンプレート | ベンダー固有の連携（Datadog、Splunk、Elastic 等） |
-| NIST CSF 2.0 マッピング | レイヤーごとの位置づけ（docs内） | 6 機能の完全なマッピング |
+| NIST CSF 2.0 マッピング | カテゴリ ID 付きの機能カバレッジ（[framework mapping](cyber-resilience-framework-mapping.md)） | 6 機能の完全なマッピング |
 
 ## デプロイ順序
 
@@ -147,14 +147,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 
 ### 4. NIST CSF 2.0 カバレッジ（両リポジトリ統合）
 
-| CSF 2.0 機能 | 本リポジトリ | Observability リポジトリ | 統合評価 |
-|-------------|------------|------------------------|---------|
-| **Govern（統制）** | — | — | 組織的責任 |
-| **Identify（識別）** | — | PII 分類スキャナー | 部分的 |
-| **Protect（保護）** | SnapLock、MAV、TrendAI スキャン、Deep Instinct | Snapshot、export-policy 強化 | 強い |
-| **Detect（検知）** | ARP 設定、FPolicy 設定 | EMS Webhook、CloudWatch Log Alarm、FPolicy サーバー | 強い |
-| **Respond（対応）** | Step Functions オーケストレーション | Lambda 直接ブロック（1.8秒実測、コールドスタート込み +10-15秒） | 強い |
-| **Recover（復旧）** | SnapMirror ラグ監視 | 検証済み復旧ポイントワークフロー | 中程度（完全リストア訓練は手動） |
+両リポジトリを合わせた評価は、[framework mapping](cyber-resilience-framework-mapping.md) の機能カバレッジ表（コンパニオンリポジトリの列）にある。
 
 ## リポジトリ間クロスリファレンス
 
@@ -165,7 +158,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 | ARP インシデント対応 | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
 | EMS イベントリファレンス | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
 | FPolicy 運用 | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
-| NIST CSF 2.0 完全マッピング | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
+| NIST CSF 2.0 完全マッピング | [cyber-resilience-framework-mapping.md](cyber-resilience-framework-mapping.md) | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
 | 復旧検証 | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
 | セキュリティ補遺 | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
 | デプロイ前提条件 | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |

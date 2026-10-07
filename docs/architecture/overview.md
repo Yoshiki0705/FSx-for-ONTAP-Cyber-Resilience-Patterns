@@ -316,14 +316,8 @@ A Custom Resource handler for ARP and FPolicy settings exists (`solutions/ontap-
 
 ## NIST CSF 2.0 マッピング / NIST Cybersecurity Framework 2.0 Mapping
 
-| NIST CSF 2.0 Function | このアーキテクチャでの実装 / Implementation |
-|------------------------|-------------------------------------------|
-| **Govern** | データ分類、ポリシー定義、MAV による変更管理、役割分離 |
-| **Identify** | 資産管理 (SVM/Volume/Share 単位), データ分類レベル定義 |
-| **Protect** | FPolicy ブロック（**NFS / SMB のみ**。S3 Access Point 経由は遮断されない）, SnapLock, Tamperproof Snapshot, MAV, File Scanning, Export Policy |
-| **Detect** | ARP 異常検知（S3 Access Point 経由の書き込みも検知する。実測）, FPolicy 監視（**NFS / SMB のみ**）, File Scanning verdict, CloudWatch Alarms |
-| **Respond** | Step Functions 自動隔離, 通知, フォレンジック, Human-in-the-loop 承認 |
-| **Recover** | ARP Snapshot 復元, SnapMirror DR, FlexClone 検証環境, ランブック |
+CSF 2.0 の機能ごとの評価、暗号化・破壊型と持ち出し型の 2 つのシナリオ、ストレージ層の境界は framework mapping（[JA](../ja/cyber-resilience-framework-mapping.md) / [EN](../en/cyber-resilience-framework-mapping.md)）にある。
+The per-function CSF 2.0 assessment, the encryption-and-destruction and exfiltration scenarios, and the storage-layer boundary are in the framework mapping ([JA](../ja/cyber-resilience-framework-mapping.md) / [EN](../en/cyber-resilience-framework-mapping.md)).
 
 ---
 
