@@ -85,7 +85,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/ontap-native/arp-active-mode-measurement-plan.md"
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/runbooks/data-exfiltration-response.md"
       ],
       "note": "A sibling repository's automated-response addendum states the opposite in a table whose justification is reasoned rather than observed. When the Q2 measurement runs, the volume security style is recorded so the two statements can be settled against a run instead of against each other."
     },
@@ -487,6 +488,159 @@
         "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
       ],
       "note": "Quotas change; the figure carries its check date."
+    },
+    {
+      "id": "E-012",
+      "claim": "ARP is not relied on to detect read-only exfiltration. Its documented detection inputs are data entropy, file extension types and surges in file create, rename and delete rates; no documented detection condition fires on the volume of reads alone.",
+      "subject": "ONTAP Autonomous Ransomware Protection, all generations, read-only access",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Detection method: file activity, data entropy and file extension types (ARP); entropy and file behaviour (ARP/AI). The overview also says ARP processes data as it is written to or read from storage, so reads are seen; what is not documented is a detection condition driven by reads without encryption."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "The toggleable inputs are create, rename and delete rate surges and never-seen-before extensions; the always-enabled paths are per-file high entropy and combined extension-and-entropy. None is a read-volume condition. Same reading as E-005."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether ARP raises an alert on bulk reads without encryption. The design already assumes it does not and routes exfiltration to audit logs and a SIEM, so an answer either way would not change the design."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
+    },
+    {
+      "id": "E-013",
+      "claim": "FSx for ONTAP controls act on file, object and block access and on management operations. SQL statements and API authorisation decisions made in the application or database layer are not observable from the storage layer.",
+      "subject": "Amazon FSx for NetApp ONTAP data access protocols (SMB, NFS, S3 Access Points, iSCSI, NVMe/TCP)",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/supported-fsx-clients.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "The SVM endpoints are NFS, SMB, iSCSI, NVMe over TCP and management; S3 access points are a further access path. These carry file, block and object operations."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/how-it-works-fsx-ontap.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "Describes file systems, SVMs and volumes as the unit of storage and access."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the storage layer can see application-level queries. The boundary follows from what the protocols carry; confirming it would not change the design, which only routes readers to application-layer controls."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "When a database stores its files on an iSCSI or NVMe LUN, ONTAP sees blocks, not rows or statements (inference)."
+    },
+    {
+      "id": "E-015",
+      "claim": "FPolicy receives NFS and SMB operations only; operations through an FSx for ONTAP S3 access point do not reach FPolicy.",
+      "subject": "ONTAP FPolicy with FSx for ONTAP S3 Access Points, ONTAP 9.18.1P3D1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/notes/access-point-authorization-layers.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Section 'FPolicy does not see this path at all': measured 2026-08-26 on ONTAP 9.18.1P3D1; an FPolicy event accepts only cifs, nfsv3 and nfsv4 as protocol and s3 is rejected."
+        },
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verification-results-fpolicy-s3ap-and-session.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The measurement record: no FPolicy notification for S3 access point data operations on UNIX and NTFS volumes, with file protocol controls on the same session that did notify."
+        }
+      ],
+      "observation": "2026-08-26, ap-northeast-1, ONTAP 9.18.1P3D1. S3 access point PUT, GET, DELETE and LIST raised no FPolicy notification on UNIX and NTFS volumes, while NFSv3 and SMB operations on the same volumes and FPolicy session did. The FPolicy event protocol accepted only cifs, nfsv3 and nfsv4.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether FPolicy can be made to see the S3 access point path. The accepted protocol values settle it for this build; the design covers the path with ARP for writes and with access point policy and IAM for the boundary."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
+    },
+    {
+      "id": "E-018",
+      "claim": "The ONTAP native file access audit log records data operations through an FSx for ONTAP S3 access point (Source=HTTP or S3, with file name, operation, offset and byte count) but does not record the requesting principal.",
+      "subject": "ONTAP file access auditing through FSx for ONTAP S3 Access Points, ONTAP 9.18.1P3D1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/ja/verification-results-fpolicy-s3ap-and-session.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Sections 2-1 to 2-4: S3 access point operations appear as audit events with Source HTTP (LIST with Source S3); SubjectUserName is Not Present and SubjectIP is an AWS-owned address that changes per call, so neither the IAM principal nor the source address can be recovered."
+        }
+      ],
+      "observation": "2026-08-26, ap-northeast-1, ONTAP 9.18.1P3D1. With file_operations auditing enabled and an Everyone audit_success SACL applied, S3 access point data operations appeared as audit events with Source=HTTP, including file name, operation type, offset and bytes; no requester identity field was present.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the audit log can carry the S3 requester. It is reproducible by observation, and the design does not expect the audit log to identify the requester on this path."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
+    },
+    {
+      "id": "E-019",
+      "claim": "For SMB object access events, ONTAP audits only the first read and the first write operation on an object, so the audit log does not count successive reads.",
+      "subject": "ONTAP SMB file access auditing (event 4663)",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Event 567/4663 note: ONTAP audits only the first SMB read and first SMB write operation (success or failure) on an object, to avoid excessive log entries when one client performs many successive operations."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether SMB auditing can record every read. The user guide states the behaviour; it only limits how the log is used to estimate volume."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "A caution about estimating read volume from the SMB audit log, not a design premise."
     }
   ]
 }
