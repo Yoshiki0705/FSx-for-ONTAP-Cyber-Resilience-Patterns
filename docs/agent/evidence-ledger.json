@@ -86,7 +86,9 @@
       },
       "appears_in": [
         "docs/ontap-native/arp-active-mode-measurement-plan.md",
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "A sibling repository's automated-response addendum states the opposite in a table whose justification is reasoned rather than observed. When the Q2 measurement runs, the volume security style is recorded so the two statements can be settled against a run instead of against each other."
     },
@@ -305,7 +307,9 @@
         "status": "not-yet"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "Coverage tables change. Recheck the table before relying on this."
     },
@@ -431,7 +435,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "Restore testing still covers FSx for ONTAP; it is the temporary recovery point that is excluded."
     },
@@ -518,7 +524,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
     },
@@ -551,7 +559,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "When a database stores its files on an iSCSI or NVMe LUN, ONTAP sees blocks, not rows or statements (inference)."
     },
@@ -584,7 +594,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
@@ -611,7 +623,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
     },
@@ -638,7 +652,9 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/runbooks/data-exfiltration-response.md"
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "A caution about estimating read volume from the SMB audit log, not a design premise."
     }
