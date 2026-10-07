@@ -4,6 +4,9 @@
 
 FSx for ONTAP 環境でランサムウェア攻撃を受けた場合の、検知→封じ込め→復旧→事後対応の全手順。
 
+持ち出しを疑う場合は [Data Exfiltration Response Runbook](data-exfiltration-response.md) を使う。
+If exfiltration is suspected, use the [Data Exfiltration Response Runbook](data-exfiltration-response.md).
+
 ## 判断フローチャート / Decision Flowchart
 
 ```mermaid
@@ -24,15 +27,19 @@ flowchart TD
     
     CONTAIN --> SNAPSHOT[Create tamperproof snapshot]
     SNAPSHOT --> SCOPE[Assess scope: which volumes affected?]
-    SCOPE --> RECOVERY{Recovery path?}
+    SCOPE --> MGMT{Management plane compromised?<br/>AWS account or ONTAP admin}
+    MGMT -->|No| RECOVERY{Recovery path?}
+    MGMT -->|Yes| RESTORE_LAG
     
     RECOVERY -->|ARP Snapshot available| RESTORE_ARP[SnapRestore from ARP snapshot]
     RECOVERY -->|Pre-attack snapshot| RESTORE_SNAP[SnapRestore from clean snapshot]
     RECOVERY -->|DR copy available| RESTORE_DR[Failover to SnapMirror target]
+    RECOVERY -->|Copy outside the management boundary| RESTORE_LAG[Restore from logically air-gapped vault]
     
     RESTORE_ARP --> VERIFY[Verify restored data integrity]
     RESTORE_SNAP --> VERIFY
     RESTORE_DR --> VERIFY
+    RESTORE_LAG --> VERIFY
     
     VERIFY --> REOPEN[Re-enable access (export policy)]
     REOPEN --> POSTMORTEM[Post-incident review]
@@ -115,7 +122,8 @@ volume clone create -vserver svm-prod-dev \
    # Calculate SHA-256 hash of key evidence files
    find /mnt/forensics -type f -exec sha256sum {} \; > /tmp/forensic-manifest-$(date +%Y%m%d).sha256
    
-   # Store manifest in SnapLock volume (immutable)
+   # Store manifest in the SnapLock volume (/compliance, SnapLock Enterprise: WORM;
+   # the template sets privileged delete to PERMANENTLY_DISABLED, but Legal Hold is Compliance-only)
    cp /tmp/forensic-manifest-*.sha256 /mnt/compliance/evidence/
    ```
 3. アクセスログを SnapLock ボリュームにコピー
@@ -164,6 +172,37 @@ snapmirror break -destination-path svm-dr:vol_prod_dr
 snapmirror resync -source-path svm-dr:vol_prod_dr -destination-path svm-prod-dev:vol_prod_dev
 ```
 
+### Option D: 論理エアギャップボールトからの復旧
+
+AWS アカウントや ONTAP 管理者が侵害され、同じ管理境界の中の Snapshot や SnapMirror の宛先も改ざん・削除された疑いがある場合の経路。手順は AWS の公開文書に基づき、本リポジトリでは実施していない（documented、[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。
+This path is for when the AWS account or an ONTAP administrator is compromised and snapshots or SnapMirror destinations inside the same boundary may also have been tampered with or deleted. The steps follow AWS public documentation and have not been run in this repository (documented).
+
+1. 復旧アカウントで、共有された論理エアギャップボールトの復旧ポイントを確認する。RAM で共有されたボールトへの要求には `--backup-vault-account-id` が要る（documented）。
+   In the recovery account, list the recovery points in the shared vault; requests against a RAM-shared vault need `--backup-vault-account-id` (documented).
+2. 復旧アカウント側に、復元先の FSx for ONTAP ファイルシステムと SVM があることを確認する（推論。未確認）。
+   Confirm that the recovery account has a target FSx for ONTAP file system and SVM (inference, unverified).
+3. AWS Backup の復元ジョブで、新しいボリュームへ復元する。FSx for ONTAP の復元で指定できるメタデータは `Name` と `OntapConfiguration`（`junctionPath`、`sizeInMegabytes`、`storageEfficiencyEnabled`、`storageVirtualMachineId`、`tieringPolicy`）（documented、[restoring-fsx.html](https://docs.aws.amazon.com/aws-backup/latest/devguide/restoring-fsx.html)）。
+   Restore to a new volume with an AWS Backup restore job; the FSx for ONTAP restore metadata is `Name` and `OntapConfiguration` with the listed sub-fields (documented).
+4. 復元したボリュームの中身を FlexClone + S3 Access Points 経由のスキャンで確かめる。Malware Protection for AWS Backup は FSx for ONTAP の復旧ポイントを対象にしない [E-008]。
+   Check the restored volume with FlexClone and a scan through S3 Access Points; Malware Protection for AWS Backup does not scan FSx for ONTAP recovery points [E-008].
+5. ボールト所有アカウントが使えない場合は、マルチパーティ承認（MPA）で復旧アカウントからアクセスする（documented、[multipartyapproval.html](https://docs.aws.amazon.com/aws-backup/latest/devguide/multipartyapproval.html)）。
+   If the vault-owning account is unavailable, reach the vault from the recovery account through multi-party approval (MPA) (documented).
+
+```bash
+# Step 1: list recovery points in a vault shared through AWS RAM
+aws backup list-recovery-points-by-backup-vault \
+  --backup-vault-name <logically-air-gapped-vault-name> \
+  --backup-vault-account-id 123456789012 \
+  --region ap-northeast-1
+
+# Step 3: restore to a new volume (metadata keys per restoring-fsx.html)
+aws backup start-restore-job \
+  --recovery-point-arn <recovery-point-arn> \
+  --metadata file://restore-metadata.json \
+  --iam-role-arn arn:aws:iam::123456789012:role/service-role/AWSBackupDefaultServiceRole \
+  --region ap-northeast-1
+```
+
 ### アクセス復旧
 
 ```bash
@@ -182,7 +221,8 @@ showmount -e <svm-management-ip>
 - [ ] ARP 学習データが汚染されていないか確認
 - [ ] FPolicy フィルタの見直し（攻撃ベクトルを追加）。**S3 Access Point 経由の書き込みは FPolicy フィルタでは閉じられない**（実測 2026-08-26）。その経路は ARP と、S3 側のアクセスポイントポリシー / IAM で塞ぐ
 - [ ] スキャンサーバーのシグネチャ/モデル更新確認
-- [ ] 影響を受けたユーザーへの通知
+- [ ] 影響を受けたユーザーへの通知。通知の要否と方法は法務・個人情報の担当が判断する。本 runbook は法的判断をしない
+  Whether and how to notify is decided by the legal and privacy owners; this runbook makes no legal judgement.
 - [ ] 再発防止策の検討・実装
 
 ### DR テスト（年次）
@@ -192,6 +232,7 @@ showmount -e <svm-management-ip>
 | ARP Snapshot からの復旧演習 | 四半期 | ストレージ管理者 |
 | FlexClone フォレンジック演習 | 半年 | セキュリティチーム |
 | SnapMirror フェイルオーバー | 年次 | インフラチーム |
+| 論理エアギャップボールトからの restore testing / Restore testing from the logically air-gapped vault | 組織で決める / Set by the organisation | ストレージ管理者 |
 | Full ransomware simulation (EICAR) | 年次 | セキュリティチーム + 全関係者 |
 
 ## Contact & Escalation

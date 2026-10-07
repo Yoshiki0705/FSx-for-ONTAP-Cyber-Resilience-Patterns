@@ -309,7 +309,9 @@
       "appears_in": [
         "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
         "docs/ja/cyber-resilience-framework-mapping.md",
-        "docs/en/cyber-resilience-framework-mapping.md"
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/comparison-security-layers.md",
+        "docs/runbooks/ransomware-recovery.md"
       ],
       "note": "Coverage tables change. Recheck the table before relying on this."
     },
@@ -354,7 +356,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/comparison-security-layers.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
     },
@@ -381,7 +384,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/comparison-security-layers.md"
       ],
       "note": "A SnapMirror destination in a DR file system is therefore not a source for AWS Backup; back up the RW source volume instead."
     },
@@ -526,7 +530,8 @@
       "appears_in": [
         "docs/runbooks/data-exfiltration-response.md",
         "docs/ja/cyber-resilience-framework-mapping.md",
-        "docs/en/cyber-resilience-framework-mapping.md"
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/comparison-security-layers.md"
       ],
       "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
     },
@@ -657,6 +662,39 @@
         "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "A caution about estimating read volume from the SMB audit log, not a design premise."
+    },
+    {
+      "id": "E-011",
+      "claim": "Amazon Macie analyses objects in S3 general purpose buckets that use one of six listed storage classes. Objects reached through FSx for ONTAP S3 Access Points use the FSX_ONTAP storage class and are outside that list.",
+      "subject": "Amazon Macie sensitive data discovery, supported storage classes",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/macie/latest/user/discovery-supported-storage.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Macie analyses objects stored in an S3 general purpose bucket using a supported storage class: RRS, Glacier Instant Retrieval, Intelligent-Tiering, One Zone-IA, Standard and Standard-IA. Objects in other storage classes are skipped."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/access-points-for-fsxn-object-api-support.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "FSX_ONTAP is the only supported storage class for objects through an FSx for ONTAP access point."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether Macie can scan data through FSx for ONTAP S3 Access Points. The two pages together settle it for the current release; sensitive data detection here uses the companion repository's PII scanner."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/comparison-security-layers.md"
+      ],
+      "note": "Corrects an earlier statement in the comparison document that Macie applies through S3 Access Points."
     }
   ]
 }
