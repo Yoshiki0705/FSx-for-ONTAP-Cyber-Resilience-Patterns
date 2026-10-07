@@ -376,7 +376,7 @@ echo "All resources deleted."
 | 4 | ARP mode | dry_run (学習。旧世代 ARP のみ) | **enabled**（旧世代 ARP は 30 日の学習後。ARP/AI（FlexVol は 9.16.1 以降、FlexGroup は 9.18.1 以降）は学習期間がなく、`dry_run` を要求しても `enabled` になる。[ARP 設定ガイド](ontap-native/arp-configuration.md)） |
 | 5 | FPolicy is_mandatory | false | 要件に応じて選択。**`true` にしても S3 Access Point 経由の操作は遮断されない**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。AP 経由の経路に強制境界を置くならアクセスポイントポリシーと IAM で表現する |
 | 6 | Lambda concurrency | デフォルト | **Reserved 設定済み** |
-| 7 | KMS CMK | aws/ebs default | **専用 CMK 推奨** |
+| 7 | KMS CMK | `storage.yaml` が作る CMK（`FsxKmsKey`、新規ファイルシステムのとき） | **専用 CMK 推奨**（ファイルシステムをこのキーで暗号化しておくと、バックアップを論理エアギャップボールトへコピーできる [E-009]） |
 | 8 | VPC Flow Logs | ✅ | ✅ |
 | 9 | CloudTrail | アカウントデフォルト | **組織レベル有効化** |
 | 10 | Notification | なし or テスト | **本番メール/Slack/PagerDuty** |

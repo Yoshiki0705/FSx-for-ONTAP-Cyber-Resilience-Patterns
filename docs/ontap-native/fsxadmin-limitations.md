@@ -51,7 +51,7 @@ Instead, use the `fsxadmin` user which has vsadmin-equivalent permissions plus s
 | Snapshot policy create/modify | ✅ | |
 | SnapMirror create/manage | ✅ | |
 | FlexClone create | ✅ | |
-| AWS Backup integration | ✅ | via AWS Console/API |
+| AWS Backup integration | ✅ | Via AWS Console/API. RW volumes only; DP, LSM, FlexCache and SnapMirror destination volumes and SnapLock FlexGroup volumes are not backed up [E-010]. To copy backups to a logically air-gapped vault, the file system must be encrypted with a customer managed key [E-009]. See the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) |
 
 ### 監査・監視
 

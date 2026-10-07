@@ -357,7 +357,12 @@
       },
       "appears_in": [
         "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
-        "docs/comparison-security-layers.md"
+        "docs/comparison-security-layers.md",
+        "docs/quickstart-deployment.md",
+        "docs/deployment-guide-existing-fsxn.md",
+        "docs/ontap-native/fsxadmin-limitations.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
     },
@@ -385,7 +390,11 @@
       },
       "appears_in": [
         "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
-        "docs/comparison-security-layers.md"
+        "docs/comparison-security-layers.md",
+        "docs/ontap-native/fsxadmin-limitations.md",
+        "docs/ontap-native/snaplock-configuration.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
       ],
       "note": "A SnapMirror destination in a DR file system is therefore not a source for AWS Backup; back up the RW source volume instead."
     },
@@ -531,7 +540,9 @@
         "docs/runbooks/data-exfiltration-response.md",
         "docs/ja/cyber-resilience-framework-mapping.md",
         "docs/en/cyber-resilience-framework-mapping.md",
-        "docs/comparison-security-layers.md"
+        "docs/comparison-security-layers.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
       ],
       "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
     },
@@ -601,7 +612,9 @@
       "appears_in": [
         "docs/runbooks/data-exfiltration-response.md",
         "docs/ja/cyber-resilience-framework-mapping.md",
-        "docs/en/cyber-resilience-framework-mapping.md"
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
@@ -630,7 +643,9 @@
       "appears_in": [
         "docs/runbooks/data-exfiltration-response.md",
         "docs/ja/cyber-resilience-framework-mapping.md",
-        "docs/en/cyber-resilience-framework-mapping.md"
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
       ],
       "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
     },

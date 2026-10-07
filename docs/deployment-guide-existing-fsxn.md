@@ -75,7 +75,14 @@ aws fsx describe-volumes \
 # Management Endpoint
 aws fsx describe-file-systems --file-system-ids <your-file-system-id> \
   --query 'FileSystems[0].OntapConfiguration.Endpoints.Management.DNSName' --output text
+
+# KMS key of the file system, then its type (AWS = AWS managed key, CUSTOMER = customer managed key)
+aws fsx describe-file-systems --file-system-ids <your-file-system-id> \
+  --query 'FileSystems[0].KmsKeyId' --output text
+aws kms describe-key --key-id <key-arn> --query 'KeyMetadata.KeyManager' --output text
 ```
+
+KMS キーの種別が `AWS`（AWS マネージドキー）の場合、そのファイルシステムのバックアップは AWS Backup の論理エアギャップボールトへコピーされない [E-009]。バックアップジョブは失敗せず「Completed with issues」で完了し、標準ボールトにだけ残る（documented、[lag-vault-primary-backup.html](https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html) の "Completed with issues - Unsupported encryption key"、2026-10-08 確認）。ジョブの状態が成功でも、ボールトへのコピーの有無は別に確かめる。詳細は[ボールト文書](data-protection/aws-backup-logically-air-gapped-vault.md)。
 
 ## Step 2: パラメータファイル作成
 
