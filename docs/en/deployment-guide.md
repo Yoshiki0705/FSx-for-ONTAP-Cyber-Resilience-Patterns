@@ -49,7 +49,7 @@ Two deployment paths are supported:
 | # | Template | Description | Deploy Time | Dependencies |
 |---|----------|-------------|-------------|--------------|
 | 1 | `network.yaml` | VPC, subnets (Multi-AZ), Security Groups, VPC Endpoints, Flow Logs | ~3 min | None |
-| 2 | `storage.yaml` | FSx for ONTAP file system, SVM, volumes, KMS, Custom Resource (ARP/FPolicy) | ~30 min | network |
+| 2 | `storage.yaml` | FSx for ONTAP file system, SVMs, volumes, KMS | ~30 min | network |
 | 3 | `event-driven.yaml` | SQS, EventBridge custom bus, Step Functions, Lambda, SNS | ~5 min | network (Lambda VPC) |
 | 4 | `scanning.yaml` | EC2 instances for TrendAI Vscan (ICAP) + Deep Instinct | ~5 min | network |
 | 5 | `observability.yaml` | CloudWatch Dashboard + Alarms | ~2 min | event-driven (SNS ARN) |
@@ -149,6 +149,8 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_NAMED_IAM \
   --region ap-northeast-1
 ```
+
+ARP and FPolicy are set after the stacks are up, with the CLI / REST steps in the [ARP guide](../ontap-native/arp-configuration.md) and the [FPolicy guide](../ontap-native/fpolicy-configuration.md). File access auditing on `svm-prod` is enabled by hand as well; see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 
 ### Step 3: Deploy Scanning Layer
 
@@ -250,7 +252,7 @@ aws cloudformation create-stack \
   --region ap-northeast-1
 ```
 
-### Step 6: Deploy Storage (ARP/FPolicy Configuration)
+### Step 6: Deploy Storage
 
 ```bash
 aws cloudformation create-stack \
@@ -262,7 +264,7 @@ aws cloudformation create-stack \
 ```
 
 With `UseExistingFileSystem=true`, no new FSx for ONTAP is created.
-The Custom Resource Lambda configures ARP and FPolicy on the existing file system.
+ARP and FPolicy on the existing file system are set with the CLI / REST steps in the [ARP guide](../ontap-native/arp-configuration.md) and the [FPolicy guide](../ontap-native/fpolicy-configuration.md).
 
 ---
 
@@ -349,8 +351,8 @@ aws cloudformation wait stack-delete-complete --stack-name <stack-name>
 
 ### ONTAP Configuration Rollback
 
-ARP and FPolicy configurations are **intentionally preserved** after stack deletion
-(safety-first design). To manually revert:
+ARP and FPolicy are set with the ONTAP CLI / REST steps, outside stack management, so they
+remain on FSx for ONTAP after the stack is deleted. To revert them manually:
 
 ```bash
 ssh fsxadmin@<management-endpoint>
@@ -396,7 +398,6 @@ aws secretsmanager delete-secret \
 | Lambda cannot reach ONTAP REST API | SG missing Lambda→FSx TCP/443 | Check `SgLambda` egress and `SgFsx` ingress rules |
 | FPolicy engine creation fails | Scanner not reachable on TCP/1344 | Verify scanner SG ingress and FSx SG egress on ICAP port |
 | ARP enable fails on FlexGroup | ONTAP version < 9.13.1 | Upgrade ONTAP or use FlexVol |
-| Custom Resource timeout | ONTAP API slow response | Increase Lambda timeout to 300s |
 | S3 Gateway EP route not propagating | Route table not associated | Verify both isolated and private route tables are in EP config |
 | Scanner signature update fails | No outbound internet | Enable NAT Gateway (`EnableNatGateway=true`) or use S3 mirror |
 | SQS messages going to DLQ | Lambda processing error | Check CloudWatch Logs for event-transformer Lambda |

@@ -27,14 +27,37 @@ These records cannot be reconstructed after the fact unless they were enabled in
 
 The audit log destination rests on these four points.
 
-- 保存先は `vserver audit create -destination` で指定するパスで、監査対象の SVM の名前空間に既にあるパスでなければならない（documented、[plan-auditing-config-concept.html](https://docs.netapp.com/us-en/ontap/nas-audit/plan-auditing-config-concept.html)）。本リポジトリのテンプレートとスクリプトは監査を設定しない。
-  The destination is the path given to `vserver audit create -destination`, and it must already exist in the namespace of the audited SVM (documented). The templates and scripts in this repository do not configure auditing.
-- テンプレートが作る `vol_audit`（`/audit`、SnapLock ではない、Snapshot ポリシー `default`）と `vol_snaplock`（`/compliance`、SnapLock Enterprise）は、どちらも `svm-audit` にある。上の規則により、どちらも `svm-prod` の監査ログの直接の保存先にはならない。`svm-prod` を監査するなら、保存先は `svm-prod` の中に用意する。
-  The template's `vol_audit` (`/audit`, not SnapLock, snapshot policy `default`) and `vol_snaplock` (`/compliance`, SnapLock Enterprise) both live in `svm-audit`. By the rule above, neither can be the direct destination for `svm-prod` audit logs; prepare a destination inside `svm-prod` to audit it.
+- 保存先は `vserver audit create -destination` で指定するパスで、監査対象の SVM の名前空間に既にあるパスでなければならない（documented、[plan-auditing-config-concept.html](https://docs.netapp.com/us-en/ontap/nas-audit/plan-auditing-config-concept.html)）。テンプレートが作るのは保存先のボリュームまでで、監査の設定と有効化は ONTAP CLI で行う。CloudFormation の SVM とボリュームのリソース型（`AWS::FSx::StorageVirtualMachine` / `AWS::FSx::Volume`）のプロパティには監査の設定がない [E-022]。
+  The destination is the path given to `vserver audit create -destination`, and it must already exist in the namespace of the audited SVM (documented). The template creates the destination volume only; auditing is configured and enabled with the ONTAP CLI. The CloudFormation resource types for SVMs and volumes (`AWS::FSx::StorageVirtualMachine` / `AWS::FSx::Volume`) have no auditing property [E-022].
+- テンプレートが作る `vol_audit`（`/audit`、SnapLock ではない、Snapshot ポリシー `default`）と `vol_snaplock`（`/compliance`、SnapLock Enterprise）は、どちらも `svm-audit` にある。上の規則により、どちらも `svm-prod` の監査ログの直接の保存先にはならない。`svm-prod` の保存先として、テンプレートは `vol_audit_prod`（`/audit_prod`、SnapLock ではない、Snapshot ポリシー `default`）を `svm-prod` に作る。
+  The template's `vol_audit` (`/audit`, not SnapLock, snapshot policy `default`) and `vol_snaplock` (`/compliance`, SnapLock Enterprise) both live in `svm-audit`. By the rule above, neither can be the direct destination for `svm-prod` audit logs. As the destination for `svm-prod`, the template creates `vol_audit_prod` (`/audit_prod`, not SnapLock, snapshot policy `default`) in `svm-prod`.
 - 改ざんに耐える保管が要る場合の選択肢は 2 つある。(a) 保存先のボリュームで snapshot locking を有効にし、ロック付き Snapshot を取る（[tamperproof-snapshot.md](../ontap-native/tamperproof-snapshot.md)）。(b) ローテーション済みのファイルをクライアントから `vol_snaplock` へコピーして WORM にする。`vol_snaplock` は SnapLock Enterprise で、テンプレートは privileged delete を `PERMANENTLY_DISABLED` にしているが、Legal Hold は Compliance だけの機能で、Compliance と同じ保証ではない（documented、[how-snaplock-works.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/how-snaplock-works.html)）。
   Two options exist when tamper-resistant retention is needed. (a) Enable snapshot locking on the destination volume and take locked snapshots. (b) Copy rotated files from a client to `vol_snaplock` and commit them to WORM; it is SnapLock Enterprise with privileged delete set to `PERMANENTLY_DISABLED` by the template, but Legal Hold is a Compliance-only feature, so the guarantee is not the same as Compliance (documented).
 - 他の文書で監査ログの保管に触れる場合も、この区別に従う（保存先は監査対象の SVM の中、改ざん耐性は (a) か (b) で別に作る）。
   Other documents that mention audit log retention follow the same distinction: the destination is inside the audited SVM, and tamper resistance is added separately with (a) or (b).
+
+### svm-prod の監査の有効化手順 / Enabling auditing on svm-prod
+
+Storage Stack の作成後に 1 回実行する。監査の作成と有効化のコマンドと既定値は documented（[vserver-audit-create.html](https://docs.netapp.com/us-en/ontap-cli/vserver-audit-create.html)、[file-access-auditing.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html)）。記録されるのは SACL が付いたオブジェクトの操作なので、上の表のとおり、監査したいパスに SACL も適用する。`-rotate-limit` の既定値はプラットフォームで違う（cloud optimized platform で 10、それ以外で 0 = すべて保持）ので明示する。保存先のボリュームには変換後のログを置く空き容量が要る（AWS のユーザーガイド）。ボリュームの Snapshot ポリシーは `default` なので、ローテーションで削除されたログファイルの領域は、そのファイルを含む Snapshot が期限切れになるまで解放されない。サイズは下のコメントの式に、Snapshot が保持する分を足して見積もる（この上乗せ分は未測定）。
+
+`/audit_prod` は監査対象の SVM の名前空間にあるので、制限しなければ同じ NFS / SMB クライアントから届く。NFS ではログを読む端末だけに読み取り専用で許可する export policy を作って `volume modify -vserver svm-prod-dev -volume vol_audit_prod_dev -policy <policy>` で割り当てる（documented、[associate-export-policy-flexvol-task.html](https://docs.netapp.com/us-en/ontap/nfs-config/associate-export-policy-flexvol-task.html)）。SMB では `/audit_prod` に共有を作らないか、共有の ACL をログを読む担当者に限る。
+
+Run this once after the storage stack is created. The commands and defaults for creating and enabling auditing are documented (vserver-audit-create.html, file-access-auditing.html). Only operations on objects that carry a SACL are recorded, so also apply SACLs to the paths to audit, as stated in the table above. The default of `-rotate-limit` differs by platform (10 on cloud optimized platforms, 0 = keep all elsewhere), so set it explicitly. The destination volume needs free space for the converted logs (AWS user guide). The volume's snapshot policy is `default`, so space held by log files deleted at rotation is not freed until the snapshots that contain them expire. Size the volume with the formula in the comment below plus the space those snapshots hold (that extra amount is not measured).
+
+`/audit_prod` is in the namespace of the audited SVM, so the same NFS / SMB clients can reach it unless access is restricted. For NFS, create an export policy that grants read-only access to the hosts that read the logs, and assign it with `volume modify -vserver svm-prod-dev -volume vol_audit_prod_dev -policy <policy>` (documented, associate-export-policy-flexvol-task.html). For SMB, do not create a share on `/audit_prod`, or limit the share ACL to the people who read the logs.
+
+```bash
+ssh fsxadmin@<management-ip>
+
+# Destination is the junction path of vol_audit_prod inside svm-prod.
+# Keep rotate-size x (rotate-limit + 1), plus the space snapshots hold for
+# rotated-out files, below the volume size (ProductionAuditVolumeSize,
+# default 1024 MiB).
+vserver audit create -vserver svm-prod-dev -destination /audit_prod \
+  -format evtx -rotate-size 100MB -rotate-limit 5
+vserver audit enable -vserver svm-prod-dev
+vserver audit show -vserver svm-prod-dev -instance
+```
 
 ## 判断フローチャート / Decision Flowchart
 
@@ -86,7 +109,7 @@ vserver audit show -vserver svm-prod-dev -instance
 
 # Step 2: locked snapshot of the audit log destination volume
 # (takes effect only when snapshot-locking-enabled is true on that volume)
-volume snapshot create -vserver svm-prod-dev -volume <audit-log-volume> \
+volume snapshot create -vserver svm-prod-dev -volume vol_audit_prod_dev \
   -snapshot "exfil-evidence-<YYYYMMDD-HHMMSS>" \
   -snaplock-expiry-time "<MM/DD/YYYY HH:MM:SS>"
 ```

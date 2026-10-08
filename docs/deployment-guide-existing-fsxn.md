@@ -3,11 +3,12 @@
 ## 概要 / Overview
 
 既存の Amazon FSx for NetApp ONTAP ファイルシステムに対してサイバーレジリエンスパターンを適用するガイド。
-新規 FSx for ONTAP を作成せず、既存リソースを指定して Event-Driven Response パイプラインと
-ONTAP セキュリティ設定（ARP, FPolicy）を追加デプロイする。
+新規 FSx for ONTAP を作成せず、既存リソースを指定して Event-Driven Response パイプラインを
+追加デプロイし、ONTAP セキュリティ設定（ARP、FPolicy）は CLI / REST の手順で入れる。
 
-This guide deploys cyber resilience patterns (event-driven response, ARP, FPolicy) onto an
-existing FSx for ONTAP file system without creating new storage resources.
+This guide deploys the event-driven response pipeline onto an existing FSx for ONTAP file
+system without creating new storage resources; ARP and FPolicy are set with the ONTAP CLI /
+REST steps.
 
 ## Prerequisites
 
@@ -43,7 +44,7 @@ Event-Driven Stack のデプロイには Lambda コードパッケージの S3 �
 ```
 1. package-lambdas.sh  (Lambda zip → S3)
 2. network.yaml        (VPC, Subnets, SGs, VPC Endpoints, Flow Logs)
-3. storage.yaml        (FSx for ONTAP, KMS, ARP/FPolicy Custom Resource)
+3. storage.yaml        (FSx for ONTAP, KMS, SVMs, volumes)
 4. event-driven.yaml   (SQS, EventBridge, Step Functions, Lambda)
 5. scanning.yaml       (EC2 scanners: TrendAI Vscan / Deep Instinct)
 6. observability.yaml  (CloudWatch Dashboard, Alarms)
@@ -147,11 +148,11 @@ aws cloudformation deploy \
   --region ap-northeast-1
 ```
 
-## Step 6: ONTAP Security 設定（Custom Resource or 手動）
+## Step 6: Storage Stack のデプロイと ONTAP セキュリティ設定
 
-### Option A: Custom Resource Lambda でデプロイ（推奨）
+Storage Stack をデプロイしてから、ARP と FPolicy を ONTAP CLI / REST で設定する。
 
-Storage Stack 経由で Custom Resource を利用:
+### Storage Stack のデプロイ
 
 ```bash
 aws cloudformation deploy \
@@ -162,10 +163,13 @@ aws cloudformation deploy \
   --region ap-northeast-1
 ```
 
-`UseExistingFileSystem=true` により新規 FSx は作成されず、
-Custom Resource が既存環境に ARP と FPolicy を設定する。
+`UseExistingFileSystem=true` により新規 FSx for ONTAP は作成されない。スタックは既存の
+ファイルシステム ID、管理エンドポイント、ボリューム ID を出力（`FileSystemId`、
+`ManagementEndpoint`、`ExistingVolumeIdOutput`）として後続のスタックに渡す。
 
-### Option B: 手動設定（SSH 経由）
+### ARP と FPolicy の設定手順
+
+ONTAP CLI（SSH 経由）での例を示す。REST の手順は下の各設定ガイドにある。
 
 ```bash
 # SSH to management endpoint
@@ -178,7 +182,21 @@ security anti-ransomware volume enable -vserver <svm-name> -volume <volume-name>
 security anti-ransomware volume show
 ```
 
-FPolicy の詳細設定は [docs/ontap-native/fpolicy-configuration.md](ontap-native/fpolicy-configuration.md) を参照。
+ARP の世代ごとの手順は [ARP 設定ガイド](ontap-native/arp-configuration.md)、FPolicy の詳細設定は [docs/ontap-native/fpolicy-configuration.md](ontap-native/fpolicy-configuration.md) を参照。
+
+### 監査ログの保存先
+
+`ExistingSvmId` を指定すると SVM が新規作成されないので、監査ログの保存先ボリューム（`vol_audit_prod`）も作られない。
+ONTAP の監査を使う場合は、監査する既存 SVM の名前空間に保存先のボリュームを作ってから
+`vserver audit create` / `enable` を実行する。保存先の規則と手順は
+[持ち出し対応の runbook](runbooks/data-exfiltration-response.md#svm-prod-の監査の有効化手順--enabling-auditing-on-svm-prod)
+にある（`-vserver` と `-destination` を自分の SVM とパスに置き換える）。
+
+When `ExistingSvmId` is set, no SVM is created, so the audit log destination volume
+(`vol_audit_prod`) is not created either. To use ONTAP auditing, create a destination volume in the namespace of the existing SVM
+you audit, then run `vserver audit create` / `enable`. The destination rule and the steps are in
+the data exfiltration runbook linked above; replace `-vserver` and `-destination` with your SVM
+and path.
 
 ## Step 7: 動作確認
 
@@ -257,7 +275,7 @@ aws cloudformation delete-stack --stack-name fsxn-cyber-resilience-storage-exist
 aws secretsmanager delete-secret --secret-id fsxn-cyber-resilience-fsxadmin --force-delete-without-recovery
 ```
 
-> **Note**: ARP 設定は意図的に Stack 削除後も維持されます（安全のため）。
+> **Note**: ARP は Step 6 の CLI / REST で設定したもので、Stack を削除しても FSx for ONTAP 上に残る。
 > 手動で無効化する場合: `security anti-ransomware volume disable -vserver <svm> -volume <vol>`
 
 ## トラブルシューティング / Troubleshooting
@@ -267,5 +285,4 @@ aws secretsmanager delete-secret --secret-id fsxn-cyber-resilience-fsxadmin --fo
 | Lambda が ONTAP API に接続できない | Lambda SG → FSx SG の HTTPS(443) が開いていない | Security Group ルール確認 |
 | ARP enable 失敗 | ボリュームが FlexGroup または特殊タイプ | ARP は FlexVol のみ対応。FlexGroup は ONTAP 9.13.1+ |
 | FPolicy engine 作成失敗 | scanner サーバーが到達不能 | ネットワーク疎通確認 (telnet <ip> 1344) |
-| Custom Resource タイムアウト | ONTAP API 応答遅延 | Lambda タイムアウトを300秒に設定 |
 | Secrets Manager アクセスエラー | VPC Endpoint がない | Secrets Manager Interface Endpoint を確認 |

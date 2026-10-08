@@ -30,7 +30,7 @@
 | **Govern（統制）** | GV.RM、GV.RR、GV.OC | ⚠️ | CloudFormation-as-code 監査証跡、cfn-guard コンプライアンスルール、`solutions/compliance/` 証跡収集。移行前のデータ保護計画とコストの見積り（[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。破壊的操作の承認（ONTAP の MAV、AWS Backup の MPA） | CloudWatch Logs + SNS 通知証跡 | リスク戦略、役割、取締役会レベルの監督は組織的決定；ツーリングは証跡アーティファクトのみ提供 |
 | **Identify（識別）** | ID.AM、ID.RA | ⚠️ | CloudFormation のタグ（`Project` / `Layer` / `Component`、ボリュームの `DataClassification` = internal / confidential、`templates/storage.yaml`） | コンテンツレベル PII スキャナー（Amazon Comprehend）、スキーマレベルフィールド分類 | テキスト/構造化データはカバー済み；Office/PDF 抽出は対象外（コンパニオンリポジトリの現状） |
 | **Protect（保護）** | PR.AA、PR.DS、PR.PS、PR.IR | ✅ | SnapLock（WORM）、MAV（マルチ管理者検証）、TrendAI インラインスキャン、Deep Instinct AI 防御、export-policy/name-mapping 強化、KMS 暗号化、論理エアギャップボールト（文書のみ。本リポジトリでは未検証） | ONTAP Snapshot、export-policy、Tamperproof Snapshot | 保護するのは復旧点とファイルの可用性・完全性。認可された読み取りによる持ち出しは止めない（持ち出し型の節） |
-| **Detect（検知）** | DE.CM、DE.AE | ✅ | ARP/AI 設定（`solutions/ontap-native/`。**S3 Access Point 経由の書き込みも検知する**。実測 2026-08-26）、FPolicy イベントキャプチャ（**NFS / SMB のみ**）、CloudWatch アラーム（`templates/observability.yaml`） | EMS Webhook パイプライン（~30秒）、CloudWatch Log Alarm（~90秒）、FPolicy 外部サーバー | 行動 ML ベースラインは SIEM（Datadog/Elastic/Splunk ML）に委任。ARP の検知条件として文書にあるのは書き込み系で、読み取りだけで発火する条件はない（推論）[E-012]。読み取りだけの持ち出しは監査ログと SIEM で見る |
+| **Detect（検知）** | DE.CM、DE.AE | ✅ | ARP/AI 設定（`solutions/ontap-native/`。**S3 Access Point 経由の書き込みも検知する**。実測 2026-08-26）、FPolicy イベントキャプチャ（**NFS / SMB のみ**）、CloudWatch アラーム（`templates/observability.yaml`） | EMS Webhook パイプライン（~30秒）、CloudWatch Log Alarm（~90秒）、FPolicy 外部サーバー | 行動 ML ベースラインは SIEM（Datadog/Elastic/Splunk ML）に委任。ARP の検知条件として文書にあるのは書き込み系で、読み取りだけで発火する条件は文書にない（推論）[E-012]。読み取りだけの持ち出しは監査ログと SIEM で見る |
 | **Respond（対応）** | RS.MA、RS.AN、RS.MI、RS.CO | ✅ | Step Functions オーケストレーション（隔離、承認ワークフロー）、Security Hub 連携 | Lambda 直接ブロック（1.8秒実測、コールドスタート込みで +10-15秒）：name-mapping deny + export-policy deny + NACL deny + セッション切断 + 保護 Snapshot、フォレンジクスダッシュボード（4 SIEM） | 検知元を問わず SNS から起動できる。注: SMB name-mapping deny は NTFS セキュリティスタイルのボリュームでは無効 |
 | **Recover（復旧）** | RC.RP、RC.CO | ⚠️ | SnapMirror ラグ監視（`templates/dr-replication.yaml`）、DR レプリケーションパターン、AWS Backup / 論理エアギャップボールト（restore testing の対象に FSx for ONTAP が入る、documented） | 検証済みクリーン復旧ポイント（FlexClone + 拡張子スキャン + 判定）、TTL 自動ブロック解除 | 完全なリストアリハーサルは AWS Backup restore testing を推奨；RC.CO（ステークホルダーコミュニケーション）は最小限 |
 
@@ -187,7 +187,7 @@ FSx for ONTAP の制御が作用するのは、ファイル・オブジェクト
 
 主要な注意点:
 
-- **RTO/RPO**: 本プロジェクトは固定の RTO/RPO 値を定義しない — これらは環境固有であり、各デプロイのビジネス要件に基づいて確立する必要がある。レスポンスモジュールの実測 E2E タイミング（検知からブロックまで 2 分以内、worst-case 3 分以内）は RPO 計算のデータポイントであり、保証された SLA ではない。
+- **RTO/RPO**: 本プロジェクトは固定の RTO/RPO 値を定義しない。これらは環境固有であり、各デプロイのビジネス要件に基づいて決める。コンパニオンリポジトリのレスポンスモジュール（Lambda）の実測 E2E タイミング（検知からブロックまで 2 分以内、worst-case 3 分以内）は RPO 計算のデータポイントであり、保証された SLA ではない。本リポジトリの Step Functions による隔離の所要時間は測っていない。
 - **誤検知ハンドリング**: 自動ブロックには誤検知のリスクが内在する。TTL 自動ブロック解除コンパニオンスタックがロックアウト期間を制限する。必ず非本番ユーザーで事前テストし、レスポンスパイプラインに接続する前に上流の検知ルールをチューニングすること。
 - **影響範囲（ブラストレディウス）**: SMB name-mapping deny と NFS export-policy deny はいずれも **SVM 全体** に影響する — ターゲット SVM 内の全ボリュームと共有が対象。マルチテナント SVM 設計ではこれを考慮すること。
 - **同一サブネット NACL 制限**: NACL deny ルールはサブネット境界を越えるトラフィックにのみ適用される。攻撃者のクライアントと FSx for ONTAP ENI が同一サブネットにある場合、NACL は無効 — export-policy deny（ONTAP レイヤー）のみが有効なブロックメカニズムとなる。

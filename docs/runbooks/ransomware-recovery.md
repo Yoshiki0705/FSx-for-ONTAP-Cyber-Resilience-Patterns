@@ -30,7 +30,7 @@ flowchart TD
     SCOPE --> MGMT{Management plane compromised?<br/>AWS account or ONTAP admin}
     MGMT -->|No| RECOVERY{Recovery path?}
     MGMT -->|Yes| LOCKED{Locked snapshots or<br/>SnapLock copies intact?}
-    LOCKED -->|Yes| RECOVERY
+    LOCKED -->|Yes| RESTORE_LOCKED[FlexClone from a pre-attack locked snapshot<br/>or copy back from SnapLock if production copies were committed there]
     LOCKED -->|No, or whole AWS account compromised| VAULT{Logically air-gapped<br/>vault configured?}
     VAULT -->|Yes| RESTORE_LAG
     VAULT -->|No| ESCALATE[Escalate: no intact recovery point<br/>within this runbook]
@@ -44,6 +44,7 @@ flowchart TD
     RESTORE_SNAP --> VERIFY
     RESTORE_DR --> VERIFY
     RESTORE_LAG --> VERIFY
+    RESTORE_LOCKED --> VERIFY
     
     VERIFY --> REOPEN[Re-enable access (export policy)]
     REOPEN --> POSTMORTEM[Post-incident review]
@@ -162,6 +163,24 @@ volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields create-t
 volume snapshot restore -vserver svm-prod-dev -volume vol_prod_dev \
   -snapshot hourly.2026-06-25_0800
 ```
+
+管理面の侵害を疑うときは、ロック付きの Snapshot（`snaplock-expiry-time` が設定されたもの）だけから選ぶ。CLI の `volume snapshot restore` でロック付きの Snapshot を戻せるのは、それが最新の場合だけで、それより新しい期限内の Snapshot が 1 つでもあると失敗する（documented、[snapshot-lock-concept.html](https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html)、[Tamperproof Snapshot](../ontap-native/tamperproof-snapshot.md)）。Phase 2 で証拠用のロック付き Snapshot を作っているので、攻撃前のロック付き Snapshot はこの条件に当たる。そのため、攻撃前のロック付き Snapshot からは SnapRestore ではなく FlexClone で戻す。ロック付きの Snapshot から volume clone を作れることは同じページにある（documented）。後の Snapshot は消さずに残る。
+When a management-plane compromise is suspected, choose only from locked snapshots (those with `snaplock-expiry-time` set). With the CLI, `volume snapshot restore` restores a locked snapshot only if it is the most recent one, and fails if any unexpired later snapshot exists (documented, [snapshot-lock-concept.html](https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html), [Tamperproof Snapshot](../ontap-native/tamperproof-snapshot.md)). Phase 2 creates a locked evidence snapshot, so any pre-attack locked snapshot falls under this rule. Recover from a pre-attack locked snapshot with a FlexClone instead of SnapRestore; the same page documents that volume clones can be created from a locked snapshot (documented). Later snapshots stay in place.
+
+```bash
+# List locked snapshots and pick the last known clean one created before the attack
+volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields create-time,snaplock-expiry-time
+
+# Clone the chosen snapshot; later snapshots, including the evidence snapshot, are not deleted
+volume clone create -vserver svm-prod-dev \
+  -flexclone vol_prod_dev_restore \
+  -parent-volume vol_prod_dev \
+  -parent-snapshot <pre-attack-locked-snapshot> \
+  -junction-path /prod_restore
+```
+
+クローンの中身を確かめた後、クライアントをクローンへ切り替えるか、クローンから元のボリュームへデータをコピーする。どちらの手順も本リポジトリでは実施していない（未確認）。
+After checking the clone's contents, point clients at the clone or copy the data from the clone back to the original volume. Neither step has been run in this repository (unverified).
 
 ### Option C: SnapMirror DR からの復旧
 

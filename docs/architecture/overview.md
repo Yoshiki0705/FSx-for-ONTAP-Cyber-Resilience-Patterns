@@ -338,7 +338,7 @@ Phase 1 Complete (現在):
 | 状態 | コンポーネント |
 |:---:|---|
 | ✅ | Network Stack + Storage Stack (CloudFormation) |
-| ✅ | ONTAP Native Security 設定 (ARP / FPolicy Custom Resource) |
+| ✅ | ONTAP Native Security の設定手順 (ARP / FPolicy、CLI / REST、`docs/ontap-native/`) |
 | ✅ | Event-Driven Response パイプライン (SQS → EventBridge → Step Functions) |
 | ✅ | File Scanning テンプレート (TrendAI / Deep Instinct EC2) |
 | ✅ | Observability Dashboard + Alarms (CloudWatch) |

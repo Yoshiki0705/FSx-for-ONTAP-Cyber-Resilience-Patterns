@@ -87,6 +87,18 @@ Parameters:
     MaxValue: 104857600
     Description: Audit log volume size in MiB.
 
+  ProductionAuditVolumeSize:
+    Type: Number
+    Default: 1024
+    MinValue: 20
+    MaxValue: 104857600
+    Description: >
+      Audit log destination volume size in MiB for svm-prod. Size it to hold
+      rotate-size x (rotate-limit + 1) of the vserver audit configuration,
+      plus the space that snapshots (policy default) hold for rotated-out
+      files until they expire. The default is a sizing choice for
+      -rotate-size 100MB -rotate-limit 5, not a measured value.
+
   SnaplockVolumeSize:
     Type: Number
     Default: 50
@@ -377,6 +389,43 @@ Resources:
           Value: confidential
 
   # ---------------------------------------------------------------
+  # Volume - Audit logs for svm-prod (destination inside svm-prod's namespace)
+  # Plain RW volume. Auditing itself is configured with the ONTAP CLI
+  # (vserver audit create / enable); see docs/runbooks/data-exfiltration-response.md.
+  # ---------------------------------------------------------------
+  VolumeAuditProduction:
+    Type: AWS::FSx::Volume
+    Condition: CreateNewSvm
+    Properties:
+      Name: !Sub 'vol_audit_prod_${Environment}'
+      VolumeType: ONTAP
+      OntapConfiguration:
+        JunctionPath: /audit_prod
+        OntapVolumeType: RW
+        SizeInMegabytes: !Ref ProductionAuditVolumeSize
+        StorageVirtualMachineId: !Ref SvmProduction
+        StorageEfficiencyEnabled: 'true'
+        TieringPolicy:
+          CoolingPeriod: 14
+          Name: AUTO
+        SecurityStyle: MIXED
+        SnapshotPolicy: default
+        CopyTagsToBackups: 'true'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vol-audit-production-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Layer
+          Value: observability
+        - Key: Component
+          Value: volume-audit-production
+        - Key: DataClassification
+          Value: confidential
+
+  # ---------------------------------------------------------------
   # Volume - SnapLock Compliance (immutable evidence retention)
   # ---------------------------------------------------------------
   VolumeSnaplock:
@@ -475,6 +524,13 @@ Outputs:
     Value: !Ref VolumeAudit
     Export:
       Name: !Sub '${ProjectName}-${Environment}-VolumeAuditId'
+
+  VolumeAuditProductionId:
+    Condition: CreateNewSvm
+    Description: Audit log destination volume ID for svm-prod
+    Value: !Ref VolumeAuditProduction
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-VolumeAuditProductionId'
 
   VolumeSnaplockId:
     Condition: CreateNewSvm

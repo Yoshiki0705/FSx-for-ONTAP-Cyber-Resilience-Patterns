@@ -71,7 +71,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 |--------|------------|------------------------|
 | アーキテクチャ定義 | フルスタック（ネットワーク → ストレージ → スキャン → イベント → ダッシュボード） | Observability パイプラインのみ |
 | スキャンレイヤー | TrendAI Vscan/ICAP、Deep Instinct 連携 | — |
-| 検知（ARP/FPolicy） | アーキテクチャパターン + CFn カスタムリソース | 動作する実装（EMS Webhook、FPolicy サーバー、CloudWatch Log Alarm） |
+| 検知（ARP/FPolicy） | アーキテクチャパターン + CLI / REST の設定手順（`docs/ontap-native/`） | 動作する実装（EMS Webhook、FPolicy サーバー、CloudWatch Log Alarm） |
 | 自動応答 | Step Functions オーケストレーション（隔離ワークフロー） | Lambda 直接応答（1.8秒実測、コールドスタート込み worst-case 12-15秒） |
 | 復旧検証 | DR レプリケーション監視（SnapMirror ラグ） | 検証済みクリーン復旧ポイント（FlexClone + スキャン） |
 | SIEM 連携 | Security Hub + SIEM コネクタテンプレート | ベンダー固有の連携（Datadog、Splunk、Elastic 等） |
@@ -84,7 +84,7 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 1. **本リポジトリを先に** — インフラ基盤をデプロイ:
    ```bash
    ./scripts/deploy.sh dev network   # VPC、サブネット、SG、VPC Endpoints
-   ./scripts/deploy.sh dev storage   # FSx for ONTAP、KMS、ARP/FPolicy 設定
+   ./scripts/deploy.sh dev storage   # FSx for ONTAP、KMS（ARP/FPolicy は docs/ontap-native/ の CLI / REST 手順）
    ./scripts/deploy.sh dev events    # EventBridge、Step Functions
    ./scripts/deploy.sh dev scanning  # TrendAI / Deep Instinct EC2
    ```

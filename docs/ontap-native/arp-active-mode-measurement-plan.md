@@ -41,7 +41,7 @@ measurement would run. **This plan needs no 30-day budget.**
 
 出典: [Learn about ONTAP Autonomous Ransomware Protection](https://docs.netapp.com/us-en/ontap/anti-ransomware/)（全文、2026-09-07 取得）。
 実測とも一致する。`dry_run` を要求しても `enabled` になり、学習期間は存在しなかった
-（ONTAP 9.18.1P3D1、2026-08-15 / [ARP/AI と EMS の罠](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/docs/agent/pitfalls-arp-ems.md)）。
+（ONTAP 9.18.1P3D1、2026-08-15 / [ARP/AI と EMS の罠](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/docs/agent/pitfalls-arp-ems.md)）[E-004]。
 
 **そのため、この文書のどこにも 30 日の待ちは現れない。** 旧世代 ARP の挙動を測る必要が
 生じたときだけ 30 日が復活する。その場合の扱いは次の節。
