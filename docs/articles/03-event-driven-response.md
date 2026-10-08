@@ -2,9 +2,15 @@
 
 > Automated quarantine, forensics, and recovery workflows triggered by file security events.
 
+> **Update (2026-10)**
+> - I have not measured how long this Step Functions path takes, so I corrected the timing claim in the Introduction. The 2-minute figure in the README is a measurement of the Lambda path in the companion Observability repository (ONTAP 9.17.1P7D1).
+> - `templates/event-driven.yaml` is deployed as a nested stack of `templates/main.yaml`, together with `network.yaml` and `storage.yaml`. The other 8 templates are deployed individually. See the [architecture overview](../architecture/overview.md).
+> - Export-policy isolation covers NFS / SMB. FPolicy also receives NFS and SMB operations only [E-015]. Operations through S3 Access Points are contained with the access point policy and IAM (see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md)).
+> - Where this response sits in the NIST CSF 2.0 Respond (RS) function is in the [framework mapping](../en/cyber-resilience-framework-mapping.md).
+
 ## Introduction
 
-Third article in the series: the event-driven response layer that transforms detection events into automated containment actions in seconds, not hours.
+Third article in the series: the event-driven response layer that turns detection events into containment actions without waiting for a person to start. I have not measured how long it takes (see the update at the top).
 
 ## The Event Pipeline
 
@@ -32,7 +38,7 @@ FPolicy/ARP Event → SQS Queue → Lambda (Transformer) → EventBridge
 Nine states handling the full incident lifecycle:
 
 1. **CreateForensicSnapshot** — Preserve evidence before any changes
-2. **RestrictExportPolicy** — Block NFS/SMB access to the volume
+2. **RestrictExportPolicy** — Block NFS/SMB access to the volume (S3 Access Points are contained separately with the access point policy and IAM)
 3. **SendAlert** — SNS notification to security team
 4. **WaitForApproval** — SQS task token pattern (24h timeout)
 5. **ApprovalDecision** — Choice state: approved or rejected
@@ -108,7 +114,7 @@ Alarms trigger at:
 
 ## Implementation
 
-Full source code with 285 tests:
+Full source code with 326 tests:
 
 **Repository**: [github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 
@@ -118,6 +124,12 @@ Key files:
 - [`docs/runbooks/ransomware-recovery.md`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/runbooks/ransomware-recovery.md) — Recovery runbook
 
 ## 日本語サマリ
+
+> **Update (2026-10)**
+> - この Step Functions 経路の所要時間は測っていないので、Introduction の所要時間の記述を直した。README の 2 分はコンパニオンの Observability リポジトリの Lambda 経路の実測値（ONTAP 9.17.1P7D1）。
+> - `templates/event-driven.yaml` は `templates/main.yaml` の nested stack として `network.yaml`・`storage.yaml` と一緒にデプロイされ、残り 8 本は個別にデプロイする。[architecture overview](../architecture/overview.md) を参照。
+> - export-policy による隔離の対象は NFS / SMB。FPolicy が受け取るのも NFS と SMB の操作だけ [E-015]。S3 Access Points 経由の操作は、アクセスポイントポリシーと IAM で封じ込める（[Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md)）。
+> - この対応が NIST CSF 2.0 の Respond（RS）のどこに当たるかは [framework mapping](../ja/cyber-resilience-framework-mapping.md) にある。
 
 シリーズ第3回：イベント駆動型の自動隔離ワークフロー実装。FPolicy/ARP イベントから Step Functions による自動封じ込め、人間承認パターン (Human-in-the-Loop)、FlexClone によるフォレンジック環境分離を解説。
 

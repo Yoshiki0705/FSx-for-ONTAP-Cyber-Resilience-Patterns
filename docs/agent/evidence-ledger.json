@@ -621,7 +621,8 @@
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
         "AGENTS.md",
-        "docs/articles/02-ontap-native-security.md"
+        "docs/articles/02-ontap-native-security.md",
+        "docs/articles/03-event-driven-response.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
