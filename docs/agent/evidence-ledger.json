@@ -545,7 +545,8 @@
         "docs/en/operational-considerations.md",
         "README.md",
         "docs/ja/README.md",
-        "AGENTS.md"
+        "AGENTS.md",
+        "docs/articles/01-architecture-overview.md"
       ],
       "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
     },
