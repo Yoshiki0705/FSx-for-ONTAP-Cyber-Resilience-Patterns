@@ -3,7 +3,7 @@
 > Defense-in-depth patterns combining storage-native security, AI-powered scanning, and event-driven automated response.
 
 > **Update (2026-10)**
-> - Since 2026-09, AWS Backup logically air-gapped vaults support FSx for ONTAP volume backups. I summarized the setup in the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); this repository has not tried it in a real environment.
+> - Since 2026-09, AWS Backup logically air-gapped vaults have supported FSx for ONTAP volume backups. I summarized the setup in the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); this repository has not tried it in a real environment.
 > - The NIST CSF 2.0 mapping now lives in one place, the [framework mapping](../en/cyber-resilience-framework-mapping.md) ([日本語](../ja/cyber-resilience-framework-mapping.md)). It covers exfiltration as well as encryption and destruction.
 > - I rewrote the MTTC sentence so that it says which path was measured. The 2-minute figure comes from the Lambda path in the companion Observability repository; the Step Functions path in this repository has not been measured.
 > - This architecture does not rely on ARP to detect read-only exfiltration. Its documented detection inputs are write-side (inference) [E-012]. If you suspect exfiltration, see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).

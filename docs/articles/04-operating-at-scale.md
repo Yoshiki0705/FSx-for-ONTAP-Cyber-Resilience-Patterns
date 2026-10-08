@@ -3,7 +3,7 @@
 > Production readiness patterns: HA scanners, ARP lifecycle, DR, cost optimization, and SIEM integration.
 
 > **Update (2026-10)**
-> - A cross-Region SnapMirror destination in the same AWS account is not isolated from an account-level compromise, and I corrected the DR section to say so. The options for that case are SnapMirror / SnapVault to a separate account, or an AWS Backup logically air-gapped vault, which supports FSx for ONTAP since 2026-09 ([vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); documentation only, not validated in a real environment).
+> - A cross-Region SnapMirror destination in the same AWS account is not isolated from an account-level compromise, and I corrected the DR section to say so. The options for that case are SnapMirror / SnapVault to a separate account, or an AWS Backup logically air-gapped vault, which has supported FSx for ONTAP since 2026-09 ([vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); documentation only, not validated in a real environment).
 > - Copying to the vault requires a file system encrypted with a customer managed key. Backups encrypted with an AWS managed key are not copied [E-009].
 > - Some parts of the body exist as code only. No template deploys the ARP lifecycle, scanner health check, third-party SIEM forwarder or compliance collector functions. The templates deploy 4 Lambda functions.
 > - I updated the test and Lambda counts in the Project Summary. Coverage, deployment time and latency are the values at the time of writing and have not been measured again.
