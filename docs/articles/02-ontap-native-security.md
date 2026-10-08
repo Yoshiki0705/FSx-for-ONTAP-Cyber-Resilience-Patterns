@@ -2,6 +2,12 @@
 
 > Configuring Autonomous Ransomware Protection and FPolicy for real-time file scanning on Amazon FSx for NetApp ONTAP.
 
+> **Update (2026-10)**
+> - ARP and FPolicy are configured with the CLI / REST steps in the [ARP Configuration Guide](../ontap-native/arp-configuration.md) and the [FPolicy Configuration Guide](../ontap-native/fpolicy-configuration.md). The Custom Resource handler is in the repository, but no template references it, so I corrected the sentence that said it runs during stack creation.
+> - The ARP Lifecycle Manager exists as Lambda code only. No template deploys the function, the DynamoDB table or the schedule.
+> - FPolicy receives NFS and SMB operations only; operations through FSx for ONTAP S3 Access Points do not reach it [E-015].
+> - This architecture does not rely on ARP to detect read-only exfiltration. ARP's documented detection inputs are write-side (inference) [E-012]. See the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) and the [framework mapping](../en/cyber-resilience-framework-mapping.md).
+
 ## Introduction
 
 This second article in the series dives into the storage-native security layer: how ARP detects ransomware by behavioral analysis, and how FPolicy enables real-time inline scanning via the ICAP protocol.
@@ -52,7 +58,7 @@ The **ARP Lifecycle Manager** in our architecture exists for the original ARP mo
 - Daily EventBridge Scheduler triggers a Lambda check
 - After 30 days: SNS notification → transition (redundant on ONTAP 9.13.1+, which switches itself)
 
-On a cluster running ARP/AI there is nothing for it to wait for.
+On a cluster running ARP/AI there is nothing for it to wait for. As of 2026-10 the code is in `solutions/ontap-native/lambda/arp_lifecycle.py`, and no template deploys the function, the DynamoDB table or the schedule.
 
 ### Configuration via ONTAP REST API
 
@@ -69,7 +75,7 @@ state back after the PATCH instead of echoing the request: reporting `dry_run` f
 is actively protecting is the difference between "learning" and "protecting" in an operator's
 dashboard.
 
-Our CloudFormation Custom Resource handles this during stack creation.
+A Custom Resource handler for this configuration is in the repository, but as of 2026-10 no template references it. Configure ARP with the CLI / REST steps in the [ARP Configuration Guide](../ontap-native/arp-configuration.md).
 
 ## FPolicy: Real-Time File Event Processing
 
@@ -125,7 +131,7 @@ Both feed into the same EventBridge event pipeline for unified response.
 
 ## Implementation Reference
 
-Full implementation with CloudFormation templates, Custom Resource handler, and configuration documentation:
+CloudFormation templates, the Custom Resource handler (not referenced by any template as of 2026-10), and configuration documentation:
 
 - [FPolicy Configuration Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/fpolicy-configuration.md)
 - [ARP Configuration Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/ontap-native/arp-configuration.md)
@@ -133,6 +139,12 @@ Full implementation with CloudFormation templates, Custom Resource handler, and 
 - [Security Config Custom Resource](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/solutions/ontap-native/lambda/security_config_handler.py)
 
 ## 日本語サマリ
+
+> **Update (2026-10)**
+> - ARP と FPolicy は [ARP Configuration Guide](../ontap-native/arp-configuration.md) と [FPolicy Configuration Guide](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。Custom Resource のハンドラはリポジトリにあるが、どのテンプレートからも参照されていないので、スタック作成時に設定するという本文の文を直した。
+> - ARP Lifecycle Manager は Lambda のコードだけで、テンプレートは関数・DynamoDB テーブル・スケジュールをデプロイしない。
+> - FPolicy が受け取るのは NFS と SMB の操作だけで、FSx for ONTAP S3 Access Points 経由の操作は届かない [E-015]。
+> - 読み取りだけの持ち出しの検知は ARP に頼らない。文書にある検知条件は書き込み系（推論）[E-012]。[Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) と [framework mapping](../ja/cyber-resilience-framework-mapping.md) を参照。
 
 シリーズ第2回：ONTAP のストレージネイティブセキュリティ機能 (ARP + FPolicy) の設計と実装を解説。ARP の学習期間管理の自動化と、FPolicy/ICAP によるインラインスキャンのアーキテクチャパターンを紹介。
 
