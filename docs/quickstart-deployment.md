@@ -260,6 +260,8 @@ aws secretsmanager create-secret \
   --region "$AWS_REGION"
 ```
 
+ARP と FPolicy はスタックのデプロイ後に [ARP 設定ガイド](ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](ontap-native/fpolicy-configuration.md) の手順で設定する。`svm-prod` のファイルアクセス監査の有効化は [データ持ち出し対応 Runbook](runbooks/data-exfiltration-response.md) にある。
+
 ---
 
 ## パターン C: 既存環境に追加
@@ -362,7 +364,7 @@ echo "All resources deleted."
 ```
 
 > **重要**: FSx for ONTAP を含む Storage Stack の削除は 20-30 分かかる。
-> ARP 設定は Stack 削除後も FSx 上に残る (設計上の安全措置)。
+> ARP は CLI / REST で設定するのでスタックの管理外にあり、Stack を削除しても FSx for ONTAP 上に残る。
 
 ---
 

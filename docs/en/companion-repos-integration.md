@@ -68,7 +68,7 @@ The table below shows which components from the observability repo plug into eac
 |---------|-----------|-------------------|
 | Architecture definition | Full stack (network → storage → scanning → events → dashboards) | Observability pipeline only |
 | Scanning layers | TrendAI Vscan/ICAP, Deep Instinct integration | — |
-| Detection (ARP/FPolicy) | Architecture patterns + CFn Custom Resources | Working implementation (EMS webhook, FPolicy server, CloudWatch Log Alarm) |
+| Detection (ARP/FPolicy) | Architecture patterns + CLI / REST setup steps (`docs/ontap-native/`) | Working implementation (EMS webhook, FPolicy server, CloudWatch Log Alarm) |
 | Automated response | Step Functions orchestration (quarantine workflows) | Lambda direct response (1.8s measured execution; worst-case 12-15s with cold start) |
 | Recovery verification | DR replication monitoring (SnapMirror lag) | Verified-clean recovery point (FlexClone + scan) |
 | SIEM integration | Security Hub + SIEM connector templates | Vendor-specific integrations (Datadog, Splunk, Elastic, etc.) |
@@ -81,7 +81,7 @@ When deploying both repos together for a complete cyber-resilience stack:
 1. **This repo first** — deploys the infrastructure foundation:
    ```bash
    ./scripts/deploy.sh dev network   # VPC, subnets, SGs, VPC Endpoints
-   ./scripts/deploy.sh dev storage   # FSx for ONTAP, KMS, ARP/FPolicy config
+   ./scripts/deploy.sh dev storage   # FSx for ONTAP, KMS (ARP/FPolicy: CLI / REST steps in docs/ontap-native/)
    ./scripts/deploy.sh dev events    # EventBridge, Step Functions
    ./scripts/deploy.sh dev scanning  # TrendAI / Deep Instinct EC2
    ```

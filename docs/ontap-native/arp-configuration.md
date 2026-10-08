@@ -151,6 +151,7 @@ curl -X GET "https://<management-ip>/api/security/anti-ransomware/volumes?fields
 ## CloudFormation Custom Resource による自動化
 
 ARP 設定は CloudFormation ネイティブリソースでサポートされないため、Lambda-backed Custom Resource で自動化可能。
+ハンドラは `solutions/ontap-native/lambda/security_config_handler.py` にあるが、参照するテンプレートはない。デプロイしたスタックの ARP は、上の CLI / REST の手順で有効にする。
 
 ```yaml
 # Custom Resource Lambda (概念)

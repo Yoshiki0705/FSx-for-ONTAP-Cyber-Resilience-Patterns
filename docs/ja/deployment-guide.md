@@ -49,7 +49,7 @@
 | # | テンプレート | 説明 | デプロイ時間 | 依存 |
 |---|------------|------|------------|------|
 | 1 | `network.yaml` | VPC、サブネット (Multi-AZ)、Security Groups、VPC Endpoints、Flow Logs | ~3 分 | なし |
-| 2 | `storage.yaml` | FSx for ONTAP ファイルシステム、SVM、ボリューム、KMS、Custom Resource (ARP/FPolicy) | ~30 分 | network |
+| 2 | `storage.yaml` | FSx for ONTAP ファイルシステム、SVM、ボリューム、KMS | ~30 分 | network |
 | 3 | `event-driven.yaml` | SQS、EventBridge カスタムバス、Step Functions、Lambda、SNS | ~5 分 | network (Lambda VPC) |
 | 4 | `scanning.yaml` | EC2 インスタンス: TrendAI Vscan (ICAP) + Deep Instinct | ~5 分 | network |
 | 5 | `observability.yaml` | CloudWatch Dashboard + Alarms | ~2 分 | event-driven (SNS ARN) |
@@ -149,6 +149,8 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_NAMED_IAM \
   --region ap-northeast-1
 ```
+
+ARP と FPolicy は、スタックのデプロイ後に [ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。`svm-prod` のファイルアクセス監査も手作業で有効にする。手順は [データ持ち出し対応 Runbook](../runbooks/data-exfiltration-response.md) にある。
 
 ### Step 3: スキャニングレイヤーのデプロイ
 
@@ -250,7 +252,7 @@ aws cloudformation create-stack \
   --region ap-northeast-1
 ```
 
-### Step 6: Storage（ARP/FPolicy 設定）のデプロイ
+### Step 6: Storage のデプロイ
 
 ```bash
 aws cloudformation create-stack \
@@ -262,7 +264,7 @@ aws cloudformation create-stack \
 ```
 
 `UseExistingFileSystem=true` により新規 FSx for ONTAP は作成されない。
-Custom Resource Lambda が既存ファイルシステムに ARP と FPolicy を設定する。
+既存ファイルシステムの ARP と FPolicy は、[ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。
 
 ---
 
@@ -394,7 +396,6 @@ aws secretsmanager delete-secret \
 | Lambda が ONTAP REST API に到達不能 | SG に Lambda→FSx TCP/443 ルールがない | `SgLambda` の egress と `SgFsx` の ingress を確認 |
 | FPolicy engine 作成失敗 | スキャナーが TCP/1344 で到達不能 | スキャナー SG の ingress と FSx SG の egress (ICAP ポート) を確認 |
 | FlexGroup で ARP enable 失敗 | ONTAP バージョン < 9.13.1 | ONTAP をアップグレードするか FlexVol を使用 |
-| Custom Resource タイムアウト | ONTAP API の応答遅延 | Lambda タイムアウトを 300 秒に増加 |
 | S3 Gateway EP のルートが伝播しない | ルートテーブルが関連付けられていない | isolated と private の両ルートテーブルが EP 設定に含まれているか確認 |
 | スキャナー署名更新失敗 | アウトバウンドインターネットがない | NAT Gateway を有効化 (`EnableNatGateway=true`) または S3 ミラーを使用 |
 | SQS メッセージが DLQ に流れる | Lambda 処理エラー | event-transformer Lambda の CloudWatch Logs を確認 |
