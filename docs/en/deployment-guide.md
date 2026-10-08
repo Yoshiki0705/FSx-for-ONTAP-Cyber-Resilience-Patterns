@@ -351,8 +351,8 @@ aws cloudformation wait stack-delete-complete --stack-name <stack-name>
 
 ### ONTAP Configuration Rollback
 
-ARP and FPolicy configurations are **intentionally preserved** after stack deletion
-(safety-first design). To manually revert:
+ARP and FPolicy are set with the ONTAP CLI / REST steps, outside stack management, so they
+remain on FSx for ONTAP after the stack is deleted. To revert them manually:
 
 ```bash
 ssh fsxadmin@<management-endpoint>

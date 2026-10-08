@@ -349,7 +349,7 @@ aws cloudformation wait stack-delete-complete --stack-name <stack-name>
 
 ### ONTAP 設定のロールバック
 
-ARP と FPolicy の設定はスタック削除後も**意図的に保持**される（安全優先の設計）。
+ARP と FPolicy は ONTAP CLI / REST の手順で設定するのでスタックの管理外にあり、Stack を削除しても FSx for ONTAP 上に残る。
 手動で元に戻す場合:
 
 ```bash
