@@ -148,9 +148,9 @@ curl -X GET "https://<management-ip>/api/security/anti-ransomware/volumes?fields
   -H "Authorization: Basic $(echo -n fsxadmin:<password> | base64)"
 ```
 
-## CloudFormation Custom Resource による自動化
+## テンプレート未接続の Custom Resource ハンドラ
 
-ARP 設定は CloudFormation ネイティブリソースでサポートされないため、Lambda-backed Custom Resource で自動化可能。
+ARP は ONTAP CLI / REST で設定する。その REST 呼び出しを CloudFormation から行う Lambda-backed Custom Resource のハンドラを用意している。
 ハンドラは `solutions/ontap-native/lambda/security_config_handler.py` にあるが、参照するテンプレートはない。デプロイしたスタックの ARP は、上の CLI / REST の手順で有効にする。
 
 ```yaml
