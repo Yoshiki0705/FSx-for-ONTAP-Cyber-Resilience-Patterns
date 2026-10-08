@@ -94,9 +94,10 @@ Parameters:
     MaxValue: 104857600
     Description: >
       Audit log destination volume size in MiB for svm-prod. Size it to hold
-      rotate-size x (rotate-limit + 1) of the vserver audit configuration.
-      The default is a sizing choice for -rotate-size 100MB -rotate-limit 5,
-      not a measured value.
+      rotate-size x (rotate-limit + 1) of the vserver audit configuration,
+      plus the space that snapshots (policy default) hold for rotated-out
+      files until they expire. The default is a sizing choice for
+      -rotate-size 100MB -rotate-limit 5, not a measured value.
 
   SnaplockVolumeSize:
     Type: Number

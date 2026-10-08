@@ -184,6 +184,20 @@ security anti-ransomware volume show
 
 ARP の世代ごとの手順は [ARP 設定ガイド](ontap-native/arp-configuration.md)、FPolicy の詳細設定は [docs/ontap-native/fpolicy-configuration.md](ontap-native/fpolicy-configuration.md) を参照。
 
+### 監査ログの保存先
+
+`ExistingSvmId` を指定すると SVM が新規作成されないので、監査ログの保存先ボリューム（`vol_audit_prod`）も作られない。
+ONTAP の監査を使う場合は、監査する既存 SVM の名前空間に保存先のボリュームを作ってから
+`vserver audit create` / `enable` を実行する。保存先の規則と手順は
+[データ流出対応ランブック](runbooks/data-exfiltration-response.md#svm-prod-の監査の有効化手順--enabling-auditing-on-svm-prod)
+にある（`-vserver` と `-destination` を自分の SVM とパスに置き換える）。
+
+When `ExistingSvmId` is set, no SVM is created, so the audit log destination volume
+(`vol_audit_prod`) is not created either. To use ONTAP auditing, create a destination volume in the namespace of the existing SVM
+you audit, then run `vserver audit create` / `enable`. The destination rule and the steps are in
+the data exfiltration runbook linked above; replace `-vserver` and `-destination` with your SVM
+and path.
+
 ## Step 7: 動作確認
 
 ### EventBridge イベント確認

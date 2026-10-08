@@ -38,16 +38,21 @@ The audit log destination rests on these four points.
 
 ### svm-prod の監査の有効化手順 / Enabling auditing on svm-prod
 
-Storage Stack の作成後に 1 回実行する。監査の作成と有効化のコマンドと既定値は documented（[vserver-audit-create.html](https://docs.netapp.com/us-en/ontap-cli/vserver-audit-create.html)、[file-access-auditing.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html)）。記録されるのは SACL が付いたオブジェクトの操作なので、上の表のとおり、監査したいパスに SACL も適用する。`-rotate-limit` の既定値はプラットフォームで違う（cloud optimized platform で 10、それ以外で 0 = すべて保持）ので明示する。保存先のボリュームには変換後のログを置く空き容量が要る（AWS のユーザーガイド）。
+Storage Stack の作成後に 1 回実行する。監査の作成と有効化のコマンドと既定値は documented（[vserver-audit-create.html](https://docs.netapp.com/us-en/ontap-cli/vserver-audit-create.html)、[file-access-auditing.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html)）。記録されるのは SACL が付いたオブジェクトの操作なので、上の表のとおり、監査したいパスに SACL も適用する。`-rotate-limit` の既定値はプラットフォームで違う（cloud optimized platform で 10、それ以外で 0 = すべて保持）ので明示する。保存先のボリュームには変換後のログを置く空き容量が要る（AWS のユーザーガイド）。ボリュームの Snapshot ポリシーは `default` なので、ローテーションで削除されたログファイルの領域は、そのファイルを含む Snapshot が期限切れになるまで解放されない。サイズは下のコメントの式に、Snapshot が保持する分を足して見積もる（この上乗せ分は未測定）。
 
-Run this once after the storage stack is created. The commands and defaults for creating and enabling auditing are documented (vserver-audit-create.html, file-access-auditing.html). Only operations on objects that carry a SACL are recorded, so also apply SACLs to the paths to audit, as stated in the table above. The default of `-rotate-limit` differs by platform (10 on cloud optimized platforms, 0 = keep all elsewhere), so set it explicitly. The destination volume needs free space for the converted logs (AWS user guide).
+`/audit_prod` は監査対象の SVM の名前空間にあるので、制限しなければ同じ NFS / SMB クライアントから届く。NFS ではログを読む端末だけに読み取り専用で許可する export policy を作って `volume modify -vserver svm-prod-dev -volume vol_audit_prod_dev -policy <policy>` で割り当てる（documented、[associate-export-policy-flexvol-task.html](https://docs.netapp.com/us-en/ontap/nfs-config/associate-export-policy-flexvol-task.html)）。SMB では `/audit_prod` に共有を作らないか、共有の ACL をログを読む担当者に限る。
+
+Run this once after the storage stack is created. The commands and defaults for creating and enabling auditing are documented (vserver-audit-create.html, file-access-auditing.html). Only operations on objects that carry a SACL are recorded, so also apply SACLs to the paths to audit, as stated in the table above. The default of `-rotate-limit` differs by platform (10 on cloud optimized platforms, 0 = keep all elsewhere), so set it explicitly. The destination volume needs free space for the converted logs (AWS user guide). The volume's snapshot policy is `default`, so space held by log files deleted at rotation is not freed until the snapshots that contain them expire. Size the volume with the formula in the comment below plus the space those snapshots hold (that extra amount is not measured).
+
+`/audit_prod` is in the namespace of the audited SVM, so the same NFS / SMB clients can reach it unless access is restricted. For NFS, create an export policy that grants read-only access to the hosts that read the logs, and assign it with `volume modify -vserver svm-prod-dev -volume vol_audit_prod_dev -policy <policy>` (documented, associate-export-policy-flexvol-task.html). For SMB, do not create a share on `/audit_prod`, or limit the share ACL to the people who read the logs.
 
 ```bash
 ssh fsxadmin@<management-ip>
 
 # Destination is the junction path of vol_audit_prod inside svm-prod.
-# Keep rotate-size x (rotate-limit + 1) below the volume size
-# (ProductionAuditVolumeSize, default 1024 MiB).
+# Keep rotate-size x (rotate-limit + 1), plus the space snapshots hold for
+# rotated-out files, below the volume size (ProductionAuditVolumeSize,
+# default 1024 MiB).
 vserver audit create -vserver svm-prod-dev -destination /audit_prod \
   -format evtx -rotate-size 100MB -rotate-limit 5
 vserver audit enable -vserver svm-prod-dev
