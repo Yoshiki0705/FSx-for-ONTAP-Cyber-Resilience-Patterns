@@ -5,6 +5,7 @@ Validates the FSx for ONTAP storage template structure, resources, and configura
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,19 @@ for tag in _cfn_tags:
         tag,
         lambda loader, suffix, node: _cfn_tag_constructor(loader, suffix, node),
     )
+
+
+def ref_target(value: object) -> str | None:
+    """Return the logical ID of a short-form ``!Ref`` as parsed by CfnLoader, else None.
+
+    CfnLoader registers ``!Ref`` as a multi-constructor prefix, so ``!Ref X`` loads as
+    ``{"": "X"}``. The long form ``{"Ref": "X"}`` is accepted as well.
+    """
+    if isinstance(value, dict) and len(value) == 1:
+        key, target = next(iter(value.items()))
+        if key in ("", "Ref") and isinstance(target, str):
+            return target
+    return None
 
 
 def load_yaml(path: Path) -> dict:
@@ -253,12 +267,64 @@ class TestStorageTemplate:
         assert vol["TieringPolicy"]["Name"] == "NONE"
 
     # ------------------------------------------------------------------
+    # Audit log destination for svm-prod
+    # ------------------------------------------------------------------
+    def test_volume_audit_production_exists(self, template: dict) -> None:
+        """Must define an audit log destination volume for the production SVM."""
+        resources = template["Resources"]
+        assert "VolumeAuditProduction" in resources
+        assert resources["VolumeAuditProduction"]["Type"] == "AWS::FSx::Volume"
+
+    def test_volume_audit_production_on_svm_production(self, template: dict) -> None:
+        """The destination must be inside svm-prod's namespace (same SVM as the audited data)."""
+        vol = template["Resources"]["VolumeAuditProduction"]["Properties"]["OntapConfiguration"]
+        assert ref_target(vol["StorageVirtualMachineId"]) == "SvmProduction"
+
+    def test_volume_audit_production_junction_path(self, template: dict) -> None:
+        """The destination must be mounted at /audit_prod (the path the runbook passes to -destination)."""
+        vol = template["Resources"]["VolumeAuditProduction"]["Properties"]["OntapConfiguration"]
+        assert vol["JunctionPath"] == "/audit_prod"
+
+    def test_volume_audit_production_is_plain_rw(self, template: dict) -> None:
+        """The destination must be a plain RW volume with no SnapLock (no irreversible settings)."""
+        resource = template["Resources"]["VolumeAuditProduction"]
+        vol = resource["Properties"]["OntapConfiguration"]
+        assert vol["OntapVolumeType"] == "RW"
+        assert "SnaplockConfiguration" not in vol
+        assert "PERMANENTLY_DISABLED" not in json.dumps(resource)
+
+    def test_only_snaplock_volume_has_snaplock_configuration(self, template: dict) -> None:
+        """Only VolumeSnaplock may carry a SnaplockConfiguration."""
+        with_snaplock = [
+            name
+            for name, res in template["Resources"].items()
+            if "SnaplockConfiguration" in res.get("Properties", {}).get("OntapConfiguration", {})
+        ]
+        assert with_snaplock == ["VolumeSnaplock"]
+
+    def test_volume_audit_production_tags(self, template: dict) -> None:
+        """The destination volume must carry the project tag set."""
+        tags = {t["Key"]: t["Value"] for t in template["Resources"]["VolumeAuditProduction"]["Properties"]["Tags"]}
+        assert {"Name", "Project", "Environment", "Layer", "Component", "DataClassification"} <= set(tags)
+        assert tags["Layer"] == "observability"
+        assert tags["Component"] == "volume-audit-production"
+        assert tags["DataClassification"] == "confidential"
+
+    def test_production_audit_volume_size_parameter(self, template: dict) -> None:
+        """ProductionAuditVolumeSize must default to 1024 MiB with the FSx minimum of 20 MiB."""
+        param = template["Parameters"]["ProductionAuditVolumeSize"]
+        assert param["Default"] == 1024
+        assert param["MinValue"] == 20
+        vol = template["Resources"]["VolumeAuditProduction"]["Properties"]["OntapConfiguration"]
+        assert ref_target(vol["SizeInMegabytes"]) == "ProductionAuditVolumeSize"
+
+    # ------------------------------------------------------------------
     # Tags & Data Classification
     # ------------------------------------------------------------------
     def test_volumes_have_data_classification_tag(self, template: dict) -> None:
         """All volumes must have a DataClassification tag."""
         resources = template["Resources"]
-        volume_names = ["VolumeProduction", "VolumeAudit", "VolumeSnaplock"]
+        volume_names = ["VolumeProduction", "VolumeAudit", "VolumeAuditProduction", "VolumeSnaplock"]
         for name in volume_names:
             tags = resources[name]["Properties"]["Tags"]
             tag_keys = [t["Key"] for t in tags]
@@ -267,7 +333,7 @@ class TestStorageTemplate:
     def test_confidential_volumes_identified(self, template: dict) -> None:
         """Audit and SnapLock volumes must be classified as confidential."""
         resources = template["Resources"]
-        for vol_name in ["VolumeAudit", "VolumeSnaplock"]:
+        for vol_name in ["VolumeAudit", "VolumeAuditProduction", "VolumeSnaplock"]:
             tags = resources[vol_name]["Properties"]["Tags"]
             classification = next(t["Value"] for t in tags if t["Key"] == "DataClassification")
             assert classification == "confidential", f"{vol_name} should be classified as confidential"
@@ -283,6 +349,7 @@ class TestStorageTemplate:
         assert "SvmAuditId" in outputs
         assert "VolumeProductionId" in outputs
         assert "VolumeAuditId" in outputs
+        assert "VolumeAuditProductionId" in outputs
         assert "VolumeSnaplockId" in outputs
         assert "KmsKeyArn" in outputs
 
@@ -359,6 +426,7 @@ class TestBringYourOwnFsx:
         resources = template["Resources"]
         assert resources["VolumeProduction"].get("Condition") == "CreateNewSvm"
         assert resources["VolumeAudit"].get("Condition") == "CreateNewSvm"
+        assert resources["VolumeAuditProduction"].get("Condition") == "CreateNewSvm"
         assert resources["VolumeSnaplock"].get("Condition") == "CreateNewSvm"
 
     def test_management_endpoint_output(self, template: dict) -> None:

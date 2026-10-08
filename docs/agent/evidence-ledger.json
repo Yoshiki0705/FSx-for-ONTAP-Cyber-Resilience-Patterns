@@ -715,6 +715,45 @@
         "docs/comparison-security-layers.md"
       ],
       "note": "Corrects an earlier statement in the comparison document that Macie applies through S3 Access Points."
+    },
+    {
+      "id": "E-022",
+      "claim": "The CloudFormation resource types for FSx for ONTAP SVMs and volumes have no property that creates or enables an ONTAP file access auditing configuration; auditing is configured with the ONTAP CLI or REST API.",
+      "subject": "AWS::FSx::StorageVirtualMachine, AWS::FSx::Volume (OntapConfiguration)",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-fsx-storagevirtualmachine.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Properties are ActiveDirectoryConfiguration, FileSystemId, Name, RootVolumeSecurityStyle, SvmAdminPassword and Tags. None configures auditing."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-fsx-volume-ontapconfiguration.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Properties are AggregateConfiguration, CopyTagsToBackups, JunctionPath, OntapVolumeType, SecurityStyle, SizeInBytes, SizeInMegabytes, SnaplockConfiguration, SnapshotPolicy, StorageEfficiencyEnabled, StorageVirtualMachineId, TieringPolicy and VolumeStyle. None configures auditing."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Setting up auditing is a sequence of ONTAP commands: vserver audit create on the SVM, then vserver audit enable, then audit policies on files and folders. The page also requires sufficient free space in the volume that holds the converted logs and points to -rotate-limit for that."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether CloudFormation will expose ONTAP auditing. The manual step works regardless of the answer."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md"
+      ],
+      "note": "Why the runbook carries a manual vserver audit create / enable step after the stack creates vol_audit_prod."
     }
   ]
 }
