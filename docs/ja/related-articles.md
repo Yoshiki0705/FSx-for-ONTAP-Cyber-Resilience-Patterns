@@ -30,7 +30,7 @@
 | ARP/AI 検知フロー | ストレージネイティブ（ARP） | `solutions/ontap-native/` |
 | NFS 用 NACL deny | ネットワークレイヤー | `templates/network.yaml` |
 | Snapshot 作成 & 復旧検証 | データ保護 | `templates/dr-replication.yaml` |
-| NIST CSF 2.0 機能マップ | アーキテクチャドキュメント | `docs/architecture/` |
+| NIST CSF 2.0 機能マップ | フレームワークマッピング | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
 | DII 比較 | セキュリティレイヤー比較 | `docs/comparison-security-layers.md` |
 
 ## シリーズの文脈

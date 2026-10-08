@@ -85,7 +85,10 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/ontap-native/arp-active-mode-measurement-plan.md"
+        "docs/ontap-native/arp-active-mode-measurement-plan.md",
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
       ],
       "note": "A sibling repository's automated-response addendum states the opposite in a table whose justification is reasoned rather than observed. When the Q2 measurement runs, the volume security style is recorded so the two statements can be settled against a run instead of against each other."
     },
@@ -246,6 +249,472 @@
         "docs/ontap-native/arp-configuration.md"
       ],
       "note": "Recorded because a measurement that reports 'detected by file_analysis' invites the reader to conclude which parameter fired. It does not support that, and the value itself may not be what the page's description says. Raised as a request from the Adoption Playbook side to attribute detections to always-on versus toggleable paths; this field cannot answer it. The handling is to record the observed value verbatim and to read the seven-value state enumeration rather than the six-value prose, so that paused is not dropped."
+    },
+    {
+      "id": "E-016",
+      "claim": "Tamperproof snapshots and FabricPool cannot be enabled on the same ONTAP volume; how this applies to FSx for ONTAP capacity pool tiering is not established.",
+      "subject": "ONTAP snapshot locking (tamperproof snapshots), ONTAP 9.12.1 and later",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Lists FabricPool under unsupported features: because FabricPool requires the ability to delete data, FabricPool and snapshot locks cannot be enabled on the same volume."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the FabricPool restriction applies to FSx for ONTAP capacity pool tiering. The documents here state it as an inference and mark it unverified; no design decision rests on the answer."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/tamperproof-snapshot.md",
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "The NetApp statement is about FabricPool on ONTAP. FSx for ONTAP documentation was not found to state how snapshot locking interacts with capacity pool tiering, so that part is not established."
+    },
+    {
+      "id": "E-008",
+      "claim": "Malware Protection for AWS Backup does not scan FSx for ONTAP recovery points. The feature availability table leaves the Malware Protection column blank for FSx for ONTAP, and the GuardDuty page names EBS snapshots, EC2 AMIs and S3 recovery points.",
+      "subject": "AWS Backup feature availability, Malware Protection for AWS Backup",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/backup-feature-availability.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The FSx for ONTAP row has check marks for cross-Region, cross-account, Audit Manager, incremental, restore testing and logically air-gapped vault, and blanks for continuous backup, full management, cold storage, item-level restore, backup search, backup tiering, Malware Protection and access points."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/guardduty/latest/ug/malware-protection-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "Overview names EBS snapshots, EC2 AMIs and S3 recovery points as examples of what is scanned."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether Malware Protection for AWS Backup covers FSx for ONTAP recovery points. The feature availability table answers it for the current release; the design keeps recovery point checks on FlexClone plus a scan through S3 Access Points either way."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/comparison-security-layers.md",
+        "docs/runbooks/ransomware-recovery.md"
+      ],
+      "note": "Coverage tables change. Recheck the table before relying on this."
+    },
+    {
+      "id": "E-009",
+      "claim": "A backup of a resource without full AWS Backup management that is encrypted with an AWS managed key cannot be copied to a logically air-gapped vault. FSx for ONTAP lacks full management and defaults to an AWS managed key.",
+      "subject": "AWS Backup logically air-gapped vault, resources without full AWS Backup management (FSx for ONTAP)",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Resources not supporting full management and encrypted with AWS managed keys cannot be copied to logically air-gapped vaults; the backup job completes in the standard vault with a 'Completed with issues - Unsupported encryption key' message. Amazon FSx is named among resources that go through a temporary recovery point."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Compatible encryption: for resource types that are not fully managed, the source must be encrypted with a customer managed key; AWS managed keys are not supported for them."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/encryption-at-rest.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The AWS managed KMS key is the default key for FSx for ONTAP file systems and backups."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/backup-feature-availability.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The Full management column is blank for FSx for ONTAP."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether an FSx for ONTAP file system on an AWS managed key can have its backups copied to a logically air-gapped vault. The developer guide states the constraint and the resulting job status."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/comparison-security-layers.md",
+        "docs/quickstart-deployment.md",
+        "docs/deployment-guide-existing-fsxn.md",
+        "docs/ontap-native/fsxadmin-limitations.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md",
+        "AGENTS.md"
+      ],
+      "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
+    },
+    {
+      "id": "E-010",
+      "claim": "FSx for ONTAP volume backups cover RW volumes only. DP, LSM, FlexCache and SnapMirror destination volumes, and SnapLock FlexGroup volumes, are not backed up, and a non-SnapLock backup cannot be restored as a SnapLock volume.",
+      "subject": "Amazon FSx for NetApp ONTAP volume backups",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/using-backups.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Backups support OntapVolumeType RW; DP, LSM and FlexCache or SnapMirror destination volumes are not supported. A SnapLock FlexGroup volume cannot be backed up. A SnapLock backup restores as SnapLock or non-SnapLock; a non-SnapLock backup cannot be restored as SnapLock."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Which FSx for ONTAP volume types can be backed up. The user guide lists them."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/comparison-security-layers.md",
+        "docs/ontap-native/fsxadmin-limitations.md",
+        "docs/ontap-native/snaplock-configuration.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
+      ],
+      "note": "A SnapMirror destination in a DR file system is therefore not a source for AWS Backup; back up the RW source volume instead."
+    },
+    {
+      "id": "E-014",
+      "claim": "Logically air-gapped vault sharing through AWS RAM targets individual account IDs, not organisations or OUs. A shared account can view and restore recovery points but cannot copy them.",
+      "subject": "AWS Backup logically air-gapped vault sharing through AWS RAM",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "A vault can be shared with individual AWS account IDs only, including accounts in another organisation, not with an organisation or OU. Shared accounts can view or restore a backup but not create a copy."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Sharing scope and rights for a shared logically air-gapped vault. The developer guide states both."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "The recovery account design depends on this: it restores, it does not hold its own copies."
+    },
+    {
+      "id": "E-017",
+      "claim": "Restore testing, recovery point indexing and malware scanning ignore temporary recovery points with a DELETE_AFTER_COPY lifecycle, which is the path FSx for ONTAP backups take into a logically air-gapped vault.",
+      "subject": "AWS Backup temporary recovery points (DELETE_AFTER_COPY) for logically air-gapped vaults",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Restore testing, indexing and scanning item: these ignore temporary recovery points with a DELETE_AFTER_COPY lifecycle. Amazon FSx is named among resources that cannot back up directly to the vault and go through a temporary recovery point, which is billed during its retention."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether restore testing can use the temporary recovery point. The developer guide states it does not; the design tests against recovery points in the vault instead."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "Restore testing still covers FSx for ONTAP; it is the temporary recovery point that is excluded."
+    },
+    {
+      "id": "E-020",
+      "claim": "A logically air-gapped vault's encryption key is set when the vault is created and cannot be changed afterwards, and Vault Lock compliance mode is always on for the vault.",
+      "subject": "AWS Backup logically air-gapped vault, encryption key and Vault Lock mode",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "A KMS key can only be selected during vault creation and the vault cannot be changed or migrated to a different key. The comparison table says the vault is always locked with a vault lock in compliance mode."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the vault key or lock mode can be changed after creation. The developer guide states both are fixed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Both are irreversible decisions made at vault creation; the approval for them is routed to the Adoption Playbook."
+    },
+    {
+      "id": "E-021",
+      "claim": "Concurrent copy jobs into a logically air-gapped vault for Amazon FSx resources are limited to 5, and the quota is not adjustable (checked 2026-10-08).",
+      "subject": "AWS Backup quotas, concurrent copy jobs into a logically air-gapped vault for Amazon FSx",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/aws-backup-limits.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Logically air-gapped vault quotas: the quotas are currently not adjustable; the FSx row gives 5 as the maximum number of concurrent copies."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the concurrent copy limit can be raised. The quotas page marks it as not adjustable; the design fits backup frequency to it."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "Quotas change; the figure carries its check date."
+    },
+    {
+      "id": "E-012",
+      "claim": "ARP is not relied on to detect read-only exfiltration. Its documented detection inputs are data entropy, file extension types and surges in file create, rename and delete rates; no documented detection condition fires on the volume of reads alone.",
+      "subject": "ONTAP Autonomous Ransomware Protection, all generations, read-only access",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Detection method: file activity, data entropy and file extension types (ARP); entropy and file behaviour (ARP/AI). The overview also says ARP processes data as it is written to or read from storage, so reads are seen; what is not documented is a detection condition driven by reads without encryption."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html",
+          "retrieved": "2026-09-07",
+          "read": "full",
+          "note": "The toggleable inputs are create, rename and delete rate surges and never-seen-before extensions; the always-enabled paths are per-file high entropy and combined extension-and-entropy. None is a read-volume condition. Same reading as E-005."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether ARP raises an alert on bulk reads without encryption. The design already assumes it does not and routes exfiltration to audit logs and a SIEM, so an answer either way would not change the design."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/comparison-security-layers.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md",
+        "README.md",
+        "docs/ja/README.md",
+        "AGENTS.md"
+      ],
+      "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
+    },
+    {
+      "id": "E-013",
+      "claim": "FSx for ONTAP controls act on file, object and block access and on management operations. SQL statements and API authorisation decisions made in the application or database layer are not observable from the storage layer.",
+      "subject": "Amazon FSx for NetApp ONTAP data access protocols (SMB, NFS, S3 Access Points, iSCSI, NVMe/TCP)",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/supported-fsx-clients.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "The SVM endpoints are NFS, SMB, iSCSI, NVMe over TCP and management; S3 access points are a further access path. These carry file, block and object operations."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/how-it-works-fsx-ontap.html",
+          "retrieved": "2026-10-08",
+          "read": "selective",
+          "note": "Describes file systems, SVMs and volumes as the unit of storage and access."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the storage layer can see application-level queries. The boundary follows from what the protocols carry; confirming it would not change the design, which only routes readers to application-layer controls."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "When a database stores its files on an iSCSI or NVMe LUN, ONTAP sees blocks, not rows or statements (inference)."
+    },
+    {
+      "id": "E-015",
+      "claim": "FPolicy receives NFS and SMB operations only; operations through an FSx for ONTAP S3 access point do not reach FPolicy.",
+      "subject": "ONTAP FPolicy with FSx for ONTAP S3 Access Points, ONTAP 9.18.1P3D1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/security-governance/notes/access-point-authorization-layers.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Section 'FPolicy does not see this path at all': measured 2026-08-26 on ONTAP 9.18.1P3D1; an FPolicy event accepts only cifs, nfsv3 and nfsv4 as protocol and s3 is rejected."
+        },
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verification-results-fpolicy-s3ap-and-session.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The measurement record: no FPolicy notification for S3 access point data operations on UNIX and NTFS volumes, with file protocol controls on the same session that did notify."
+        }
+      ],
+      "observation": "2026-08-26, ap-northeast-1, ONTAP 9.18.1P3D1. S3 access point PUT, GET, DELETE and LIST raised no FPolicy notification on UNIX and NTFS volumes, while NFSv3 and SMB operations on the same volumes and FPolicy session did. The FPolicy event protocol accepted only cifs, nfsv3 and nfsv4.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether FPolicy can be made to see the S3 access point path. The accepted protocol values settle it for this build; the design covers the path with ARP for writes and with access point policy and IAM for the boundary."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md",
+        "AGENTS.md"
+      ],
+      "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
+    },
+    {
+      "id": "E-018",
+      "claim": "The ONTAP native file access audit log records data operations through an FSx for ONTAP S3 access point (Source=HTTP or S3, with file name, operation, offset and byte count) but does not record the requesting principal.",
+      "subject": "ONTAP file access auditing through FSx for ONTAP S3 Access Points, ONTAP 9.18.1P3D1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/ja/verification-results-fpolicy-s3ap-and-session.md",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Sections 2-1 to 2-4: S3 access point operations appear as audit events with Source HTTP (LIST with Source S3); SubjectUserName is Not Present and SubjectIP is an AWS-owned address that changes per call, so neither the IAM principal nor the source address can be recovered."
+        }
+      ],
+      "observation": "2026-08-26, ap-northeast-1, ONTAP 9.18.1P3D1. With file_operations auditing enabled and an Everyone audit_success SACL applied, S3 access point data operations appeared as audit events with Source=HTTP, including file name, operation type, offset and bytes; no requester identity field was present.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether the audit log can carry the S3 requester. It is reproducible by observation, and the design does not expect the audit log to identify the requester on this path."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/operational-considerations.md",
+        "docs/en/operational-considerations.md"
+      ],
+      "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
+    },
+    {
+      "id": "E-019",
+      "claim": "For SMB object access events, ONTAP audits only the first read and the first write operation on an object, so the audit log does not count successive reads.",
+      "subject": "ONTAP SMB file access auditing (event 4663)",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/file-access-auditing.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Event 567/4663 note: ONTAP audits only the first SMB read and first SMB write operation (success or failure) on an object, to avoid excessive log entries when one client performs many successive operations."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether SMB auditing can record every read. The user guide states the behaviour; it only limits how the log is used to estimate volume."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/runbooks/data-exfiltration-response.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/en/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "A caution about estimating read volume from the SMB audit log, not a design premise."
+    },
+    {
+      "id": "E-011",
+      "claim": "Amazon Macie analyses objects in S3 general purpose buckets that use one of six listed storage classes. Objects reached through FSx for ONTAP S3 Access Points use the FSX_ONTAP storage class and are outside that list.",
+      "subject": "Amazon Macie sensitive data discovery, supported storage classes",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/macie/latest/user/discovery-supported-storage.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "Macie analyses objects stored in an S3 general purpose bucket using a supported storage class: RRS, Glacier Instant Retrieval, Intelligent-Tiering, One Zone-IA, Standard and Standard-IA. Objects in other storage classes are skipped."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/access-points-for-fsxn-object-api-support.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "FSX_ONTAP is the only supported storage class for objects through an FSx for ONTAP access point."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether Macie can scan data through FSx for ONTAP S3 Access Points. The two pages together settle it for the current release; sensitive data detection here uses the companion repository's PII scanner."
+      },
+      "feature_request": {
+        "status": "not-yet"
+      },
+      "appears_in": [
+        "docs/comparison-security-layers.md"
+      ],
+      "note": "Corrects an earlier statement in the comparison document that Macie applies through S3 Access Points."
     }
   ]
 }

@@ -30,7 +30,7 @@ These articles describe the automated response module (`ontap_response.py`) from
 | ARP/AI detection flow | Storage-native (ARP) | `solutions/ontap-native/` |
 | NACL deny for NFS | Network layer | `templates/network.yaml` |
 | Snapshot creation & recovery verification | Data protection | `templates/dr-replication.yaml` |
-| NIST CSF 2.0 capability map | Architecture docs | `docs/architecture/` |
+| NIST CSF 2.0 capability map | Framework mapping | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
 | DII comparison | Security layer comparison | `docs/comparison-security-layers.md` |
 
 ## Series Context

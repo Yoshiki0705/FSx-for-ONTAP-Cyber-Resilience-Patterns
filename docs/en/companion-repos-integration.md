@@ -72,7 +72,7 @@ The table below shows which components from the observability repo plug into eac
 | Automated response | Step Functions orchestration (quarantine workflows) | Lambda direct response (1.8s measured execution; worst-case 12-15s with cold start) |
 | Recovery verification | DR replication monitoring (SnapMirror lag) | Verified-clean recovery point (FlexClone + scan) |
 | SIEM integration | Security Hub + SIEM connector templates | Vendor-specific integrations (Datadog, Splunk, Elastic, etc.) |
-| NIST CSF 2.0 mapping | Per-layer positioning in docs | Full 6-function capability map |
+| NIST CSF 2.0 mapping | Function coverage with CSF 2.0 categories ([framework mapping](cyber-resilience-framework-mapping.md)) | Full 6-function capability map |
 
 ## Deployment Sequence
 
@@ -144,14 +144,7 @@ This is a critical Recover-phase capability (NIST CSF 2.0 RC.RP) that bridges th
 
 ### 4. NIST CSF 2.0 Coverage (Combined)
 
-| CSF 2.0 Function | This Repo | Observability Repo | Combined |
-|------------------|-----------|-------------------|----------|
-| **Govern** | — | — | Organizational responsibility |
-| **Identify** | — | PII classification scanner | Partial |
-| **Protect** | SnapLock, MAV, TrendAI scan, Deep Instinct | Snapshot, export-policy hardening | Strong |
-| **Detect** | ARP config, FPolicy config | EMS webhook, CloudWatch Log Alarm, FPolicy server | Strong |
-| **Respond** | Step Functions orchestration | Lambda direct blocking (1.8s execution; +10-15s cold start) | Strong |
-| **Recover** | SnapMirror lag monitoring | Verified recovery point workflow | Moderate (full restore drill still manual) |
+The combined assessment of both repositories is the function coverage table in the [framework mapping](cyber-resilience-framework-mapping.md), which carries the observability repository in its companion column.
 
 ## Cross-Repository References
 
@@ -162,7 +155,7 @@ This is a critical Recover-phase capability (NIST CSF 2.0 RC.RP) that bridges th
 | ARP incident response | `docs/ontap-native/` | [arp-incident-response-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/arp-incident-response-guide.md) |
 | EMS event reference | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
 | FPolicy operations | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
-| Full NIST CSF 2.0 map | — | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
+| Full NIST CSF 2.0 map | [cyber-resilience-framework-mapping.md](cyber-resilience-framework-mapping.md) | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
 | Recovery verification | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
 | Security addendum | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
 | Deployment prerequisites | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |

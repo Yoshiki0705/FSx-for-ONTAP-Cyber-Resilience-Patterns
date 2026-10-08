@@ -31,7 +31,8 @@ deploy. A reader must make an explicit retention decision before enabling any su
 
 - [Architecture Overview](docs/architecture/overview.md): The security layers, how detection flows into event-driven response, and what each layer is responsible for.
 - [Companion Repository Integration Guide](docs/en/companion-repos-integration.md): How this repository's patterns relate to the adoption, observability, S3 Access Points and RAG repositories.
-- [Cyber Resilience Framework Mapping](docs/en/cyber-resilience-framework-mapping.md): Mapping of the controls to NIST CSF 2.0, SP 800-61 and IR 8374.
+- [Cyber Resilience Framework Mapping](docs/en/cyber-resilience-framework-mapping.md): The only CSF 2.0 mapping in this repository, including exfiltration, management-plane compromise and the storage-layer boundary.
+- [Cyber Resilience Framework Mapping (JA)](docs/ja/cyber-resilience-framework-mapping.md): Japanese counterpart with the same sections.
 
 ## Storage-native security (ONTAP)
 
@@ -54,6 +55,10 @@ deploy. A reader must make an explicit retention decision before enabling any su
 
 - [Security Monitoring Design](docs/observability/security-monitoring-design.md): Security metrics and Amazon CloudWatch dashboard design for these patterns.
 
+## Data protection
+
+- [AWS Backup Logically Air-Gapped Vault for Amazon FSx for NetApp ONTAP](docs/data-protection/aws-backup-logically-air-gapped-vault.md): Prerequisites, restore, and how to choose among SnapLock, tamperproof snapshots, cross-account SnapMirror/SnapVault and the vault. Documentation only, not tried in a real environment.
+
 ## Operate and recover
 
 - [Quick Start: Deployment Guide](docs/quickstart-deployment.md): Deploying the patterns into a new environment.
@@ -62,12 +67,18 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [ARP Alert Triage Runbook](docs/runbooks/arp-alert-triage.md): First response when an ARP alert fires.
 - [Ransomware Recovery Runbook](docs/runbooks/ransomware-recovery.md): Recovering from a ransomware event using snapshots and clones.
 - [Scanner Failover Runbook](docs/runbooks/scanner-failover.md): Handling failover of the file-scanning layer.
-- [Operational Considerations (EN)](docs/en/operational-considerations.md): SVM-wide block scope, NTFS name-mapping limits, admin bypass, NACL and NFS caching caveats.
+- [Data Exfiltration Response Runbook](docs/runbooks/data-exfiltration-response.md): First response when bulk reads through SMB, NFS or S3 Access Points are suspected.
+- [Operational Considerations (EN)](docs/en/operational-considerations.md): SVM-wide block scope, NTFS name-mapping limits, admin bypass, NACL and NFS caching caveats, data protection and isolated copies.
+- [Operational Considerations (JA)](docs/ja/operational-considerations.md): Japanese counterpart with the same sections.
 
 ## Reference and comparison
 
 - [Verification Environment: Licenses & Costs](docs/verification-environment-cost.md): The environment used for verification, with licenses and costs listed rather than estimated.
 - [Related Articles Index (EN)](docs/en/related-articles.md): Published articles on these patterns.
+- [Related Articles Index (JA)](docs/ja/related-articles.md): Japanese counterpart.
+- [Companion Repository Integration Guide (JA)](docs/ja/companion-repos-integration.md): Japanese counterpart of the integration guide.
+- [Deployment Guide (JA)](docs/ja/deployment-guide.md): Japanese deployment walkthrough.
+- [Evidence Ledger](docs/agent/evidence-ledger.json): Every "the vendor cannot / does not cover" claim with its tier, sources and the documents that cite it.
 
 ## Related repositories and articles
 

@@ -96,6 +96,12 @@ SnapLock ボリュームは以下の特性がある:
 - SnapLock Compliance ボリュームの削除: 全ファイルの保持期間満了後のみ
 - SnapLock タイプの変更: 不可（作成時に決定）
 
+## AWS Backup との関係 / Relationship with AWS Backup
+
+SnapLock ボリュームは FSx for ONTAP のボリュームバックアップ（AWS Backup を含む）でバックアップできる。復元すると、既定・最小・最大の保持期間、WORM の状態、Legal Hold が保たれる。SnapLock ボリュームのバックアップは SnapLock としても非 SnapLock としても復元できる。非 SnapLock ボリュームのバックアップを SnapLock として復元する経路と、SnapLock FlexGroup ボリュームのバックアップは対象外 [E-010]（documented、[using-backups.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/using-backups.html)）。管理境界の外に復旧点を置く方法は [AWS Backup 論理エアギャップボールト](../data-protection/aws-backup-logically-air-gapped-vault.md)にある。
+
+SnapLock volumes can be backed up with FSx for ONTAP volume backups, including AWS Backup. A restore keeps the default, minimum and maximum retention, the WORM state and Legal Hold. A SnapLock backup can be restored as SnapLock or non-SnapLock. Restoring a non-SnapLock backup as SnapLock, and backing up SnapLock FlexGroup volumes, are not supported [E-010] (documented, using-backups.html). For recovery points outside the management boundary, see the [AWS Backup logically air-gapped vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md).
+
 ## 不可逆な決定の確認先 / Where the irreversible decisions are discussed
 
 SnapLock の有効化、保持モードの選択、privileged delete の永久無効化は**それぞれ別の不可逆な

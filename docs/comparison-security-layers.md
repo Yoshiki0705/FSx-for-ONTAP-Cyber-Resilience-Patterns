@@ -111,12 +111,12 @@ graph LR
         VARIANT["既知の亜種<br/>Known Variants"]
         ZERO["ゼロデイ<br/>Zero-Day"]
         RANSOM["ランサムウェア挙動<br/>Ransomware Behavior"]
-        INSIDER["内部不正<br/>Insider Threat"]
+        INSIDER["内部不正（破壊）<br/>Insider Threat (destructive)"]
     end
 
     subgraph "Coverage"
         T_COV["TrendAI: ●●●◐○"]
-        D_COV["Deep Instinct: ●●●●◐"]
+        D_COV["Deep Instinct: ●●●●○"]
         A_COV["ONTAP ARP: ○○◐●●"]
     end
 
@@ -133,9 +133,13 @@ graph LR
 | ランサムウェア（暗号化行動） | ◎ 行動分析で検知 | ○ ファイル単体で検知 | ○ ファイル単体で検知 |
 | 低速ランサムウェア（少量ずつ暗号化） | △ パターン蓄積に時間 | ○ 個別ファイルスキャン | ○ 個別ファイルスキャン |
 | ファイルレス攻撃 | ◎ 操作行動で検知 | — 対象外 | — 対象外 |
-| 内部不正（正当アカウントでの大量コピー） | ○ 異常行動として検知 | — 対象外 | — 対象外 |
+| 内部不正（正当アカウントでの大量コピー、持ち出しのみ） | — 対象外（読み取りだけを条件にした検知は文書にない。推論 [E-012]） | — 対象外 | — 対象外 |
+| 内部不正（正当アカウントでの大量削除・上書き） | ○ 履歴に対する急増で検知 [E-005] | — 対象外（ファイル単体の判定で、操作の量は入力にない。推論） | — 対象外（ファイル単体の判定で、操作の量は入力にない。推論） |
 
 凡例: ◎ = 最も適した技術、○ = 検知可能、△ = 一定条件下で検知、— = 対象外
+
+持ち出しの検知は監査ログと SIEM で行う（[framework mapping](ja/cyber-resilience-framework-mapping.md) の持ち出し型の節）。
+Exfiltration is detected with audit logs and a SIEM (see the exfiltration scenario in the [framework mapping](en/cyber-resilience-framework-mapping.md)).
 
 > **ARP の操作ベース検知には基準が必要**: 改名・削除・作成のレートは検知入力に入っているが、
 > 判定は「過去に観測された値」に対するサージ率で行われる（[attack-detection-parameters](https://docs.netapp.com/us-en/ontap-cli-9171/security-anti-ransomware-volume-attack-detection-parameters-show.html)、
@@ -219,7 +223,7 @@ graph LR
 
 ### Pattern D: 多層防御フル構成（ARP + TrendAI + Deep Instinct）
 
-全レイヤーを組み合わせた最高レベルの防御。
+ARP、TrendAI（Vscan）、Deep Instinct の 3 つの検知レイヤーをすべて組み合わせる構成。検知の経路が増える一方で、運用対象（スキャンサーバー、エージェント、ライセンス）とコストも 3 製品分になる。
 
 ```mermaid
 graph LR
@@ -406,12 +410,14 @@ PoC コストの概算（3 日間、ap-northeast-1、2026 年 6 月時点の料�
 
 | AWS Service | 対象 | 強み | FSx for ONTAP との関係 |
 |------------|------|------|----------------------|
-| **Amazon GuardDuty Malware Protection** | EBS, S3, ECS/EKS | エージェントレスマルウェアスキャン | NFS/SMB ファイルアクセスには非対応。FSx for ONTAP + Vscan が補完 |
-| **AWS Backup + Vault Lock** | 全 AWS バックアップ対象 | イミュータブルバックアップ | SnapLock / Tamperproof Snapshot と同等の不変性。FSx for ONTAP は AWS Backup も利用可能 |
-| **Amazon Macie** | S3 | 機密データ分類・検出 | S3 AP 経由で FSx for ONTAP データにも適用可能 |
+| **Amazon GuardDuty Malware Protection** | EBS, S3, ECS/EKS。Malware Protection for AWS Backup は EBS スナップショット、EC2 AMI、S3 リカバリポイント | エージェントレスマルウェアスキャン | NFS/SMB ファイルアクセスには非対応。FSx for ONTAP + Vscan が補完。FSx for ONTAP の復旧ポイントは Malware Protection for AWS Backup の対象外 [E-008]。復旧点の確認は FlexClone + S3 Access Points 経由のスキャン |
+| **AWS Backup（標準ボールト）+ Vault Lock** | 全 AWS バックアップ対象 | イミュータブルバックアップ | AWS Backup のボールトで復旧ポイントの削除を防ぐ。SnapLock / Tamperproof Snapshot はボリューム内のファイル・Snapshot を守り、保護する境界が違う。FSx for ONTAP は AWS Backup も利用可能 |
+| **AWS Backup 論理エアギャップボールト** | FSx for ONTAP ほか（機能表の対象） | サービス所有アカウントに保存、コンプライアンスモードのロックが常に有効 | 元のファイルシステムが CMK で暗号化されていること [E-009]。対象は RW ボリューム [E-010]。ボールト自身の暗号化キーは AWS 所有キーが既定。選び方は[ボールト文書](data-protection/aws-backup-logically-air-gapped-vault.md) |
+| **Amazon Macie** | S3 | 機密データ分類・検出 | 分析対象は S3 汎用バケットのうち対応ストレージクラスのオブジェクト。FSx for ONTAP S3 Access Points 経由のオブジェクトは FSX_ONTAP ストレージクラスで、対象に入らない [E-011]。機密データの検出はコンパニオンリポジトリの PII スキャナー |
 | **AWS Security Hub** | 全 AWS リソース | セキュリティスコアリング | EventBridge 連携で本アーキテクチャのアラートを集約可能 |
 
-> **使い分けの考え方**: NAS ワークロード（NFS/SMB でアクセスするファイルサーバー）を保護する場合、GuardDuty やMacie だけでは不十分であり、ストレージレイヤーでの FPolicy + Vscan/DI + ARP が必要。一方、S3 や EBS 中心のワークロードでは GuardDuty Malware Protection が first choice になる。
+> **使い分けの考え方**: GuardDuty と Macie は S3・EBS などの AWS リソースを対象にするので、NFS/SMB でアクセスするファイルサーバーの保護には、ストレージレイヤーの FPolicy + Vscan/DI + ARP を組み合わせる。S3 や EBS 中心のワークロードには GuardDuty Malware Protection が適している。
+> GuardDuty and Macie target AWS resources such as S3 and EBS, so file servers accessed over NFS/SMB are protected by combining FPolicy, Vscan/DI and ARP at the storage layer; GuardDuty Malware Protection suits S3- and EBS-centred workloads.
 
 ---
 

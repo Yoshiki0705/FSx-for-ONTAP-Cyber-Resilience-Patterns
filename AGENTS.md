@@ -2,6 +2,14 @@
 
 > Project-specific instructions for AI coding agents working in this repository.
 
+## Start here
+
+1. [`llms.txt`](llms.txt): the document index.
+2. `docs/{ja,en}/cyber-resilience-framework-mapping.md` ([JA](docs/ja/cyber-resilience-framework-mapping.md) / [EN](docs/en/cyber-resilience-framework-mapping.md)): the only NIST CSF 2.0 mapping in this repository. Other documents link to it; do not copy its tables elsewhere.
+3. [`docs/agent/evidence-ledger.json`](docs/agent/evidence-ledger.json) and `make check-evidence`: register any "the vendor cannot / does not cover" claim in the ledger and cite it inline as `[E-nnn]`, in the same table cell as the claim. If you edit a line listed in `scripts/evidence_claims_baseline.json`, delete its fingerprint by hand; do not run `--update-baseline`.
+4. Public documents do not name incidents, companies or providers. Describe trends the way the "Threat Types Considered" section of the framework mapping does.
+5. Before calling work done, run `make test` (check-evidence, ai-style, check-sensitive, cfn-lint, pytest). CI runs `.github/workflows/ci.yml` and `gitleaks.yml`.
+
 ## Project Overview
 
 FSx for ONTAP Cyber Resilience Patterns — multi-layered security reference architecture combining:
@@ -98,21 +106,26 @@ This project compares multiple security technologies. Always:
 - Bilingual: JA (primary) + EN
 - Code/commits: English
 - Conventional commits: `feat:`, `fix:`, `docs:`, `chore:`, `sec:`
+- Topic documents and runbooks (`docs/ontap-native/`, `docs/runbooks/`, `docs/data-protection/`, `docs/architecture/`) are single files with Japanese and English side by side (`## 日本語 / English` headings). New documents of this kind follow the same form.
+- `docs/ja/` and `docs/en/` hold split pairs: change both in the same commit and keep the same headings and table rows.
+- `docs/articles/*` are first-person articles published under the author's name, in English with a Japanese summary (`## 日本語サマリ`). Do not edit their bodies.
 
 ## Common Pitfalls
 
 | Pitfall | Root Cause | Solution |
 |---------|-----------|----------|
-| AgentCore Gateway assumed us-east-1 only | Workshop examples use us-east-1 | **ap-northeast-1 で利用可能（検証済み 2026-07）**。Gateway + Lambda を同一リージョンに配置 |
-| AgentCore Lambda event: `event.toolName` で取得 | 誤った前提 | `context.client_context.custom['bedrockAgentCoreToolName']` を使用。ツール名は `targetName___toolName` 形式 |
-| `create-gateway-target` で Lambda not found | Gateway と Lambda のリージョン不一致 | 同一リージョン配置必須。クロスリージョン Lambda 呼び出しは不可 |
+| ARP で持ち出しを検知できる前提で書く | ARP の検知条件として文書にあるのは書き込み系の挙動で、読み取りだけで発火する条件は文書にない（推論）[E-012] | 監査ログと SIEM。framework mapping の持ち出し型の節と [持ち出し対応の runbook](docs/runbooks/data-exfiltration-response.md) |
+| FPolicy で S3 Access Points 経由の操作を見られる前提で書く | FPolicy に届くのは NFS / SMB [E-015] | 書き込みは ARP、境界はアクセスポイントポリシーと IAM |
+| AWS マネージドキーで暗号化したファイルシステムを論理エアギャップボールトで守る前提 | ファイルシステムの暗号化キーが AWS マネージドキーだと、バックアップはボールトへコピーされない [E-009]。ジョブは「Completed with issues」で完了する | ファイルシステムを CMK で作る。既存は [`deployment-guide-existing-fsxn.md`](docs/deployment-guide-existing-fsxn.md) の手順でキー種別を確認。ボールト自身のキーとは別の話（AWS 所有キーが既定） |
+| Tamperproof Snapshot の作成に `expiry_time` / `-expiry-time` を使う | ロックは `snaplock_expiry_time` / `-snaplock-expiry-time` | [`tamperproof-snapshot.md`](docs/ontap-native/tamperproof-snapshot.md) |
+| baseline に載った行を編集して `check-evidence` が stale で落ちる | fingerprint は行の内容から作られる | baseline から手で消し、新しい行に `[E-nnn]` を付けるか肯定形にする |
 | `CAPABILITY_IAM` で InsufficientCapabilitiesException | テンプレートに名前付き IAM ロール含む | `--capabilities CAPABILITY_NAMED_IAM` を使用 |
 
 ## Agent Output Standards
 
 > ユーザーレベル Kiro グローバル steering のミラー。steering 未ロードの環境でも従えるようにする。
 
-> CI: `.github/workflows/agent-output-audit.yml`（命名/中立性/リーク/parity）と `gitleaks.yml`（シークレット）。
+> CI: `.github/workflows/ci.yml`（根拠ゲート `check_evidence_claims.py`、文体ゲート `ai_style_rules.py`、漏洩ゲート `check_sensitive_patterns.py --tracked`、cfn-lint、pytest）と `gitleaks.yml`（シークレット）。ローカルでは `make test` が同じゲートを回す。命名・中立性・JA/EN parity を見る CI ゲートはないので、下の規則を手で確かめる。
 
 ### Naming (NetApp / AWS)
 
@@ -127,7 +140,7 @@ This project compares multiple security technologies. Always:
 ### Public-output safety
 
 - 個人名/ペルソナ名・メール・AWS アカウントID・内部IP/ホスト名・サポートケース番号・ベンダー内部チケットID をコミットしない。role ベース表記（"Storage Specialist lens"）と "an internal product request (tracked)" を使う。
-- プロセスメタデータのノイズ禁止（"Persona Review Summary"・レビューラウンド・日付・レンズ数）。レビュー知見は inline の role-based lens note（`> **Topic** (Role lens): ...`）として織り込み、provenance は `.private/`（gitignore）へ。
+- プロセスメタデータのノイズ禁止（"Persona Review Summary"・レビューラウンド・日付・レンズ数）。注記のラベルは話題名にする（`> **セキュリティに関する補足**:` / `> **Security note**:`）。役割名・人名のラベルは付けない。provenance は `.private/`（gitignore）へ。
 
 ### Bilingual docs (JA primary + EN)
 
@@ -142,5 +155,5 @@ This project compares multiple security technologies. Always:
 
 ```bash
 gitleaks detect --config .gitleaks.toml --no-git --source .
-# CI が agent-output チェックをミラー: .github/workflows/agent-output-audit.yml
+make test   # check-evidence, ai-style, check-sensitive, cfn-lint, pytest (CI: .github/workflows/ci.yml)
 ```

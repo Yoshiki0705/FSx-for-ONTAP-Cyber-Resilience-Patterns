@@ -1,10 +1,10 @@
 # Operational Considerations
 
-Key caveats identified through multi-stakeholder review for production deployments of FSx for ONTAP Cyber Resilience Patterns.
+Key caveats for production deployments of FSx for ONTAP Cyber Resilience Patterns.
 
 ## Response Timing & SLA
 
-- **RTO/RPO**: This project does not define fixed RTO/RPO numbers — those are environment-specific and must be established by each deployment based on business requirements. The response module's measured E2E timing (under 2 min detect-to-block, under 3 min worst-case) provides a data point for your RPO calculation, not a guaranteed SLA.
+- **RTO/RPO**: This project does not define fixed RTO/RPO numbers — those are environment-specific and must be established by each deployment based on business requirements. The measured E2E timing of the companion repository's response module (Lambda) (under 2 min detect-to-block, under 3 min worst-case) provides a data point for your RPO calculation, not a guaranteed SLA.
 
 ## False Positives & Auto-Unblock
 
@@ -19,7 +19,7 @@ Key caveats identified through multi-stakeholder review for production deploymen
 
 ## Detection Gaps
 
-- **Data exfiltration gap**: ARP/AI detects file encryption (entropy + extension changes) but does not detect data exfiltration without encryption (e.g., pure data theft in double-extortion scenarios). FPolicy-based volume monitoring and SIEM behavioral analytics cover this gap partially.
+- **Data exfiltration gap**: ARP/AI's documented detection conditions are write-side, such as file encryption (entropy + extension changes), and no documented condition fires on reads alone, so read-only exfiltration without encryption is not expected to trigger it (inference) [E-012]. FPolicy receives NFS / SMB operations only [E-015]. Reads through S3 Access Points appear in the ONTAP audit log with `Source=S3` / `Source=HTTP`, but the requester is not recorded [E-018] (measured 2026-08-26, ONTAP 9.18.1P3D1). Use audit logs and SIEM behavioural analytics; the procedure is the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 - **Domain Admin bypass**: Users who are members of `FileSystemAdministratorsGroup` (typically Domain Admins) bypass name-mapping deny rules entirely. Always test blocking with non-admin users.
 
 ## Volume Security Style
@@ -29,9 +29,15 @@ Key caveats identified through multi-stakeholder review for production deploymen
 ## Privacy & Audit
 
 - **Privacy in response logs**: Automated response logs (CloudWatch Logs, SNS messages) contain personal data (username, domain, client IP). Apply appropriate access controls and retention policies.
-- **Evidence tamper-resistance**: CloudWatch Logs in immutable retention mode provides tamper-resistant storage for response audit trails, supporting chain-of-custody requirements.
+- **Evidence retention and deletion permissions**: Set a retention period on the CloudWatch Logs log groups and restrict who can delete them with IAM. Whether the trail resists tampering depends on the storage mechanism behind it (see the audit log destination item in the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md)).
 
 ## Architecture Scope
 
 - **Zero Trust alignment**: This architecture implements several Zero Trust principles — deny-by-default (export-policy/name-mapping), verify explicitly (per-request ACL evaluation), assume breach (automated containment + evidence preservation). It does not implement microsegmentation at the file level.
 - **AWS-specific implementation**: This project uses AWS-native services (Lambda, Step Functions, CloudFormation, CloudWatch, SNS, EventBridge). It is not directly portable to other cloud providers. The ONTAP REST API patterns are portable across any ONTAP deployment, but the orchestration and automation layer is AWS-specific.
+
+## Data Protection & Isolated Copies
+
+- **File system encryption key**: To copy backups to an AWS Backup logically air-gapped vault, the source file system must be encrypted with a customer managed key [E-009]. This is a different key from the vault's own encryption key (an AWS owned key by default). For a file system on an AWS managed key, the backup job does not fail; it ends "Completed with issues" and the backup stays only in the standard vault (documented, [lag-vault-primary-backup.html](https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html)). Check that the copy exists in the vault, not only the job status.
+- **Backup scope**: FSx for ONTAP volume backups cover RW volumes; DP, LSM, FlexCache and SnapMirror destination volumes and SnapLock FlexGroup volumes are not backed up [E-010].
+- **Interaction with auto-remediation**: Auto-remediation that revokes external sharing (EventBridge + Lambda) can make copies into the logically air-gapped vault fail. Exclude events with `userIdentity.invokedBy = backup.amazonaws.com` (documented). See the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md).

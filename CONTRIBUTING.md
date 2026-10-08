@@ -67,9 +67,11 @@ make security
 
 ### Naming Rules (Strict)
 
+The authoritative version of these rules is the Agent Output Standards section of [AGENTS.md](AGENTS.md).
+
 - First mention: **Amazon FSx for NetApp ONTAP**, thereafter **FSx for ONTAP**
 - Forbidden abbreviations: `FSxN`, bare `FSx`, `FSx ONTAP`, `FSx NetApp`
-- S3 Access Points: **FSx for ONTAP S3 AP**
+- S3 Access Points: write **S3 Access Points** in full; where it could be read as an Amazon S3 access point, write **FSx for ONTAP S3 Access Points**. Do not bulk-rewrite existing short forms
 - Forbidden products: NetApp Workload Factory / NetApp Console / BlueXP
 
 ### Neutrality
