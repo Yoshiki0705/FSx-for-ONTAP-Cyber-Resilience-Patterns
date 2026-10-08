@@ -96,7 +96,7 @@ The complete implementation is open-source:
 git clone https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns.git
 cd FSx-for-ONTAP-Cyber-Resilience-Patterns
 make setup && source .venv/bin/activate
-make test  # 326 unit tests plus lint and gate checks, no AWS credentials needed
+make test  # 333 unit tests plus lint and gate checks, no AWS credentials needed
 ```
 
 For step-by-step deployment instructions, see the [Quick Start Deployment Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/quickstart-deployment.md).

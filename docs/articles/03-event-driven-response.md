@@ -114,7 +114,7 @@ Alarms trigger at:
 
 ## Implementation
 
-Full source code with 326 tests:
+Full source code with 333 tests:
 
 **Repository**: [github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns)
 

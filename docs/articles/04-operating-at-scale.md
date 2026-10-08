@@ -154,7 +154,7 @@ Reports stored in S3 with Object Lock (COMPLIANCE mode, 365-day retention). The 
 |--------|-------|
 | CloudFormation templates | 12 |
 | Lambda handler modules | 10 (2 deployed by templates with their code) |
-| Tests | 326 |
+| Tests | 333 |
 | Code coverage | 87% |
 | Deployment time (all stacks) | ~15 minutes |
 | Lambda cold start (measured) | ~480ms (Python 3.12 ARM64, 128MB) |
