@@ -546,7 +546,8 @@
         "README.md",
         "docs/ja/README.md",
         "AGENTS.md",
-        "docs/articles/01-architecture-overview.md"
+        "docs/articles/01-architecture-overview.md",
+        "docs/articles/02-ontap-native-security.md"
       ],
       "note": "Phrased as 'not relied on' rather than 'does not detect'. If a read-driven detection exists, the documents here still hold, because they do not depend on ARP for exfiltration."
     },
@@ -619,7 +620,8 @@
         "docs/en/cyber-resilience-framework-mapping.md",
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
-        "AGENTS.md"
+        "AGENTS.md",
+        "docs/articles/02-ontap-native-security.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
