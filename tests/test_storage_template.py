@@ -311,7 +311,7 @@ class TestStorageTemplate:
         assert tags["DataClassification"] == "confidential"
 
     def test_production_audit_volume_size_parameter(self, template: dict) -> None:
-        """ProductionAuditVolumeSize must default to 1024 MiB with the FSx minimum of 20 MiB."""
+        """ProductionAuditVolumeSize must default to 1024 MiB with a 20 MiB minimum."""
         param = template["Parameters"]["ProductionAuditVolumeSize"]
         assert param["Default"] == 1024
         assert param["MinValue"] == 20
