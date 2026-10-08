@@ -6,7 +6,7 @@
 > - ARP and FPolicy are configured with the CLI / REST steps in the [ARP Configuration Guide](../ontap-native/arp-configuration.md) and the [FPolicy Configuration Guide](../ontap-native/fpolicy-configuration.md). The Custom Resource handler is in the repository, but no template references it, so I corrected the sentence that said it runs during stack creation.
 > - The ARP Lifecycle Manager exists as Lambda code only. No template deploys the function, the DynamoDB table or the schedule.
 > - FPolicy receives NFS and SMB operations only; operations through FSx for ONTAP S3 Access Points do not reach it [E-015].
-> - This architecture does not rely on ARP to detect read-only exfiltration. Its documented detection inputs are write-side (inference) [E-012]. See the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) and the [framework mapping](../en/cyber-resilience-framework-mapping.md).
+> - This architecture does not rely on ARP to detect read-only exfiltration. ARP's documented detection inputs are write-side (inference) [E-012]. See the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) and the [framework mapping](../en/cyber-resilience-framework-mapping.md).
 
 ## Introduction
 

@@ -10,7 +10,7 @@
 
 ## Introduction
 
-Third article in the series: the event-driven response layer that turns detection events into containment actions without waiting for a person to start. I have not measured how long it takes (see the update at the top).
+Third article in the series: the event-driven response layer that turns detection events into containment actions without waiting for a person to start. How long it takes has not been measured (see the update at the top).
 
 ## The Event Pipeline
 

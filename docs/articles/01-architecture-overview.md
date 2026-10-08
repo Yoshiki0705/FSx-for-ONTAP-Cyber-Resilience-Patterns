@@ -6,7 +6,7 @@
 > - Since 2026-09, AWS Backup logically air-gapped vaults have supported FSx for ONTAP volume backups. I summarized the setup in the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); this repository has not tried it in a real environment.
 > - The NIST CSF 2.0 mapping now lives in one place, the [framework mapping](../en/cyber-resilience-framework-mapping.md) ([日本語](../ja/cyber-resilience-framework-mapping.md)). It covers exfiltration as well as encryption and destruction.
 > - I rewrote the MTTC sentence so that it says which path was measured. The 2-minute figure comes from the Lambda path in the companion Observability repository; the Step Functions path in this repository has not been measured.
-> - This architecture does not rely on ARP to detect read-only exfiltration. Its documented detection inputs are write-side (inference) [E-012]. If you suspect exfiltration, see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
+> - This architecture does not rely on ARP to detect read-only exfiltration. ARP's documented detection inputs are write-side (inference) [E-012]. If you suspect exfiltration, see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 
 ## Introduction
 
@@ -84,7 +84,7 @@ When malware is detected, the system automatically:
 4. Waits for human approval (Step Functions + SQS)
 5. Either restores access (false positive) or creates a FlexClone (forensics)
 
-The aim is to shorten Mean Time to Contain (MTTC), which takes hours when done by hand. I have not measured how long this Step Functions path takes. The measured figure comes from the companion [observability repository](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations): its Lambda path blocked access at the storage layer within 2 minutes of ARP detection (ONTAP 9.17.1P7D1).
+The aim is to shorten Mean Time to Contain (MTTC), which takes hours when done by hand. How long this Step Functions path takes has not been measured. The measured figure comes from the companion [observability repository](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations): its Lambda path blocked access at the storage layer within 2 minutes of ARP detection (ONTAP 9.17.1P7D1).
 
 ## Getting Started
 
@@ -96,7 +96,7 @@ The complete implementation is open-source:
 git clone https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns.git
 cd FSx-for-ONTAP-Cyber-Resilience-Patterns
 make setup && source .venv/bin/activate
-make test  # 326 tests, no AWS credentials needed
+make test  # 326 unit tests plus lint and gate checks, no AWS credentials needed
 ```
 
 For step-by-step deployment instructions, see the [Quick Start Deployment Guide](https://github.com/Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns/blob/main/docs/quickstart-deployment.md).
