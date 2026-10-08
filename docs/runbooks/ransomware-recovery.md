@@ -30,7 +30,7 @@ flowchart TD
     SCOPE --> MGMT{Management plane compromised?<br/>AWS account or ONTAP admin}
     MGMT -->|No| RECOVERY{Recovery path?}
     MGMT -->|Yes| LOCKED{Locked snapshots or<br/>SnapLock copies intact?}
-    LOCKED -->|Yes| RECOVERY
+    LOCKED -->|Yes| RESTORE_LOCKED[SnapRestore from a locked snapshot<br/>or copy back from the SnapLock volume]
     LOCKED -->|No, or whole AWS account compromised| VAULT{Logically air-gapped<br/>vault configured?}
     VAULT -->|Yes| RESTORE_LAG
     VAULT -->|No| ESCALATE[Escalate: no intact recovery point<br/>within this runbook]
@@ -44,6 +44,7 @@ flowchart TD
     RESTORE_SNAP --> VERIFY
     RESTORE_DR --> VERIFY
     RESTORE_LAG --> VERIFY
+    RESTORE_LOCKED --> VERIFY
     
     VERIFY --> REOPEN[Re-enable access (export policy)]
     REOPEN --> POSTMORTEM[Post-incident review]
@@ -161,6 +162,13 @@ volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields create-t
 # Restore from clean snapshot
 volume snapshot restore -vserver svm-prod-dev -volume vol_prod_dev \
   -snapshot hourly.2026-06-25_0800
+```
+
+管理面の侵害を疑うときは、ロック付きの Snapshot（`snaplock-expiry-time` が設定されたもの）だけから選ぶ。
+When a management-plane compromise is suspected, choose only from locked snapshots (those with `snaplock-expiry-time` set).
+
+```bash
+volume snapshot show -vserver svm-prod-dev -volume vol_prod_dev -fields create-time,snaplock-expiry-time
 ```
 
 ### Option C: SnapMirror DR からの復旧

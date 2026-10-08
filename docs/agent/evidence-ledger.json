@@ -245,8 +245,7 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/ontap-native/arp-active-mode-measurement-plan.md",
-        "docs/ontap-native/arp-configuration.md"
+        "docs/ontap-native/arp-active-mode-measurement-plan.md"
       ],
       "note": "Recorded because a measurement that reports 'detected by file_analysis' invites the reader to conclude which parameter fired. It does not support that, and the value itself may not be what the page's description says. Raised as a request from the Adoption Playbook side to attribute detections to always-on versus toggleable paths; this field cannot answer it. The handling is to record the observed value verbatim and to read the seven-value state enumeration rather than the six-value prose, so that paused is not dropped."
     },
