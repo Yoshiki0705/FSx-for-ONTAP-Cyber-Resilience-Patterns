@@ -29,12 +29,16 @@ flowchart TD
     SNAPSHOT --> SCOPE[Assess scope: which volumes affected?]
     SCOPE --> MGMT{Management plane compromised?<br/>AWS account or ONTAP admin}
     MGMT -->|No| RECOVERY{Recovery path?}
-    MGMT -->|Yes| RESTORE_LAG
+    MGMT -->|Yes| LOCKED{Locked snapshots or<br/>SnapLock copies intact?}
+    LOCKED -->|Yes| RECOVERY
+    LOCKED -->|No, or whole AWS account compromised| VAULT{Logically air-gapped<br/>vault configured?}
+    VAULT -->|Yes| RESTORE_LAG
+    VAULT -->|No| ESCALATE[Escalate: no intact recovery point<br/>within this runbook]
     
     RECOVERY -->|ARP Snapshot available| RESTORE_ARP[SnapRestore from ARP snapshot]
     RECOVERY -->|Pre-attack snapshot| RESTORE_SNAP[SnapRestore from clean snapshot]
     RECOVERY -->|DR copy available| RESTORE_DR[Failover to SnapMirror target]
-    RECOVERY -->|Copy outside the management boundary| RESTORE_LAG[Restore from logically air-gapped vault]
+    RECOVERY -->|Copy outside the management boundary, if a vault is configured| RESTORE_LAG[Restore from logically air-gapped vault]
     
     RESTORE_ARP --> VERIFY[Verify restored data integrity]
     RESTORE_SNAP --> VERIFY
