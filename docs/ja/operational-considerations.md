@@ -4,7 +4,7 @@ FSx for ONTAP Cyber Resilience Patterns を本番環境にデプロイする際�
 
 ## 応答時間と SLA
 
-RTO/RPO: 本プロジェクトは固定の RTO/RPO 値を定義しない。これらは環境固有であり、各デプロイのビジネス要件に基づいて決める。レスポンスモジュールの実測 E2E タイミング（検知からブロックまで 2 分以内、worst-case 3 分以内）は RPO 計算のデータポイントであり、保証された SLA ではない。
+RTO/RPO: 本プロジェクトは固定の RTO/RPO 値を定義しない。これらは環境固有であり、各デプロイのビジネス要件に基づいて決める。コンパニオンリポジトリのレスポンスモジュール（Lambda）の実測 E2E タイミング（検知からブロックまで 2 分以内、worst-case 3 分以内）は RPO 計算のデータポイントであり、保証された SLA ではない。
 
 ## 誤検知と自動解除
 
@@ -22,7 +22,7 @@ NFS クライアントキャッシュ: export-policy deny は ONTAP サーバー
 
 ## 検知のギャップ
 
-データ持ち出しのギャップ: ARP/AI の入力はファイル暗号化（エントロピー + 拡張子変更）など書き込み系の挙動で、暗号化を伴わない読み取りだけの持ち出しは検知の前提にない [E-012]。FPolicy に届くのは NFS / SMB の操作だけ [E-015]。S3 Access Points 経由の読み取りは ONTAP 監査ログに `Source=S3` / `Source=HTTP` で残るが、要求者の識別情報は記録されない [E-018]（実測 2026-08-26、ONTAP 9.18.1P3D1）。監査ログと SIEM の行動分析で見る。手順は[持ち出し対応の runbook](../runbooks/data-exfiltration-response.md)。
+データ持ち出しのギャップ: ARP/AI の検知条件として文書にあるのはファイル暗号化（エントロピー + 拡張子変更）など書き込み系の挙動で、読み取りだけで発火する条件は文書にない。暗号化を伴わない読み取りだけの持ち出しで検知が起きることは見込めない（推論）[E-012]。FPolicy に届くのは NFS / SMB の操作だけ [E-015]。S3 Access Points 経由の読み取りは ONTAP 監査ログに `Source=S3` / `Source=HTTP` で残るが、要求者の識別情報は記録されない [E-018]（実測 2026-08-26、ONTAP 9.18.1P3D1）。監査ログと SIEM の行動分析で見る。手順は[持ち出し対応の runbook](../runbooks/data-exfiltration-response.md)。
 
 Domain Admin バイパス: `FileSystemAdministratorsGroup` のメンバー（通常 Domain Admins）は name-mapping deny ルールを完全にバイパスする。ブロックのテストは必ず非管理者ユーザーで行うこと。
 

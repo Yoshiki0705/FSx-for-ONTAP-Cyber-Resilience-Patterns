@@ -18,7 +18,7 @@ an attacker gains admin credentials.
   The SnapLock license (included in ONTAP One) must be installed and the compliance clock initialized (documented, snapshot-lock-concept.html); how FSx for ONTAP handles the license and its billing is not established.
 - ボリュームレベルで設定
   Configured per volume.
-- Tamperproof Snapshot と FabricPool は同じボリュームで併用できない [E-016]。FSx for ONTAP の容量プールへの階層化を使うボリュームにも同じ制約がかかるかは（推論。未確認）
+- Tamperproof Snapshot と FabricPool は同じボリュームで併用できない [E-016]。FSx for ONTAP の容量プールへの階層化を使うボリュームにも同じ制約がかかるかは確認できていない（推論）
   Tamperproof snapshots and FabricPool cannot be enabled on the same volume [E-016]; whether the same applies to volumes that tier to the FSx for ONTAP capacity pool is an inference and unverified.
 - 手動で作成する Snapshot の保持期間（`-snaplock-expiry-time`）が効くのは、ボリュームで `snapshot-locking-enabled` が true のとき（documented、[volume-snapshot-create.html](https://docs.netapp.com/us-en/ontap-cli/volume-snapshot-create.html)）
   A retention period set on a manually created snapshot takes effect when `snapshot-locking-enabled` is true on the volume (documented, volume-snapshot-create.html).

@@ -4,7 +4,7 @@ Key caveats for production deployments of FSx for ONTAP Cyber Resilience Pattern
 
 ## Response Timing & SLA
 
-- **RTO/RPO**: This project does not define fixed RTO/RPO numbers — those are environment-specific and must be established by each deployment based on business requirements. The response module's measured E2E timing (under 2 min detect-to-block, under 3 min worst-case) provides a data point for your RPO calculation, not a guaranteed SLA.
+- **RTO/RPO**: This project does not define fixed RTO/RPO numbers — those are environment-specific and must be established by each deployment based on business requirements. The measured E2E timing of the companion repository's response module (Lambda) (under 2 min detect-to-block, under 3 min worst-case) provides a data point for your RPO calculation, not a guaranteed SLA.
 
 ## False Positives & Auto-Unblock
 
@@ -19,7 +19,7 @@ Key caveats for production deployments of FSx for ONTAP Cyber Resilience Pattern
 
 ## Detection Gaps
 
-- **Data exfiltration gap**: ARP/AI takes write-side behaviour such as file encryption (entropy + extension changes) as input, and read-only exfiltration without encryption is not among its detection premises [E-012]. FPolicy receives NFS / SMB operations only [E-015]. Reads through S3 Access Points appear in the ONTAP audit log with `Source=S3` / `Source=HTTP`, but the requester is not recorded [E-018] (measured 2026-08-26, ONTAP 9.18.1P3D1). Use audit logs and SIEM behavioural analytics; the procedure is the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
+- **Data exfiltration gap**: ARP/AI's documented detection conditions are write-side, such as file encryption (entropy + extension changes), and no documented condition fires on reads alone, so read-only exfiltration without encryption is not expected to trigger it (inference) [E-012]. FPolicy receives NFS / SMB operations only [E-015]. Reads through S3 Access Points appear in the ONTAP audit log with `Source=S3` / `Source=HTTP`, but the requester is not recorded [E-018] (measured 2026-08-26, ONTAP 9.18.1P3D1). Use audit logs and SIEM behavioural analytics; the procedure is the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 - **Domain Admin bypass**: Users who are members of `FileSystemAdministratorsGroup` (typically Domain Admins) bypass name-mapping deny rules entirely. Always test blocking with non-admin users.
 
 ## Volume Security Style

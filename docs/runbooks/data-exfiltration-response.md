@@ -57,9 +57,9 @@ flowchart TD
 
 ## Phase 1: 疑いの入口 (Entry Signals)
 
-入口は 3 つある。SIEM 側の行動分析のアラート（行動分析は SIEM に委ねる。コンパニオンリポジトリの範囲）、監査ログで見える読み取りの急増、外部からの連絡（取引先・利用者・第三者）。読み取りだけの持ち出しは ARP の検知の前提にないので、ARP のアラートを待たない [E-012]。
+入口は 3 つある。SIEM 側の行動分析のアラート（行動分析は SIEM に委ねる。コンパニオンリポジトリの範囲）、監査ログで見える読み取りの急増、外部からの連絡（取引先・利用者・第三者）。ARP の検知条件として文書にあるのは書き込み系の挙動で、読み取りだけで発火する条件は文書にない（推論）[E-012]。ARP のアラートを待たない。
 
-There are three entry signals: a behavioural alert from the SIEM (behavioural analysis is delegated to the SIEM, in the companion repository), a surge of reads visible in the audit log, and an external report from a partner, user or third party. Read-only exfiltration is not among ARP's detection premises, so do not wait for an ARP alert [E-012].
+There are three entry signals: a behavioural alert from the SIEM (behavioural analysis is delegated to the SIEM, in the companion repository), a surge of reads visible in the audit log, and an external report from a partner, user or third party. ARP's documented detection conditions are write-side, and no documented condition fires on reads alone (inference), so do not wait for an ARP alert [E-012].
 
 ## Phase 2: 証拠保全 (Evidence Preservation)
 
