@@ -362,7 +362,8 @@
         "docs/ontap-native/fsxadmin-limitations.md",
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
-        "AGENTS.md"
+        "AGENTS.md",
+        "docs/articles/04-operating-at-scale.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
     },
@@ -622,7 +623,8 @@
         "docs/en/operational-considerations.md",
         "AGENTS.md",
         "docs/articles/02-ontap-native-security.md",
-        "docs/articles/03-event-driven-response.md"
+        "docs/articles/03-event-driven-response.md",
+        "docs/articles/04-operating-at-scale.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
