@@ -102,15 +102,14 @@
 | 項目 | 情報 |
 |------|------|
 | 製品名 | Deep Instinct Prevention for Storage — NetApp ONTAP Edition |
-| ライセンス形態 | ストレージ容量ベース (TB 単位) |
+| ライセンス形態 | 販売窓口に確認する（[製品ページ](https://www.deepinstinct.com/dsx/dsx-cloud-amazon-fsx-netapp)と [AWS Marketplace の掲載](https://aws.amazon.com/marketplace/pp/prodview-h3pjvgqvlv6pc)にはライセンス形態の記載なし。2026-10-08 確認） |
 | 評価版 | **POC ライセンスあり** (Deep Instinct/NetApp 営業経由) |
 | 取得方法 | NetApp パートナーポータル or Deep Instinct 営業チームへの問い合わせ |
 | 連絡先 | [Deep Instinct Partners — NetApp](https://www.deepinstinct.com/partners/netapp) |
 | 技術要件 | EC2 (x86_64, c6i.xlarge+), 100GiB ストレージ, NAT Gateway (管理通信) |
 | POC 期間 | 通常 30-60日 (営業と調整) |
 
-> **評価用アプローチ**: NetApp 社内であれば社内 POC ライセンスの利用が可能。
-> 外部利用の場合は Deep Instinct 営業チームに POC リクエスト。
+> **評価用アプローチ**: Deep Instinct 営業チームに POC をリクエストする。
 
 ### 2.3 AWS Managed Microsoft AD (オプション)
 

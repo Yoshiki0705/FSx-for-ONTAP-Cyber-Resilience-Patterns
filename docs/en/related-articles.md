@@ -19,7 +19,7 @@ These articles describe the automated response module (`ontap_response.py`) from
 - Snapshot storm prevention (cooldown-based deduplication)
 - Verified-clean recovery point workflow (FlexClone + isolated S3 AP scan)
 - NIST CSF 2.0 positioning (Respond function — RS.MI + RS.AN)
-- Comparison with DII Storage Workload Security (same ONTAP mechanisms, different detection source)
+- Comparison with NetApp Data Infrastructure Insights (DII) Storage Workload Security (same ONTAP mechanisms, different detection source). DII here is the NetApp product, not Deep Instinct
 - 52 unit tests, CLI helper, multi-SVM fan-out
 
 ### Mapping to This Repo's Layers
@@ -31,7 +31,7 @@ These articles describe the automated response module (`ontap_response.py`) from
 | NACL deny for NFS | Network layer | `templates/network.yaml` |
 | Snapshot creation & recovery verification | Data protection | `templates/dr-replication.yaml` |
 | NIST CSF 2.0 capability map | Framework mapping | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
-| DII comparison | Security layer comparison | `docs/comparison-security-layers.md` |
+| DII Storage Workload Security comparison | Event-driven response (companion repo) | [Automated response guide FAQ](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md#faq) |
 
 ## Series Context
 

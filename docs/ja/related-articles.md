@@ -19,7 +19,7 @@
 - Snapshot ストーム防止（クールダウンベースの重複排除）
 - 検証済みクリーン復旧ポイントワークフロー（FlexClone + 隔離 S3 AP スキャン）
 - NIST CSF 2.0 における位置づけ（Respond 機能 — RS.MI + RS.AN）
-- DII Storage Workload Security との比較（同じ ONTAP メカニズム、異なる検知ソース）
+- NetApp Data Infrastructure Insights（DII）Storage Workload Security との比較（同じ ONTAP メカニズム、異なる検知ソース）。ここでの DII は NetApp の製品で、Deep Instinct ではない
 - 52 ユニットテスト、CLI ヘルパー、マルチ SVM ファンアウト
 
 ### 本リポジトリのレイヤーとのマッピング
@@ -31,7 +31,7 @@
 | NFS 用 NACL deny | ネットワークレイヤー | `templates/network.yaml` |
 | Snapshot 作成 & 復旧検証 | データ保護 | `templates/dr-replication.yaml` |
 | NIST CSF 2.0 機能マップ | フレームワークマッピング | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
-| DII 比較 | セキュリティレイヤー比較 | `docs/comparison-security-layers.md` |
+| DII Storage Workload Security との比較 | イベント駆動型レスポンス（コンパニオンリポジトリ） | [自動応答ガイドの FAQ](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/ja/automated-response-guide.md#faq) |
 
 ## シリーズの文脈
 
