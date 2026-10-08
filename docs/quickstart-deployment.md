@@ -260,7 +260,7 @@ aws secretsmanager create-secret \
   --region "$AWS_REGION"
 ```
 
-ARP と FPolicy はスタックのデプロイ後に [ARP 設定ガイド](ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](ontap-native/fpolicy-configuration.md) の手順で設定する。`svm-prod` のファイルアクセス監査の有効化は [データ持ち出し対応 Runbook](runbooks/data-exfiltration-response.md) にある。
+ARP と FPolicy はスタックのデプロイ後に [ARP 設定ガイド](ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](ontap-native/fpolicy-configuration.md) の手順で設定する。`svm-prod` のファイルアクセス監査の有効化は [持ち出し対応の runbook](runbooks/data-exfiltration-response.md) にある。
 
 ---
 

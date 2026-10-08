@@ -150,7 +150,7 @@ aws cloudformation create-stack \
   --region ap-northeast-1
 ```
 
-ARP と FPolicy は、スタックのデプロイ後に [ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。`svm-prod` のファイルアクセス監査も手作業で有効にする。手順は [データ持ち出し対応 Runbook](../runbooks/data-exfiltration-response.md) にある。
+ARP と FPolicy は、スタックのデプロイ後に [ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。`svm-prod` のファイルアクセス監査も手作業で有効にする。手順は [持ち出し対応の runbook](../runbooks/data-exfiltration-response.md) にある。
 
 ### Step 3: スキャニングレイヤーのデプロイ
 
