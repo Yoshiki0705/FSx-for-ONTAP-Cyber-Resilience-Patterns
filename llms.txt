@@ -71,6 +71,10 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [Operational Considerations (EN)](docs/en/operational-considerations.md): SVM-wide block scope, NTFS name-mapping limits, admin bypass, NACL and NFS caching caveats, data protection and isolated copies.
 - [Operational Considerations (JA)](docs/ja/operational-considerations.md): Japanese counterpart with the same sections.
 
+## Management planes
+
+- [Management Planes for Cyber Resilience](docs/management-planes-cyber-resilience.md): Which plane (ONTAP CLI, REST API, System Manager, NetApp Console, NetApp Workload Factory) can perform each cyber resilience operation (detect, respond, recover, audit, configure), with each path's trade-offs stated symmetrically and a how-to-choose section. Neutral reachability map, not a ranking.
+
 ## Reference and comparison
 
 - [Verification Environment: Licenses & Costs](docs/verification-environment-cost.md): The environment used for verification, with licenses and costs listed rather than estimated.

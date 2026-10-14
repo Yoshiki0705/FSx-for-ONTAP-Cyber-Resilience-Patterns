@@ -20,6 +20,7 @@ Amazon FSx for NetApp ONTAP 向けの多層サイバーレジリエンスパタ�
 | ARP アラートに対応する | [ARP Alert Triage Runbook](../runbooks/arp-alert-triage.md) | 5 min |
 | ランサムウェア復旧を実行する | [Recovery Runbook](../runbooks/ransomware-recovery.md) | 15 min |
 | セキュリティ層を比較する | [Security Layer Comparison](../comparison-security-layers.md) | 10 min |
+| どの管理面で操作できるか調べる | [Management Planes for Cyber Resilience](../management-planes-cyber-resilience.md) | 10 min |
 | NIST CSF 2.0 で全体像と限界を把握する | [Framework Mapping](cyber-resilience-framework-mapping.md) | 15 min |
 | 情報漏洩（持ち出し）を疑ったときに対応する | [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) | 10 min |
 | 管理面の侵害に備えて隔離バックアップを設計する | [Logically Air-Gapped Vault Guide](../data-protection/aws-backup-logically-air-gapped-vault.md) | 15 min |
@@ -30,7 +31,7 @@ Amazon FSx for NetApp ONTAP 向けの多層サイバーレジリエンスパタ�
 |------|---------|
 | 意思決定者 | [framework mapping](cyber-resilience-framework-mapping.md)（要約、ガバナンス報告ガイダンス）→ [層比較の選び方](../comparison-security-layers.md#選び方--how-to-choose) → [Adoption Playbook のデータ保護モジュール](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/README.md) |
 | 設計者 | [Architecture Overview](../architecture/overview.md) → [framework mapping](cyber-resilience-framework-mapping.md) → [論理エアギャップボールト](../data-protection/aws-backup-logically-air-gapped-vault.md) → `docs/ontap-native/`（[SnapLock](../ontap-native/snaplock-configuration.md)、[Tamperproof Snapshot](../ontap-native/tamperproof-snapshot.md)、[MAV](../ontap-native/mav-configuration.md)） |
-| 運用者 | [ARP Alert Triage](../runbooks/arp-alert-triage.md) → [Ransomware Recovery](../runbooks/ransomware-recovery.md) → [Data Exfiltration Response](../runbooks/data-exfiltration-response.md) → [運用上の注意事項](operational-considerations.md) |
+| 運用者 | [ARP Alert Triage](../runbooks/arp-alert-triage.md) → [管理面マップ](../management-planes-cyber-resilience.md) → [Ransomware Recovery](../runbooks/ransomware-recovery.md) → [Data Exfiltration Response](../runbooks/data-exfiltration-response.md) → [運用上の注意事項](operational-considerations.md) |
 | AI エージェント | [`llms.txt`](../../llms.txt) → [`AGENTS.md`](../../AGENTS.md)（Start here）→ [framework mapping](cyber-resilience-framework-mapping.md) → [`docs/agent/evidence-ledger.json`](../agent/evidence-ledger.json) |
 
 ## アーキテクチャ

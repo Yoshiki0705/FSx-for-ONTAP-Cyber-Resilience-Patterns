@@ -72,7 +72,7 @@ The authoritative version of these rules is the Agent Output Standards section o
 - First mention: **Amazon FSx for NetApp ONTAP**, thereafter **FSx for ONTAP**
 - Forbidden abbreviations: `FSxN`, bare `FSx`, `FSx ONTAP`, `FSx NetApp`
 - S3 Access Points: write **S3 Access Points** in full; where it could be read as an Amazon S3 access point, write **FSx for ONTAP S3 Access Points**. Do not bulk-rewrite existing short forms
-- Forbidden products: NetApp Workload Factory / NetApp Console / BlueXP
+- Management-plane tools: **NetApp Console** (formerly BlueXP) and **NetApp Workload Factory** may be presented as management-plane options. List CLI / REST API / System Manager / NetApp Console / Workload Factory by use case and describe each path's trade-offs symmetrically (link prerequisite, cost, no support for second-generation file systems with more than one HA pair [E-023], sync lag with the AWS console). Do not push any single path as superior. Use the official product names (NetApp Console; on first mention "NetApp Console (formerly BlueXP)" is fine; NetApp Workload Factory)
 
 ### Neutrality
 
@@ -123,7 +123,7 @@ This repository uses [Renovate](https://github.com/apps/renovate) for automated 
 
 - [ ] cfn-lint passes (`make lint`)
 - [ ] pytest passes (`make test`)
-- [ ] No forbidden naming (FSxN, bare FSx, Workload Factory, BlueXP)
+- [ ] No forbidden naming (FSxN, bare FSx); management-plane tools named officially (NetApp Console, NetApp Workload Factory)
 - [ ] No real IPs/account IDs/resource IDs
 - [ ] No vendor-versus language
 - [ ] Bilingual documentation updated (if applicable)

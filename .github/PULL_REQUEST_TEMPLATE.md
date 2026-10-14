@@ -10,7 +10,7 @@
 
 - [ ] `make lint` passes (cfn-lint clean)
 - [ ] `make test` passes (all pytest green)
-- [ ] No forbidden naming (`FSxN`, bare `FSx`, Workload Factory, BlueXP)
+- [ ] No forbidden naming (`FSxN`, bare `FSx`); management-plane tools named officially (NetApp Console, NetApp Workload Factory)
 - [ ] No real AWS account IDs, IPs, or resource IDs committed
 - [ ] No vendor-versus language ("better than", "beats", "inferior")
 - [ ] CloudFormation resources have required tags (Project, Environment, Layer)
