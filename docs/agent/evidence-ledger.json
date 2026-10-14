@@ -759,6 +759,34 @@
         "docs/runbooks/data-exfiltration-response.md"
       ],
       "note": "Why the runbook carries a manual vserver audit create / enable step after the stack creates vol_audit_prod."
+    },
+    {
+      "id": "E-023",
+      "claim": "NetApp Console and NetApp System Manager are not supported for second-generation FSx for ONTAP file systems with more than one high-availability (HA) pair.",
+      "subject": "FSx for ONTAP management with NetApp applications (NetApp Console, NetApp System Manager)",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/managing-resources-ontap-apps.html",
+          "retrieved": "2026-10-14",
+          "read": "full",
+          "note": "The page states 'NetApp Console isn't supported for second-generation file systems with more than one high-availability (HA) pair.' and, under using System Manager with NetApp Console, 'NetApp System Manager isn't supported for second-generation file systems with more than one HA pair.'"
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether NetApp Console / System Manager support second-generation file systems with more than one HA pair. The AWS user guide states they do not; this scopes which management plane is available on such configurations rather than driving a design decision."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/management-planes-cyber-resilience.md",
+        "CONTRIBUTING.md"
+      ],
+      "note": "Used to scope the management-plane map: on second-generation file systems with more than one HA pair, the CLI and REST API are the available planes. Not a design premise; the map states reachability per plane."
     }
   ]
 }

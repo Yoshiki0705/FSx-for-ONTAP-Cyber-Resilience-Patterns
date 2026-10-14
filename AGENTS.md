@@ -120,6 +120,8 @@ This project compares multiple security technologies. Always:
 | Tamperproof Snapshot の作成に `expiry_time` / `-expiry-time` を使う | ロックは `snaplock_expiry_time` / `-snaplock-expiry-time` | [`tamperproof-snapshot.md`](docs/ontap-native/tamperproof-snapshot.md) |
 | baseline に載った行を編集して `check-evidence` が stale で落ちる | fingerprint は行の内容から作られる | baseline から手で消し、新しい行に `[E-nnn]` を付けるか肯定形にする |
 | `CAPABILITY_IAM` で InsufficientCapabilitiesException | テンプレートに名前付き IAM ロール含む | `--capabilities CAPABILITY_NAMED_IAM` を使用 |
+| ファイルシステムの fsxadmin 認証情報シークレットを名前で選んで `Invalid ONTAP credentials` になる | どの FS も管理ユーザーは同名 `fsxadmin`。複数 FS があると汎用名のシークレットを取り違える。正しい対応はシークレットの `FileSystemId` / `FileSystemName` タグと説明にのみ記載 | 使う前にタグ/説明で対象 FS を確認する。認証失敗は `not authorized to access secret`（クライアントの IAM 権限不足）と `Invalid ONTAP credentials` / ONTAP `6691623`（資格情報不一致、ロックではない）に切り分ける。管理エンドポイントは VPC 内からのみ到達するので、一致確認は VPC 内の踏み台から `curl -k -u ... /api/cluster` を 1 回だけ（値は出力に残さない） |
+| 管理面クライアント（Workload Factory の Lambda link 等）が古いパスワードで認証を繰り返し fsxadmin をロック | 古い/不一致のシークレットを使ったまま authenticate を再試行すると ONTAP の管理ユーザーがロックされうる | 切り分け中は認証を繰り返すクライアント（link の Lambda）を予約並列数 0 に絞って止める。パスワードをリセットしたら、その FS 用の単一シークレットを真実の源として更新し、更新日と検証状態を説明に残す。Workload Factory の Secrets Manager 認証モードは link の Lambda ロールに対象シークレットの `GetSecretValue` 権限が要る |
 
 ## Agent Output Standards
 
@@ -130,7 +132,7 @@ This project compares multiple security technologies. Always:
 ### Naming (NetApp / AWS)
 
 - 初出は **Amazon FSx for NetApp ONTAP**、以降 **FSx for ONTAP**。`FSxN` / 単独 `FSx` / `FSx ONTAP` は不可。アクセスポイントは **S3 Access Points** と略さずに書く（`S3 AP` は AWS が認めた略称ではない）。Amazon S3 のアクセスポイントと紛れる場所では **FSx for ONTAP S3 Access Points**。**既存の記述は据え置きで、一括置換はしない。**
-- NetApp Workload Factory / NetApp Console / BlueXP は提案しない。native 等価物（CloudWatch, ONTAP REST API, FabricPool, AWS DataSync, Snapshot/FlexClone/SnapMirror）に置換。
+- NetApp Console（旧 BlueXP）と NetApp Workload Factory は管理面の選択肢として扱ってよい。CLI / REST API / System Manager / NetApp Console / Workload Factory を用途別に並べ、各経路のトレードオフ（link 前提、課金、第 2 世代の複数 HA ペア非対応、AWS コンソールとの同期ラグなど）を対称に書く。特定の経路を推奨・優越として押し出さない。製品名は公式表記に合わせる（**NetApp Console**、必要なら初出で「NetApp Console（旧 BlueXP）」、**NetApp Workload Factory**）。
 - 例外: 外部引用タイトルの逐語引用（その行に `allow:naming` コメントを付与）。
 
 ### Vendor neutrality (right-tool-for-the-job)
