@@ -69,11 +69,11 @@ Each cell shows whether the operation is reachable on that plane. ◯ = procedur
 
 脚注 / Footnotes:
 
-- **[1]** ARP/AI の検知結果の確認と判定（false positive / potential ransomware attack の指定）は、System Manager の **Storage > Volumes > 対象ボリューム > Security タブ** で行う手順が公式に記載されている（[NetApp: Respond to abnormal activity detected by ONTAP ARP/AI](https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html)、2026-10-14 全文確認）。NAS ボリュームは suspected file types を、NAS/SAN 双方は entropy spike を同タブで確認できる。CLI の等価は `security anti-ransomware volume attack clear-suspect ... -false-positive {true|false}`。
+- **[1]** ARP/AI の検知結果の確認と判定（false positive / potential ransomware attack の指定）は、System Manager の **Storage > Volumes > 対象ボリューム > Security タブ** で行う手順が公式に記載されている（[NetApp: Respond to abnormal activity detected by ONTAP ARP/AI](https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html)、2026-10-14 全文確認）。NAS ボリュームは suspected file types を、NAS/SAN 双方は entropy spike を同タブで確認できる。CLI の等価は `security anti-ransomware volume attack clear-suspect ... -false-positive {true|false}`。実機検証（2026-10-18、ap-northeast-1、第 1 世代・単一 HA ペア、ONTAP 9.18.1P6）では、対象ボリューム（FlexVol、NTFS セキュリティスタイル）の詳細画面に Security タブは一度も表示されず、タブは 概要 / Snapshot / クローン階層 / レプリケーション / ファイルシステム / クォータ 使用状況 の 6 つのみだった。ARP/AI 無効時・有効化直後・ARP/AI が実際に攻撃を検知した後（Attack Probability: Moderate）の 3 状態すべてで同じ結果を確認した。原因（ONTAP バージョン、ライセンス、System Manager 実装上の制約のいずれか）は特定していない。1 検証環境・1 回の観測であり、他環境への一般化はしない。詳細は下記「今日時点の UI 検証」の 2026-10-18 項。<br>A 2026-10-18 live verification (ap-northeast-1, first-generation single HA pair, ONTAP 9.18.1P6) found the Security tab was never shown on the target volume's (FlexVol, NTFS security style) detail screen; only 6 tabs appeared (Overview / Snapshot / Clone hierarchy / Replication / File System / Quota Usage), consistently across three states: ARP/AI disabled, immediately after enabling ARP/AI, and after ARP/AI actually detected an attack (Attack Probability: Moderate). The root cause (ONTAP version, license, or a System Manager implementation constraint) was not identified. This is one observation in one verification environment; it does not generalize to other environments. See the 2026-10-18 entry under "Today's UI, Verified" below for details.
 - **[2]** ONTAP 9.18.1 で、System Manager は ARP/AI の workload characteristics（baseline / surge 統計）の**表示を取りやめた**（[NetApp: ARP feature availability by release](https://docs.netapp.com/us-en/ontap/anti-ransomware/release-history-arp.html)、2026-10-14 全文確認）。ARP/AI の検知・動作そのものは不変で、surge 統計は CLI / REST API から引き続き参照できる。質問背景の 9.18.1 系で「ARP 関連の表示が出ない」場合、この表示削除が一因になりうる。Security タブ（検知対応）そのものの削除ではない点に注意。
 - **[3]** SnapLock / Tamperproof Snapshot は保持期間が不可逆（期間満了まで管理者でも削除不能）。経路の存在にかかわらず、有効化は明示的な保持判断を要する。詳細と注意は [SnapLock 設定](ontap-native/snaplock-configuration.md) と [Tamperproof Snapshot](ontap-native/tamperproof-snapshot.md)。
 - **[4]** AWS Backup は AWS マネジメントコンソール / CLI / API の操作で、ここに挙げた 5 経路の対象外。Malware Protection for AWS Backup は FSx for ONTAP の recovery point を対象外（[E-008]）、AWS マネージドキーのファイルシステムは論理エアギャップボールトへコピーされない（[E-009]）。詳細は [AWS Backup 論理エアギャップボールト](data-protection/aws-backup-logically-air-gapped-vault.md)。
-- **[V1]–[V4]**: 実機検証（2026-10-14、ap-northeast-1、第 1 世代・単一 HA ペアの検証用ファイルシステム、Lambda link 経由）で確認。[V1] ボリューム > Actions > Data protection actions > Manage ARP/AI の有効化トグルを確認。[V2] 同画面の Detection Defaults で高エントロピー・作成/リネーム/削除レート・拡張子・新規拡張子しきい値（既定 20）の各パラメータを GUI から設定できることを確認。[V3] 検知結果の確認・判定への経路（Volumes の「Analyze attacks」）の存在を確認。`◯*` は経路の存在のみ確認で、判定操作そのものは検証環境に検知イベントがなく未実行（画面は「No new suspected attacks」）。[V4] Data protection actions に Manage snapshots / Manage immutable files（SnapLock/Tamperproof 系）があることを確認。詳細は下記「今日時点の UI 検証」。
+- **[V1]–[V4]**: 実機検証（2026-10-14、ap-northeast-1、第 1 世代・単一 HA ペアの検証用ファイルシステム、Lambda link 経由）で確認。[V1] ボリューム > Actions > Data protection actions > Manage ARP/AI の有効化トグルを確認。[V2] 同画面の Detection Defaults で高エントロピー・作成/リネーム/削除レート・拡張子・新規拡張子しきい値（既定 20）の各パラメータを GUI から設定できることを確認。[V3] 検知結果の確認・判定への経路（Volumes の「Analyze attacks」）の存在を確認。2026-10-18 の追加検証で、ARP/AI 有効化後のボリュームに高エントロピーデータ（複数の未知拡張子、ransomware-behavior simulation、約 100MB 書き換え）で実際に検知が成立し（ONTAP CLI `security anti-ransomware volume show` → Attack Probability: Moderate、EMS `callhome.arw.activity.seen` ALERT の両方で確認）、Analyze attacks 画面には対象ボリューム名・Storage VM 名・Attack probability・検知時刻と、行ごとに **Real attack** / **False alarm** の 2 ボタンが表示されることを確認した。画面上の説明文（attack events report をダウンロードし、ファイル/フォルダの被害有無を確認してから実攻撃か誤検知かを判定し、表の該当行で指定する。Real attack を指定すると復旧手順が開始される）も確認した。これは ONTAP CLI `security anti-ransomware volume attack clear-suspect -false-positive {true|false}` の GUI 相当。`◯*` は、判定画面への到達と検知成立の両方が本ラウンドで確認済みであることを示す（画面項目の確認であり、実際のボタン押下による判定確定は本検証の範囲に含まない）。[V4] Data protection actions に Manage snapshots / Manage immutable files（SnapLock/Tamperproof 系）があることを確認。詳細は下記「今日時点の UI 検証」。[1] も参照（System Manager 側の Security タブ表示結果）。<br>Verified live (2026-10-14, ap-northeast-1, first-generation single HA pair test file system, via Lambda link). [V1] Confirmed the ARP/AI enable toggle under Volume > Actions > Data protection actions > Manage ARP/AI. [V2] Confirmed the same screen's Detection Defaults lets high entropy, file create/rename/delete rate, extensions, and the new-extension threshold (default 20) be configured through the GUI. [V3] Confirmed the existence of a path to review and classify a detection (the Volumes "Analyze attacks" link). A follow-up live verification on 2026-10-18 produced an actual detection on a volume after enabling ARP/AI, by rewriting high-entropy data (multiple unfamiliar extensions, ransomware-behavior simulation, roughly 100MB), confirmed on both ONTAP CLI (`security anti-ransomware volume show` → Attack Probability: Moderate) and EMS (`callhome.arw.activity.seen` ALERT). The Analyze attacks screen was confirmed to list the target volume name, Storage VM name, attack probability, and detection time, with two buttons per row, **Real attack** and **False alarm**. The on-screen description was also confirmed (download the attack events report, check whether files or folders were compromised, judge whether an attack occurred, and mark true/false in the table; marking "Real attack" starts the recovery procedure) — the GUI equivalent of ONTAP CLI `security anti-ransomware volume attack clear-suspect -false-positive {true|false}`. `◯*` indicates that both reaching the classification screen and a successful detection were confirmed this round; pressing either button to finalize a classification was outside this verification's scope. [V4] Confirmed Data protection actions also includes Manage snapshots / Manage immutable files (SnapLock/Tamperproof). See "Today's UI, Verified" below for details; see also [1] for the System Manager Security tab result.
 
 ---
 
@@ -131,7 +131,7 @@ Narrow in this order; the path falls out of prerequisites and requirements, not 
 The requirement "review an ARP detection and mark it false positive or attack without using ONTAP commands" can be met on more than one path. The procedure's location per path:
 
 - **System Manager**: Storage > Volumes > 対象ボリューム > Security タブ。NAS は Suspected file types を選んで **Mark as false positive** または **Potential ransomware attack**、続いて **Update and Clear Suspected File Types**。entropy spike（NAS/SAN）は **Mark as ...** → **Save and dismiss**（[respond-arpai](https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html)、2026-10-14 全文確認）。
-- **NetApp Console / Workload Factory**: GUI からの検知結果確認・判定の画面項目は実機検証で確定（下記の空欄）。
+- **NetApp Console / Workload Factory**: Workload Factory では Storage > FSx for ONTAP > 対象ファイルシステム > Volumes > **Analyze attacks** リンクが経路。実機検証（2026-10-18）で、画面は対象ボリューム名・Storage VM 名・Attack probability・検知時刻を一覧表示し、行ごとに **Real attack** / **False alarm** の 2 ボタンを持つことを確認した。画面上の説明文は「attack events report をダウンロードし、ファイル/フォルダが侵害されたか確認してから攻撃の有無を判定し、表で true/false を指定する。Real attack を指定すると復旧手順が開始される」。NetApp Console 側は本ラウンド未検証のまま。<br>In Workload Factory, the path is Storage > FSx for ONTAP > target file system > Volumes > **Analyze attacks**. Live verification (2026-10-18) confirmed the screen lists the target volume name, Storage VM name, attack probability, and detection time, with two buttons per row: **Real attack** and **False alarm**. The on-screen description reads: download the attack events report, check whether files or folders were compromised, judge whether an attack occurred, and mark true/false in the table; marking "Real attack" starts the recovery procedure. NetApp Console was not checked this round.
 - **CLI（参考）**: `security anti-ransomware volume attack clear-suspect -vserver <svm> -volume <vol> -false-positive {true|false}`。コマンドを使う経路だが、他経路の等価操作の対応確認用に併記。
 
 > **運用上の補足 / Operational note**: 誤検知/実攻撃を指定すると、ARP/AI がその判定を threat assessment profile に記録し、以降の監視に反映する（[respond-arpai](https://docs.netapp.com/us-en/ontap/anti-ransomware/respond-arpai.html)）。表示上のフラグにとどまらず検知動作が変わるため、業務上正当な処理であることを確認したうえで指定する。トリアージの流れは [ARP アラートトリアージ runbook](runbooks/arp-alert-triage.md)。
@@ -155,9 +155,26 @@ Verified the current NetApp Workload Factory UI against a verification file syst
 ### Workload Factory で確認した ARP/AI 管理経路 / Verified ARP/AI path in Workload Factory
 
 - **ナビゲーション**: Storage > FSx for ONTAP > 対象ファイルシステム > **Volumes** タブ。各ボリュームの行に「ARP/AI status」列と「Protection」列があり、ファイルシステム単位の ARP/AI サマリ（Protected volumes 数、新規の疑わしい攻撃の有無、「Analyze attacks」リンク）が出る。
-- **ARP/AI の有効化**: ボリューム > **Actions > Data protection actions > Manage ARP/AI**。有効化トグル、既定スナップショットポリシー（4 時間ごと最大 6 個、各 2〜5 日ロック）の説明、immutable snapshot の保持に関する同意チェックがある。FlexVol は学習モードから即アクティブ、FlexGroup は 7 日後、という挙動が画面に明記されている。
+
+  ![Workload Factory の Volumes タブ。ファイルシステム単位の ARP/AI サマリ（Protected volumes 数）とボリューム一覧が表示されている](images/management-planes/workload-factory-volumes-overview.png)
+
+- **ARP/AI の有効化**: ボリューム行の「…」から **Actions** メニューを開き、**Data protection actions > Manage ARP/AI** を選ぶ。メニューは Basic actions / Data protection actions / Advanced actions / Alerts actions に分かれている。
+
+  ![ボリューム行の Actions メニュー。Basic actions / Data protection actions / Advanced actions / Alerts actions に分岐している](images/management-planes/workload-factory-volume-actions-menu.png)
+
+  Manage ARP/AI 画面には有効化トグル、既定スナップショットポリシー（4 時間ごと最大 6 個、各 2〜5 日ロック）の説明、immutable snapshot の保持に関する同意チェックがある。FlexVol は学習モードから即アクティブ、FlexGroup は 7 日後、という挙動が画面に明記されている。
+
+  ![Workload Factory の Manage ARP/AI 画面。有効化トグルと immutable snapshot の保持に関する同意チェックボックス](images/management-planes/workload-factory-manage-arp-ai.png)
+
+  有効化を Apply すると、Volumes タブの ARP/AI サマリの Protected volumes 数が反映される（検証では 0/26 → 1/26 に変化）。
+
+  ![有効化後の Workload Factory Volumes タブ。Protected volumes が 1/26 に変化している](images/management-planes/workload-factory-volumes-protected-1of26.png)
+
 - **検知パラメータの設定**: 同画面の **Detection Defaults** で、高エントロピー（ボリューム単位）・ファイル作成/リネーム/削除レート・よく使う拡張子の除外・新規拡張子しきい値（既定 20 ファイル）を GUI から設定できる。これは ONTAP CLI の `security anti-ransomware volume attack-detection-parameters` に相当する。
-- **検知結果の確認・判定**: Volumes の「Analyze attacks」が経路。検証環境に検知イベントがなかったため（「No new suspected attacks」）、誤検知/実攻撃の判定操作そのものは未実行。判定操作の公式手順は System Manager 側で確認済み（上表脚注 [1]）。
+
+  ![Workload Factory の Manage ARP/AI 画面、Detection Defaults。高エントロピー・ファイル作成/リネーム/削除レート・拡張子しきい値の各チェックボックス](images/management-planes/workload-factory-arp-detection-defaults.png)
+
+- **検知結果の確認・判定**: Volumes の「Analyze attacks」が経路。検証環境に検知イベントがなかったため（「No new suspected attacks」）、誤検知/実攻撃の判定操作そのものは未実行。判定操作の公式手順は System Manager 側で確認済み（上表脚注 [1]）。2026-10-18 の追加検証で実際の検知と判定画面の項目を確認した（下記「今日時点の UI 検証」の追加項を参照）。
 - **同じ Data protection actions に** Manage snapshots / Manage immutable files（SnapLock/Tamperproof 系）があり、Snapshot と WORM 系も同じ GUI 経路で管理できる。
 
 ### link の実機知見（運用上の注意）/ Link setup, learned in practice
@@ -169,6 +186,37 @@ Verified the current NetApp Workload Factory UI against a verification file syst
 - 古いパスワードのまま link が認証を繰り返すと ONTAP の管理ユーザーがロックされうる。切り分け中は link の Lambda を予約並列数 0 に絞って再試行を止めると安全（確認後に戻す）。
 
 > **Secrets 運用に関する補足 / Secrets note**: FSx for ONTAP の管理ユーザー認証情報は、ファイルシステムごとに別のシークレットで管理し、どのファイルシステム用かをシークレットのタグ（`FileSystemId` / `FileSystemName`）と説明に明記しておくと、同名ユーザー（fsxadmin）での取り違えによる認証失敗を避けられる。パスワードをリセットしたら、そのシークレットを単一の真実の源として更新し、更新日と検証状態を説明に残す。
+
+### 2026-10-18 追加検証: ARP/AI 検知の成立と System Manager の表示 / Additional Verification, 2026-10-18: a Live Detection and the System Manager Display
+
+2026-10-14 の検証対象ファイルシステムに対して、ARP/AI の実検知と System Manager の Security タブ表示を追加で確認した。
+
+An additional round of verification against the same file system from 2026-10-14 confirmed a live ARP/AI detection and the System Manager Security tab's display.
+
+| 項目 / Item | 記録 / Record |
+|---|---|
+| 検証日 / Date | 2026-10-18 |
+| リージョン / Region | ap-northeast-1（東京 / Tokyo） |
+| 世代・HA ペア数 / Generation & HA pairs | 第 1 世代・単一 HA ペア |
+| ONTAP バージョン / ONTAP version | 9.18.1P6 |
+| link 方式 / Link method | Lambda link（2026-10-14 と同一） |
+| 検証対象 / Scope | ONTAP CLI、EMS、System Manager（ボリューム詳細画面のタブ一覧）、NetApp Workload Factory（Analyze attacks 画面） |
+
+**System Manager の Security タブ表示（NTFS セキュリティスタイルの FlexVol）**: ARP/AI 無効時・有効化直後・ARP/AI が実際に攻撃を検知した後（Attack Probability: Moderate）の 3 状態すべてで、対象ボリュームの詳細画面に Security タブは表示されず、タブは 概要 / Snapshot / クローン階層 / レプリケーション / ファイルシステム / クォータ 使用状況 の 6 つのみだった。原因（ONTAP バージョン、ライセンス、System Manager 実装上の制約のいずれか）は特定していない。1 検証環境・1 回の観測であり、他環境への一般化はしない。
+
+**System Manager Security tab display (NTFS-security-style FlexVol)**: Across all three states — ARP/AI disabled, immediately after enabling ARP/AI, and after ARP/AI actually detected an attack (Attack Probability: Moderate) — the target volume's detail screen never showed a Security tab; only 6 tabs appeared (Overview / Snapshot / Clone hierarchy / Replication / File System / Quota Usage). The root cause (ONTAP version, license, or a System Manager implementation constraint) was not identified. This is one observation in one verification environment; it does not generalize to other environments.
+
+![System Manager のボリューム詳細画面。タブ一覧に Security タブが無い](images/management-planes/system-manager-volume-tabs-no-security.png)
+
+**ARP/AI の実検知**: ARP/AI を有効化したボリュームに高エントロピーデータ（複数の未知拡張子、ransomware-behavior simulation）を書き込み、約 100MB 規模の書き換えで検知が成立した。ONTAP CLI（`security anti-ransomware volume show` → Attack Probability: Moderate、Attack Detected By: file_analysis）と EMS（`callhome.arw.activity.seen` ALERT、"POSSIBLE RANSOMWARE ACTIVITY DETECTED"）の両方で確認した。数十 KB × 約 100 ファイル規模の変更では検知せず、約 100MB 規模の変更で初めて検知した。しきい値の正確な値、データ量・拡張子種別数のどちらが決定的かは未確認。
+
+**Live ARP/AI detection**: Writing high-entropy data (multiple unfamiliar extensions, ransomware-behavior simulation) to a volume with ARP/AI enabled triggered detection once the rewrite reached roughly 100MB. Confirmed on both ONTAP CLI (`security anti-ransomware volume show` → Attack Probability: Moderate, Attack Detected By: file_analysis) and EMS (`callhome.arw.activity.seen` ALERT, "POSSIBLE RANSOMWARE ACTIVITY DETECTED"). A smaller change (tens of KB across roughly 100 files) did not trigger detection. The exact threshold value, and whether data volume or extension-type count is the deciding factor, remain unverified.
+
+**Workload Factory の Analyze attacks 画面**: 検知後、Volumes タブに「1 volume with suspected attack」と表示され、Analyze attacks 画面（Storage > FSx for ONTAP > 対象ファイルシステム > Volumes > Analyze attacks リンク）には対象ボリューム名・Storage VM 名・Attack probability・検知時刻が一覧表示され、行ごとに **Real attack** / **False alarm** の 2 ボタンがあった。画面上の説明文は、attack events report をダウンロードしてファイル/フォルダの被害有無を確認し、攻撃の有無を判定して表で true/false を指定する、Real attack を指定すると復旧手順が開始される、という内容。これは ONTAP CLI `security anti-ransomware volume attack clear-suspect -false-positive {true|false}` の GUI 相当。
+
+**Workload Factory's Analyze attacks screen**: After detection, the Volumes tab showed "1 volume with suspected attack". The Analyze attacks screen (Storage > FSx for ONTAP > target file system > Volumes > Analyze attacks link) listed the target volume name, Storage VM name, attack probability, and detection time, with two buttons per row: **Real attack** and **False alarm**. The on-screen description instructs the operator to download the attack event report, check whether files or folders were compromised, judge whether an attack occurred, and mark true/false in the table; marking "Real attack" starts the recovery procedure. This is the GUI equivalent of ONTAP CLI `security anti-ransomware volume attack clear-suspect -false-positive {true|false}`.
+
+![Workload Factory の Analyze attacks 画面。検知したボリュームの行に Real attack / False alarm の 2 ボタンがある](images/management-planes/workload-factory-analyze-attacks.png)
 
 ---
 
