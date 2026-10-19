@@ -21,6 +21,14 @@ the `gh pr checks` buckets so that regression cannot come back silently:
   previous cursor while a check is still pending must be ``new-activity`` so downstream
   sees progress cheaply.
 
+Four further cases lock the wire contract the ``command`` handler enforces (found when a
+real run failed on it): ``payload`` is a JSON string and ``cursor`` is always present
+(``test_every_outcome_carries_a_string_payload``); a ``config.pr`` that is not a bare
+integer, or a missing ``config.repo``, exits 2 so the node fails at once instead of idling
+(``test_prose_instead_of_a_pr_number_is_rejected_not_idled``, ``test_missing_repo_is_rejected``);
+and a numeric string such as ``"465"`` is still accepted
+(``test_pr_number_given_as_a_numeric_string_is_accepted``).
+
 The test NEVER touches the network: a ``gh`` shim is prepended to PATH and answers all
 ``gh pr checks`` / ``gh pr view`` calls with canned JSON and canned exit codes.
 """
@@ -92,7 +100,28 @@ def _run(stdin_obj: dict, env: dict[str, str]) -> dict:
         env=env,
     )
     assert result.returncode == 0, f"script exit {result.returncode}; stderr={result.stderr}"
-    return json.loads(result.stdout)
+    out = json.loads(result.stdout)
+    # The run_workflow `command` handler rejects the whole result when `payload` is not a
+    # string (and when `cursor` is absent), which fails the watch node. Check the wire
+    # shape here, then decode the string so the cases below can read fields from it.
+    assert "cursor" in out, "handler requires the cursor key on every result"
+    assert isinstance(out["payload"], str), f"payload must be a JSON string: {out['payload']!r}"
+    out["payload"] = json.loads(out["payload"])
+    return out
+
+
+def _run_raw(stdin_obj: dict, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run the script and return the completed process without asserting on it.
+
+    Used for the cases where a non-zero exit is the expected outcome.
+    """
+    return subprocess.run(
+        ["bash", str(SCRIPT)],
+        input=json.dumps(stdin_obj),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
 
 
 def _config(**overrides) -> dict:
@@ -202,3 +231,61 @@ def test_changed_completed_set_is_new_activity(tmp_path: Path) -> None:
     out = _run(stdin_obj, env)
     assert out["outcome"] == "new-activity"
     assert out["payload"]["result"] is None
+
+
+def test_every_outcome_carries_a_string_payload(tmp_path: Path) -> None:
+    """Regression: all four result shapes put a JSON *string* in ``payload``.
+
+    A real run failed because the handler validates ``payload`` as a string while the
+    script printed an object, so the node failed on its first poll. ``_run`` asserts the
+    string type on every call; this case walks the four shapes (terminal, pending,
+    awaiting checks, and the ERR-trap fallback) in one place so none is skipped.
+    """
+    passing = json.dumps([{"name": "a", "state": "SUCCESS", "bucket": "pass"}])
+    pending = json.dumps([{"name": "a", "state": "IN_PROGRESS", "bucket": "pending"}])
+    shapes = [(passing, 0), (pending, 8), ("[]", 0)]
+    for checks, code in shapes:
+        sub = tmp_path / f"s{len(checks)}{code}"
+        sub.mkdir()
+        _run(_config(), _write_gh_shim(sub, checks, code))
+
+    # gh transport error (exit > 1): the script stays idle, still with a string payload.
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    out = _run(_config(), _write_gh_shim(broken, "[]", 4))
+    assert out["outcome"] == "idle"
+    assert out["payload"]["error"] == "gh_error"
+
+
+def test_prose_instead_of_a_pr_number_is_rejected_not_idled(tmp_path: Path) -> None:
+    """Regression: a step's whole message in ``config.pr`` must fail fast with exit 2.
+
+    The workflow passed ``{{submit.output}}`` (the submit step's full final message) as
+    ``pr``. The script then idled on every poll, which would have gone unnoticed for the
+    whole loop budget. Exit 2 is the handler's "input rejected, do not retry" signal.
+    """
+    env = _write_gh_shim(tmp_path, "[]", 0)
+    prose = "PR number: 465\n\nURL: https://example.invalid/pull/465\nThe title is ..."
+    result = _run_raw(_config(pr=prose), env)
+    assert result.returncode == 2, f"exit {result.returncode}; stdout={result.stdout!r}"
+    assert "bare integer" in result.stderr
+    assert result.stdout == ""
+
+
+def test_pr_number_given_as_a_numeric_string_is_accepted(tmp_path: Path) -> None:
+    """A template-resolved ``"465"`` (string) is a valid PR number, not a rejection."""
+    checks = json.dumps([{"name": "a", "state": "SUCCESS", "bucket": "pass"}])
+    env = _write_gh_shim(tmp_path, checks, 0)
+    out = _run(_config(pr="465"), env)
+    assert out["outcome"] == "terminal-state"
+    assert out["payload"]["pr"] == 465
+
+
+def test_missing_repo_is_rejected(tmp_path: Path) -> None:
+    """A missing ``config.repo`` is a configuration error: exit 2, no output."""
+    env = _write_gh_shim(tmp_path, "[]", 0)
+    stdin_obj = _config()
+    del stdin_obj["config"]["repo"]
+    result = _run_raw(stdin_obj, env)
+    assert result.returncode == 2
+    assert result.stdout == ""
