@@ -63,7 +63,7 @@ vserver audit show -vserver svm-prod-dev -instance
 
 ```mermaid
 flowchart TD
-    START[Entry signal: SIEM alert, audit log anomaly, external report] --> ENC{Signs of encryption or deletion?}
+    START[Entry signal: SIEM alert, audit log anomaly, maintenance or contractor account reading outside its task, external report] --> ENC{Signs of encryption or deletion?}
     ENC -->|Yes| RW[Switch to ransomware-recovery.md]
     ENC -->|No| PRESERVE[Preserve evidence: rotate audit log, lock snapshot, keep CloudTrail]
     PRESERVE --> PATH{Which access path?}
@@ -80,9 +80,23 @@ flowchart TD
 
 ## Phase 1: 疑いの入口 (Entry Signals)
 
-入口は 3 つある。SIEM 側の行動分析のアラート（行動分析は SIEM に委ねる。コンパニオンリポジトリの範囲）、監査ログで見える読み取りの急増、外部からの連絡（取引先・利用者・第三者）。ARP の検知条件として文書にあるのは書き込み系の挙動で、読み取りだけで発火する条件は文書にない（推論）[E-012]。ARP のアラートを待たない。
+入口は 4 つある。(1) SIEM 側の行動分析のアラート（行動分析は SIEM に委ねる。コンパニオンリポジトリの範囲）、(2) 監査ログで見える読み取りの急増、(3) 外部からの連絡（取引先・利用者・第三者。委託先自身の侵害の連絡を含む）、(4) 保守・委託先の正規アカウントが、変更計画にない時間や、作業に必要なパスの外を読んでいる。(4) は認証に成功しているので、認証失敗やエラーの増加には現れない。ARP の検知条件として文書にあるのは書き込み系の挙動で、読み取りだけで発火する条件は文書にない（推論）[E-012]。ARP のアラートを待たない。
 
-There are three entry signals: a behavioural alert from the SIEM (behavioural analysis is delegated to the SIEM, in the companion repository), a surge of reads visible in the audit log, and an external report from a partner, user or third party. ARP's documented detection conditions are write-side, and no documented condition fires on reads alone (inference), so do not wait for an ARP alert [E-012].
+There are four entry signals: (1) a behavioural alert from the SIEM (behavioural analysis is delegated to the SIEM, in the companion repository), (2) a surge of reads visible in the audit log, (3) an external report from a partner, user or third party, including word that a contractor itself was compromised, and (4) a maintenance or contractor account with valid credentials reading at a time outside the change plan or on paths outside what its task needs. Signal 4 authenticates successfully, so it does not show up as failed logins or rising errors. ARP's documented detection conditions are write-side, and no documented condition fires on reads alone (inference), so do not wait for an ARP alert [E-012].
+
+### 入口 4 の確認用クエリ（例） / Example query for signal 4
+
+保守・委託先のアカウントごとに、時間窓あたりに監査ログへ現れる別々のオブジェクト数を数える。SMB の監査はオブジェクトごとに最初の読み取りだけを記録する [E-019] ので、時間窓あたりのイベント数は読まれた別々のオブジェクト数に近い（推論）。NFS と S3 Access Points の記録の粒度は確認していない。S3 Access Points 経由の操作は主体が記録されない [E-018] ので、このクエリではどのアカウントの読み取りとしても数えられない。次は CloudWatch Logs Insights の例で、監査イベントが JSON で 1 つのロググループに入り、コンパニオンリポジトリの監査パーサーが出す正規化キー `user`、`path`、`event_type`（EventID。SMB のオブジェクト アクセスは 4663）を持つことを前提にする（コンパニオンの転送先は SIEM で、CloudWatch Logs への転送は自分で組む）。`user` は SMB のユーザー名で、ドメインの接頭辞が付くことがある。合成イベントでは確認した（2026-10-22、ap-northeast-1）: 別々のパスの数を数え（同じパスを 2 回記録しても 1）、他の EventID と一覧にないアカウントを除外し、`event_type` が文字列でも数値でも一致した（verified）。実際の ONTAP 監査ログに対しては実行していない（hypothesis）。閾値は通常の保守作業の実測から決め、本リポジトリは値を定めない（未測定）。`countDistinct` は、値の種類が非常に多いと近似値になる（documented、[CWL_QuerySyntax-Stats.html](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Stats.html)）。
+
+For each maintenance or contractor account, count the distinct objects that appear in the audit log per time window. SMB auditing records only the first read of each object [E-019], so events per window approximate the distinct objects read (inference). The record granularity for NFS and S3 Access Points has not been checked. Operations over S3 Access Points carry no recorded subject [E-018], so this query does not count them under any account. The CloudWatch Logs Insights example below assumes the audit events reach one log group as JSON with the normalized keys `user`, `path` and `event_type` (the EventID; 4663 for SMB object access) that the companion repository's audit parser produces; the companion forwards to SIEMs, so forwarding to CloudWatch Logs is your own wiring. `user` is the SMB user name and can carry a domain prefix. On synthetic events (2026-10-22, ap-northeast-1) it counted distinct paths (the same path logged twice counted once), excluded other EventIDs and unlisted accounts, and matched `event_type` whether it was stored as a string or a number (verified). It has not been run against real ONTAP audit logs (hypothesis). Set the threshold from measured routine maintenance; this repository does not define a value (not measured). `countDistinct` returns an approximation when the field has very many distinct values (documented).
+
+```
+fields @timestamp, user, path
+| filter event_type = "4663" and user in ["<maintenance-account-1>", "<contractor-account-1>"]
+| stats countDistinct(path) as objects_read by user, bin(15m)
+| filter objects_read > <threshold-from-your-baseline>
+| sort objects_read desc
+```
 
 ## Phase 2: 証拠保全 (Evidence Preservation)
 
@@ -135,6 +149,10 @@ Each path has different records and a different way to identify the requester. O
 | S3 Access Points | ONTAP 監査ログ（`Source=HTTP` / `Source=S3`）でファイルと操作。アクセスポイントポリシーと IAM のポリシー / ONTAP audit log for files and operations; access point and IAM policies | 監査ログに要求者の識別情報は記録されない [E-018]。アクセスポイントポリシーで許可した IAM 主体を洗い出す。CloudTrail での記録のされ方は本リポジトリでは確認していない / The audit log does not record the requester [E-018]; list the IAM principals the access point policy allows | アクセスポイントポリシーを絞る（Phase 4） / Tighten the access point policy |
 | 管理面 / Management plane | CloudTrail の Amazon FSx API と IAM の操作、ONTAP の管理操作の監査ログ（`security audit log show`） / CloudTrail for Amazon FSx and IAM calls; ONTAP command audit log | CloudTrail は呼び出し元を記録する（documented） / CloudTrail records the caller (documented) | 認証情報の変更とセッションの失効（Phase 4） / Rotate credentials and revoke sessions |
 
+入口 4（保守・委託先の正規アカウント）のときは、上の経路ごとの記録に加えて、そのアカウントを発行した側（AD、IAM、委託先の認証基盤）の認証ログを取る。委託先自身が侵害されている場合、ストレージ側の記録だけでは起点が分からない。
+
+For signal 4 (a valid maintenance or contractor account), also collect the authentication logs of whoever issued the account (AD, IAM, the contractor's identity system) in addition to the per-path records above. If the contractor itself is compromised, the storage-side records alone do not show where it started.
+
 ## Phase 4: 封じ込め (Containment)
 
 経路ごとに封じ込める。SVM の共有や export-policy に効く変更は、同じ SVM の業務すべてに影響する。対象を絞れない場合は、影響範囲を業務の担当と合意してから実行する。
@@ -149,6 +167,8 @@ Contain each path separately. Changes that act on an SVM's shares or export poli
   S3 Access Points: tighten the access point policy, which is changed for an existing access point with the S3 console, CLI or API (documented). Also attach a Deny to the IAM principals involved, or stop them with an SCP. The CLI example follows this list.
 - 管理面: fsxadmin のパスワードを変更し、Secrets Manager の値も更新する。パスワードをコマンドラインやシェル履歴に残さない。IAM ロールの一時認証情報を失効させる（[id_roles_use_revoke-sessions.html](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_revoke-sessions.html)）。
   Management plane: change the fsxadmin password and update the Secrets Manager value, without leaving the password on a command line or in shell history. Revoke the IAM role's temporary credentials.
+- 保守・委託先の正規アカウント（入口 4）: 上の経路ごとの封じ込めに加えて、そのアカウントを無効化し、委託先の接続元（VPN や踏み台）から切り離す。委託先の端末と認証情報の調査・再発行は、契約上の連絡経路で委託先に依頼する。ストレージ側で止められるのは、自分が発行したアカウントと、自分が許可した接続元までである。
+  Maintenance or contractor account with valid credentials (signal 4): in addition to the per-path containment above, disable the account and cut it off from the contractor's entry point (VPN or jump host). Ask the contractor, through the contractual contact path, to investigate its devices and reissue credentials. The storage side can stop only the accounts it issued and the sources it allowed.
 
 ```bash
 # S3 Access Points: read the current access point policy
@@ -161,15 +181,15 @@ aws s3control put-access-point-policy --account-id 123456789012 --name <access-p
 
 ## Phase 5: 引き継ぎと事後対応 (Handoff and Post-Incident)
 
-法務・個人情報の担当へ、期間、経路、対象ボリューム、保全した証拠の場所を渡す。通知の要否・時期・方法の判断は法務の判断で、本 runbook の範囲の外にある（本 runbook はガバナンス指針であり、法的判断ではない）。再発防止として、監査の範囲（SACL を付けるパス）、アクセスポイントの棚卸し、ボリュームの `DataClassification` タグを見直す。
+法務・個人情報の担当へ、期間、経路、対象ボリューム、保全した証拠の場所を渡す。通知の要否・時期・方法の判断は法務の判断で、本 runbook の範囲の外にある（本 runbook はガバナンス指針であり、法的判断ではない）。再発防止として、監査の範囲（SACL を付けるパス）、アクセスポイントの棚卸し、ボリュームの `DataClassification` タグ、保守・委託先アカウントの権限と有効期間を見直す。消去義務のあるデータが不変の保持の仕組みに載っていないかも確かめる（[Framework Mapping](../ja/cyber-resilience-framework-mapping.md) の「不要データの保持と不変の保持の緊張」）。
 
-Hand the legal and privacy owners the period, the path, the volumes involved and where the preserved evidence is. Whether, when and how to notify is a legal decision outside this runbook (this runbook is governance guidance, not legal judgement). To prevent a recurrence, review the audit scope (which paths carry SACLs), the access point inventory and the volumes' `DataClassification` tags.
+Hand the legal and privacy owners the period, the path, the volumes involved and where the preserved evidence is. Whether, when and how to notify is a legal decision outside this runbook (this runbook is governance guidance, not legal judgement). To prevent a recurrence, review the audit scope (which paths carry SACLs), the access point inventory, the volumes' `DataClassification` tags, and the permissions and validity period of maintenance and contractor accounts. Also check that data under a deletion duty is not sitting in an immutable-retention mechanism (see "Retained Data and Immutable Retention" in the [Framework Mapping](../en/cyber-resilience-framework-mapping.md)).
 
 ## 本 runbook の対象外 / Out of Scope
 
-SQL インジェクション、API の認可不備、過剰なデータ返却、配布アプリに埋め込まれたキーなど、アプリ・DB 層の問題は、ストレージ層からは観測できない [E-013]。参照先として [AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/) と [Amazon Inspector](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html) を置く。
+SQL インジェクション、SSRF、API の認可不備、過剰なデータ返却、配布アプリに埋め込まれたキーなど、アプリ・DB 層の問題は、ストレージ層からは観測できない [E-013]。参照先として [AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/) と [Amazon Inspector](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html) を置く。
 
-Application and database layer problems, such as SQL injection, broken API authorisation, excessive data in responses and keys embedded in distributed apps, cannot be observed from the storage layer [E-013]. For those, see [AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/) and [Amazon Inspector](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html).
+Application and database layer problems, such as SQL injection, SSRF, broken API authorisation, excessive data in responses and keys embedded in distributed apps, cannot be observed from the storage layer [E-013]. For those, see [AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/) and [Amazon Inspector](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html).
 
 ## 関連ドキュメント / Related Documents
 

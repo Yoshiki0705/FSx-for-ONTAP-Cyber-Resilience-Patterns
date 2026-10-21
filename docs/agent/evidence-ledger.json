@@ -787,6 +787,114 @@
         "CONTRIBUTING.md"
       ],
       "note": "Used to scope the management-plane map: on second-generation file systems with more than one HA pair, the CLI and REST API are the available planes. Not a design premise; the map states reachability per plane."
+    },
+    {
+      "id": "E-024",
+      "claim": "After a file is committed to the WORM state on a SnapLock volume, its retention period can be extended but not shortened. A locked (tamperproof) snapshot cannot be deleted until its expiry time, and a volume with unexpired locked snapshots cannot be deleted. Personal data placed in either mechanism therefore stays until the retention period ends.",
+      "subject": "ONTAP SnapLock retention and snapshot locking, ONTAP 9.12.1 and later",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/set-retention-period-task.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "Twice states that once a file is committed to WORM the retention period or retention time can be extended but not shortened."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "Locked snapshots cannot be deleted until the expiration time is reached; the volume expiry time follows the largest snapshot expiry; the volume-create warning says a volume with unexpired locked snapshots cannot be deleted."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether committed WORM data or locked snapshots can be removed early. The vendor documentation states they cannot, and the guidance built on it is to keep data under a deletion duty out of these mechanisms, which is the conservative direction."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "Used in the Retained Data and Immutable Retention section. The design guidance is to keep personal data that falls under a deletion duty off SnapLock volumes and locked snapshots unless a legal basis for retention is recorded. The logically air-gapped vault is covered by E-025, and the Enterprise-mode privileged delete is not covered here."
+    },
+    {
+      "id": "E-025",
+      "claim": "AWS Backup denies any attempt, including by the root user, to delete a recovery point or change its lifecycle in a locked vault before the lifecycle completes. A logically air-gapped vault is always locked in compliance mode. The documented earlier removal is closing the AWS account: AWS deletes the vault contents after a 90-day suspension, even with Vault Lock in place.",
+      "subject": "AWS Backup Vault Lock and logically air-gapped vaults",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "States that any user, the root user included, who tries to delete a backup or change lifecycle properties in a locked vault is denied; backups cannot be deleted until their lifecycle completes; DescribeBackupVault Locked=true makes delete or update operations fail even during the grace time; account closure suspends for 90 days and then deletes the vault contents even with Vault Lock."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/logicallyairgappedvault.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "The comparison table says a logically air-gapped vault is always locked with a vault lock in compliance mode; a vault with recovery points cannot be deleted."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether one recovery point can be deleted early from a logically air-gapped vault. Two vendor pages answer it by composition (always locked in compliance mode, and a locked vault denies early deletion), and the guidance built on it keeps data under a deletion duty out of the vault, which is the conservative direction."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "The pages read do not say whether the grace time of a standard vault lock applies to a logically air-gapped vault. It does not change the conclusion, because Locked=true denies deletion during the grace time as well. Not exercised in a real vault here."
+    },
+    {
+      "id": "E-026",
+      "claim": "Amazon FSx for ONTAP encrypts a file system and its volume backups with one KMS key chosen for the file system, and the volume-creation configuration has no encryption-key parameter, so a key cannot be set per volume. After a KMS key is deleted the data encrypted under it is unrecoverable, but KMS states that an AWS service that uses data keys may not be affected until it next uses the KMS key. What FSx for ONTAP does when its key is disabled or deleted is not described on the encryption page.",
+      "subject": "Amazon FSx for ONTAP encryption at rest, AWS KMS key deletion",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/encryption-at-rest.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "FSx uses KMS keys to encrypt the file system and any volume backups; the page lists what the key owner can do (enable, disable, revoke grants, delete) and does not describe what happens to the file system afterwards."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/APIReference/API_CreateOntapVolumeConfiguration.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "The full parameter list for creating an ONTAP volume has no KMS key or encryption parameter."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/kms/latest/developerguide/deleting-keys.html",
+          "retrieved": "2026-10-22",
+          "read": "full",
+          "note": "Data encrypted under a deleted key can no longer be decrypted; scheduling deletion might not immediately affect data keys, and resources protected by data keys are not affected until the KMS key is used again."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether deleting the file system key can serve as erasure for one volume. The key is scoped to the file system, so the answer is no by design; what FSx for ONTAP does after key deletion is not relied on by any design here."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/ja/cyber-resilience-framework-mapping.md"
+      ],
+      "note": "Used to state that cryptographic erasure through the file system key works at the file system level (with its volume backups), not for one deletion request. The behaviour of a running file system after key deletion or disabling is open; a disposable file system with its own key would answer it."
     }
   ]
 }

@@ -24,6 +24,8 @@ NFS クライアントキャッシュ: export-policy deny は ONTAP サーバー
 
 データ持ち出しのギャップ: ARP/AI の検知条件として文書にあるのはファイル暗号化（エントロピー + 拡張子変更）など書き込み系の挙動で、読み取りだけで発火する条件は文書にない。暗号化を伴わない読み取りだけの持ち出しで検知が起きることは見込めない（推論）[E-012]。FPolicy に届くのは NFS / SMB の操作だけ [E-015]。S3 Access Points 経由の読み取りは ONTAP 監査ログに `Source=S3` / `Source=HTTP` で残るが、要求者の識別情報は記録されない [E-018]（実測 2026-08-26、ONTAP 9.18.1P3D1）。監査ログと SIEM の行動分析で見る。手順は[持ち出し対応の runbook](../runbooks/data-exfiltration-response.md)。
 
+正規アカウントによる大量読み取り: 認証に成功する保守・委託先のアカウントは、認証失敗やエラーの増加を起こさず、ARP も読み取りだけでは発火しない（推論）[E-012]。監査ログで、アカウントごとに時間窓あたりの別々のオブジェクト数を数え（クエリ例は[持ち出し対応の runbook](../runbooks/data-exfiltration-response.md)。合成イベントでは確認したが、実際の監査ログでは実行していない）、これらのアカウントは作業に必要なパスだけに限る。
+
 Domain Admin バイパス: `FileSystemAdministratorsGroup` のメンバー（通常 Domain Admins）は name-mapping deny ルールを完全にバイパスする。ブロックのテストは必ず非管理者ユーザーで行うこと。
 
 ## ボリュームのセキュリティスタイル
@@ -49,3 +51,7 @@ AWS 固有の実装: 本プロジェクトは AWS ネイティブサービス（
 バックアップの対象: FSx for ONTAP のボリュームバックアップの対象は RW ボリュームで、DP / LSM / FlexCache と SnapMirror の宛先ボリューム、SnapLock FlexGroup ボリュームは対象外 [E-010]。
 
 自動修復との干渉: アカウント外への共有を取り消す自動修復（EventBridge + Lambda）は、論理エアギャップボールトへのコピーを失敗させうる。`userIdentity.invokedBy = backup.amazonaws.com` のイベントを除外する（documented）。詳細は[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)。
+
+消去義務と不変の保持: SnapLock、ロックした Snapshot、論理エアギャップボールトは保持期間が終わるまでコピーを残すので、消去義務のある個人データは、保持する法的根拠を記録していない限りこれらに置かない。[Framework Mapping](cyber-resilience-framework-mapping.md) の「不要データの保持と不変の保持の緊張」を参照。
+
+1 つのリージョンに依存する復旧: 手動復旧は主系のリージョンの Secrets Manager から fsxadmin の認証情報を取得する。主系のリージョンのコントロールプレーンが使えないと、この取得は失敗する。復旧先のリージョンにレプリカがあるかを確かめる（[ランサムウェア復旧 runbook](../runbooks/ransomware-recovery.md) の Option E）。

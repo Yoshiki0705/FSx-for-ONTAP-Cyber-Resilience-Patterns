@@ -39,11 +39,13 @@ flowchart TD
     RECOVERY -->|Pre-attack snapshot| RESTORE_SNAP[SnapRestore from clean snapshot]
     RECOVERY -->|DR copy available| RESTORE_DR[Failover to SnapMirror target]
     RECOVERY -->|Copy outside the management boundary, if a vault is configured| RESTORE_LAG[Restore from logically air-gapped vault]
+    RECOVERY -->|Primary Region or platform control plane unavailable| RESTORE_ALT[Option E: recover in another Region or account]
     
     RESTORE_ARP --> VERIFY[Verify restored data integrity]
     RESTORE_SNAP --> VERIFY
     RESTORE_DR --> VERIFY
     RESTORE_LAG --> VERIFY
+    RESTORE_ALT --> VERIFY
     RESTORE_LOCKED --> VERIFY
     
     VERIFY --> REOPEN[Re-enable access (export policy)]
@@ -225,6 +227,27 @@ aws backup start-restore-job \
   --iam-role-arn arn:aws:iam::123456789012:role/service-role/AWSBackupDefaultServiceRole \
   --region ap-northeast-1
 ```
+
+### Option E: 主系のリージョンや基盤の管理面が使えない場合
+
+被害が個々のボリュームではなく、基盤側のインフラ（リージョン単位の管理面や仮想化層）を止める場合の経路。自分のアカウントと認証情報が無傷でも、同じリージョンにある復旧点と管理コンソールが使えないことがある。特定の事業者についての記述ではなく、設計上の確認である。経路は Option C（別リージョンへの SnapMirror）と Option D（別アカウントのボールト）の組み合わせである。Secrets Manager の手順だけはダミーのシークレットで通した（下の表）。それ以外は本リポジトリでは実施していない（推論）。
+This path is for when the damage takes down the platform's infrastructure (a Region-wide management plane or virtualisation layer) rather than individual volumes. Even if your account and credentials are intact, the recovery points in the same Region and the management console may be unavailable. This is a design check, not a statement about any provider. The path combines Option C (SnapMirror to another Region) and Option D (a vault in another account). Only the Secrets Manager step was run, with a dummy secret (see the table); the rest has not been run in this repository (inference). <!-- allow:unverified: a design scenario about an unreachable Region, not a claim that a vendor lacks a capability -->
+
+1. 復旧手順が依存するものを洗い出し、主系のリージョンが使えないときも手元にあるかを、下の表で確かめる。
+   List what the recovery steps depend on and check, with the table below, that each is still reachable when the primary Region is unavailable.
+2. 少なくとも 1 つの復旧点が、主系とは別のリージョンまたは別のアカウントにあることを確かめる（Option C、Option D）。
+   Confirm that at least one recovery point is in a different Region or account from the primary (Option C, Option D).
+3. 復旧の操作を、コンソールではなく CLI と API で実行できる形にしておく。コンソールが封じ込めのために停止されても手順が止まらない。
+   Make the recovery operations runnable through the CLI and APIs rather than the console, so the steps do not stop if the console is suspended for containment.
+4. 利用者や取引先への案内では、サービス停止、バックアップの取り出しの可否、復元と業務再開、情報の不正照会、情報の外部流出の確認状況を、別々に書く。混ぜると、復旧の見通しと漏えいの有無が取り違えられる。
+   In notices to users and partners, report separately: the service stop, whether backups can be extracted, restore and resumption, unauthorised queries, and whether data left the environment. Mixing them makes recovery prospects and leakage easy to confuse.
+
+| 依存するもの / Dependency | 本リポジトリの置き場所 / Where it is here | 主系のリージョンが使えないとき / If the primary Region is unavailable |
+|---|---|---|
+| fsxadmin の認証情報 / fsxadmin credentials | 手動復旧の手順 1 は主系と同じリージョンの Secrets Manager から取得する / Manual recovery step 1 reads from Secrets Manager in the primary Region | 主系のリージョンの Secrets Manager からは取得できない。シークレットは別リージョンへレプリケートできる（documented、[replicate-secrets.html](https://docs.aws.amazon.com/secretsmanager/latest/userguide/replicate-secrets.html)）。ダミーのシークレットで、復旧先のリージョンでレプリカを名前で読め、`stop-replication-to-replica` で昇格した後も名前で読めた（verified、2026-10-22、ap-northeast-1 から ap-northeast-3）。主系リージョンの ARN は復旧先のリージョンでは解決されない（ResourceNotFoundException）ので、手順は ARN ではなく名前と `--region` で指定する。主系のコントロールプレーンの停止そのものは再現していない / Secrets can be replicated to another Region (documented). With a dummy secret, the replica was readable by name in the recovery Region, and still readable by name after promotion with `stop-replication-to-replica` (verified, 2026-10-22, ap-northeast-1 to ap-northeast-3). The primary Region's ARN does not resolve in the recovery Region (ResourceNotFoundException), so address the secret by name and `--region`, not by ARN. A control-plane outage of the primary Region itself was not reproduced <!-- allow:unverified: a design scenario about an unreachable Region, not a claim that a vendor lacks a capability --> |
+| 復元先の FSx for ONTAP ファイルシステムと SVM / Target file system and SVM | 本リポジトリの構成には含まない / Not part of this repository's configuration | 無ければ作成から始まる。所要時間は未測定 / If absent, recovery starts with creating them; duration not measured |
+| 復旧点 / Recovery points | 同じリージョンの Snapshot、別リージョンの SnapMirror の宛先、別アカウントのボールト / Same-Region snapshots, a SnapMirror destination in another Region, a vault in another account | 同じリージョンの Snapshot は使えない前提にする。宛先とボールトが生きているかを確かめる / Assume same-Region snapshots are unavailable; check that the destination and vault are alive <!-- allow:unverified: a design scenario about an unreachable Region, not a claim that a vendor lacks a capability --> |
+| 手順書そのもの / This runbook | リポジトリと社内の文書置き場 / The repository and the internal document store | 文書置き場が同じ基盤にあると読めない。印刷またはオフラインのコピーを、復旧の担当が持つ（設計指針） / If the document store is on the same platform it cannot be read; keep a printed or offline copy with the people who recover (design guidance) |
 
 ### アクセス復旧
 
