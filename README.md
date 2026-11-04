@@ -76,7 +76,7 @@ flowchart TB
 
 | Layer | Technology | Role |
 |-------|-----------|------|
-| Storage-native | ARP, FPolicy, SnapLock, Tamperproof Snapshot, MAV (on FSx for ONTAP, enabling it with `fsxadmin` is not established [E-025]) | Detection & immutability |
+| Storage-native | ARP, FPolicy, SnapLock, Tamperproof Snapshot, MAV (on FSx for ONTAP 9.18.1P6, enabling it with `fsxadmin` was refused in one observation [E-025]) | Detection & immutability |
 | File scanning | TrendAI Vision One File Security | Real-time malware detection (Vscan/ICAP) |
 | AI prevention | Deep Instinct for NetApp ONTAP | Zero-day threat prevention |
 | Event-driven | FPolicy → EventBridge → Step Functions | Automated quarantine & response |

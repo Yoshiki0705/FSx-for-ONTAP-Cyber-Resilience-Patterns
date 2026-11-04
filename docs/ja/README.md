@@ -76,7 +76,7 @@ flowchart TB
 
 | レイヤー | テクノロジー | 役割 |
 |---------|-------------|------|
-| ストレージネイティブ | ARP, FPolicy, SnapLock, Tamperproof Snapshot, MAV（FSx for ONTAP で `fsxadmin` から有効化できるかは確立していない [E-025]） | 検知 & 不変性 |
+| ストレージネイティブ | ARP, FPolicy, SnapLock, Tamperproof Snapshot, MAV（FSx for ONTAP 9.18.1P6 では `fsxadmin` からの有効化が拒否された（1 回の観測）[E-025]） | 検知 & 不変性 |
 | ファイルスキャン | TrendAI Vision One File Security | リアルタイムマルウェア検知 (Vscan/ICAP) |
 | AI 防御 | Deep Instinct for NetApp ONTAP | ゼロデイ脅威防御 |
 | イベント駆動 | FPolicy → EventBridge → Step Functions | 自動隔離 & 応答 |

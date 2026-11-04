@@ -385,7 +385,7 @@ echo "All resources deleted."
 | 11 | Secrets Manager | テスト値 | **本番 fsxadmin パスワード** |
 | 12 | Cost Scheduler | なし | **dev/staging のみ** |
 | 13 | DR (SnapMirror) | なし | **別リージョンへレプリケーション** |
-| 14 | MAV | なし | **2-admin 承認**（FSx for ONTAP で有効化できるかは確立していない [E-025]。確認できるまでは Step Functions の承認と AWS Backup のマルチパーティ承認で組む） |
+| 14 | MAV | なし | **2-admin 承認**（FSx for ONTAP 9.18.1P6 の `fsxadmin` では有効化が拒否された（1 回の観測）[E-025]。確認できるまでは Step Functions の承認と AWS Backup のマルチパーティ承認で組む） |
 | 15 | SIEM Integration | なし | **Security Hub + 既存 SIEM** |
 
 ---

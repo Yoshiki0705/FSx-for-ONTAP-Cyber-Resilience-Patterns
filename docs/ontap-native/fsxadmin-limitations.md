@@ -31,7 +31,7 @@ Instead, use the `fsxadmin` user which has vsadmin-equivalent permissions plus s
 | SnapLock volume create | ✅ | via CloudFormation |
 | SnapLock retention modify (extend) | ✅ | shorten is not possible |
 | Tamperproof Snapshot enable | ✅ | |
-| MAV enable/configure | ❓ | Not established on FSx for ONTAP [E-025]. Check with `security login role show -role fsxadmin -access !none` before relying on it |
+| MAV enable/configure | ❌ | Refused (HTTP 403) on FSx for ONTAP 9.18.1P6, one observation [E-025]. The fsxadmin role has no entry for it; recheck on another version with `security login role show-user-capability` |
 | Vscan enable/configure | ✅ | |
 
 ### ネットワーク

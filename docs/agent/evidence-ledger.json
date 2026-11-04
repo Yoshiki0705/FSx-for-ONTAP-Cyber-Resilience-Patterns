@@ -817,28 +817,34 @@
     },
     {
       "id": "E-025",
-      "claim": "Whether multi-admin verification can be enabled on Amazon FSx for NetApp ONTAP with the fsxadmin role is not established. The repository owner reports it is not implemented on FSx for ONTAP; no AWS document read here states either way, and no run has enabled it.",
-      "subject": "ONTAP multi-admin verification on Amazon FSx for NetApp ONTAP, fsxadmin role",
-      "tier": "open",
+      "claim": "Multi-admin verification could not be enabled or configured with the fsxadmin role on Amazon FSx for NetApp ONTAP, ONTAP 9.18.1P6. The version has the feature (seven /security/multi-admin-verify endpoints), but fsxadmin is refused: the list of CLI commands the user can run (show-user-capability, read through the REST CLI pass-through; the CLI itself was not run over SSH) has no multi-admin-verify command, the fsxadmin role has no entry for it and its parent security is none, and the REST calls to enable it and to create an approval group returned HTTP 403. Observed on one file system, one version, as fsxadmin only.",
+      "subject": "ONTAP multi-admin verification on Amazon FSx for NetApp ONTAP, fsxadmin role, ONTAP 9.18.1P6",
+      "tier": "verified",
       "premise": false,
       "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli/security-login-role-show-rest.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Describes security login role show-rest as listing the REST APIs of the version with their mapped CLI commands, whatever the user's privilege. Used to establish that the version has the multi-admin-verify endpoints."
+        },
         {
           "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/notes/admin-plane-protection-depends-on-several-controls.md",
           "retrieved": "2026-11-04",
           "read": "full",
-          "note": "The Adoption Playbook note lists FSx for ONTAP availability of multi-admin verification as unconfirmed and records that no run has enabled it with fsxadmin."
+          "note": "The Adoption Playbook note lists availability of multi-admin verification on FSx for ONTAP as unconfirmed, before this observation."
         },
         {
           "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/roles-and-users.html",
           "retrieved": "2026-11-04",
           "read": "selective",
-          "note": "A search for 'multi-admin' on the roles and users page returned no match, so the page neither lists nor excludes the feature."
+          "note": "A search for 'multi-admin' on the roles and users page returned no match, so the page neither lists nor excludes the feature. The AWS documentation read here says nothing either way."
         }
       ],
-      "observation": null,
+      "observation": "2026-11-04, ap-northeast-1, Single-AZ, ONTAP 9.18.1P6, as fsxadmin through the management endpoint. show-rest lists seven /security/multi-admin-verify endpoints. show-user-capability (1,744 commands, which matched the role-based calculation on 13 of 13 discriminating commands) lists none. The fsxadmin role has no multi-admin entry and its parent security is none with no query. PATCH /security/multi-admin-verify {enabled: true} returned 403 'not authorized for that command' once. POST /security/multi-admin-verify/approval-groups returned 403 once (an earlier call returned 400 because of a request body error). GET on the multi-admin-verify endpoints returned 403. Controls in the same session, GET /storage/snaplock/compliance-clocks and GET /security/roles, returned 200. SVM roles carry request entries (request: all; request approve and veto: none), and no cluster role carries a setup entry.",
       "support_inquiry": {
         "status": "not-needed",
-        "topic": "Whether fsxadmin can enable multi-admin verification. The design here excludes it from every decision tree, so the answer would add an option rather than unblock one. A read-only check, `security login role show -role fsxadmin -access !none`, would settle the question on a live file system."
+        "topic": "Whether another role or an AWS-side management route can configure multi-admin verification on FSx for ONTAP. fsxadmin is the delegated administrator and the design here does not rely on the feature, so an answer would add an option rather than unblock one."
       },
       "feature_request": {
         "status": "not-applicable"
@@ -857,10 +863,11 @@
         "docs/management-planes-cyber-resilience.md",
         "docs/ontap-native/fsxadmin-limitations.md",
         "docs/ontap-native/mav-configuration.md",
+        "docs/ontap-native/ontap-command-api-snapshot.md",
         "docs/quickstart-deployment.md",
         "llms.txt"
       ],
-      "note": "The existing mav-configuration.md describes the commands as for ONTAP in general and carries no run on fsxadmin. This document treats the feature as unavailable for planning and states why."
+      "note": "Observed once on one file system and one version, as fsxadmin. Other ONTAP versions, Multi-AZ, other roles and AWS-side routes were not checked. The multi-admin-verify command reference describes ONTAP in general and carries no run on fsxadmin; the documents here cite this entry wherever they list the feature. Data: docs/ontap-native/ontap-command-api-snapshot.md and docs/ontap-native/data/."
     },
     {
       "id": "E-026",
