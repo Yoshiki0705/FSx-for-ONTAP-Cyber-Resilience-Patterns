@@ -33,6 +33,7 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [Companion Repository Integration Guide](docs/en/companion-repos-integration.md): How this repository's patterns relate to the adoption, observability, S3 Access Points and RAG repositories.
 - [Cyber Resilience Framework Mapping](docs/en/cyber-resilience-framework-mapping.md): The only CSF 2.0 mapping in this repository, including exfiltration, management-plane compromise and the storage-layer boundary.
 - [Cyber Resilience Framework Mapping (JA)](docs/ja/cyber-resilience-framework-mapping.md): Japanese counterpart with the same sections.
+- [Storage-Layer Decisions with AWS Continuum and Security Agent](docs/architecture/continuum-security-agent-and-storage.md): Three decision trees (which data a penetration test may touch, which storage detections react during a test, where to roll back as automated remediation is raised) and a platform table covering FSx for ONTAP, on-premises ONTAP, Cloud Volumes ONTAP, Google Cloud NetApp Volumes and Azure NetApp Files. Continuum itself was not tried; platform cells state what was and was not read.
 
 ## Storage-native security (ONTAP)
 
@@ -68,6 +69,7 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [Ransomware Recovery Runbook](docs/runbooks/ransomware-recovery.md): Recovering from a ransomware event using snapshots and clones.
 - [Scanner Failover Runbook](docs/runbooks/scanner-failover.md): Handling failover of the file-scanning layer.
 - [Data Exfiltration Response Runbook](docs/runbooks/data-exfiltration-response.md): First response when bulk reads through SMB, NFS or S3 Access Points are suspected.
+- [Penetration-Test Clone Isolation Runbook](docs/runbooks/pentest-clone-isolation.md): Cloning a volume from a snapshot, attaching a clone-only S3 access point, and tearing down around an automated penetration test. Based on documentation; not run end to end. The matching template is `templates/pentest-isolation.yaml` (cfn-lint only, not deployed).
 - [Operational Considerations (EN)](docs/en/operational-considerations.md): SVM-wide block scope, NTFS name-mapping limits, admin bypass, NACL and NFS caching caveats, data protection and isolated copies.
 - [Operational Considerations (JA)](docs/ja/operational-considerations.md): Japanese counterpart with the same sections.
 

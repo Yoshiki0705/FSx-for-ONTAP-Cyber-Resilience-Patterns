@@ -787,6 +787,99 @@
         "CONTRIBUTING.md"
       ],
       "note": "Used to scope the management-plane map: on second-generation file systems with more than one HA pair, the CLI and REST API are the available planes. Not a design premise; the map states reachability per plane."
+    },
+    {
+      "id": "E-024",
+      "claim": "Multi-admin verification is not supported on Cloud Volumes ONTAP; enabling it results in an unsupported configuration.",
+      "subject": "NetApp Cloud Volumes ONTAP, multi-admin verification (release notes for 9.15.1)",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/cloud-volumes-ontap-9151-relnotes/reference-limitations.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "The page, dated 12/04/2024, lists multi-admin verification under features not supported with Cloud Volumes ONTAP in all cloud providers and says enabling it results in an unsupported configuration. It is the 9.15.1 release notes; a later release may differ."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a later Cloud Volumes ONTAP release supports multi-admin verification. The platform table in this document states the release the statement comes from, and no design rests on it."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/architecture/continuum-security-agent-and-storage.md"
+      ],
+      "note": "Version-bound. Recheck the current release notes before citing it for a later release."
+    },
+    {
+      "id": "E-025",
+      "claim": "Whether multi-admin verification can be enabled on Amazon FSx for NetApp ONTAP with the fsxadmin role is not established. The repository owner reports it is not implemented on FSx for ONTAP; no AWS document read here states either way, and no run has enabled it.",
+      "subject": "ONTAP multi-admin verification on Amazon FSx for NetApp ONTAP, fsxadmin role",
+      "tier": "open",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/security-governance/notes/admin-plane-protection-depends-on-several-controls.md",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "The Adoption Playbook note lists FSx for ONTAP availability of multi-admin verification as unconfirmed and records that no run has enabled it with fsxadmin."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/roles-and-users.html",
+          "retrieved": "2026-11-04",
+          "read": "selective",
+          "note": "A search for 'multi-admin' on the roles and users page returned no match, so the page neither lists nor excludes the feature."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether fsxadmin can enable multi-admin verification. The design here excludes it from every decision tree, so the answer would add an option rather than unblock one. A read-only check, `security login role show -role fsxadmin -access !none`, would settle the question on a live file system."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/architecture/continuum-security-agent-and-storage.md"
+      ],
+      "note": "The existing mav-configuration.md describes the commands as for ONTAP in general and carries no run on fsxadmin. This document treats the feature as unavailable for planning and states why."
+    },
+    {
+      "id": "E-026",
+      "claim": "The AWS documentation read here lists, as inputs to AWS Security Agent and AWS Continuum, design documents, source code and running applications; it lists no storage-system configuration. The Adoption Playbook records that FSx for ONTAP management-plane settings are outside what it evaluates, as an unverified judgement.",
+      "subject": "AWS Security Agent (now part of AWS Continuum), evaluated targets",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/securityagent/latest/userguide/what-is.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Describes design review, threat modeling, code review and on-demand penetration testing of applications. Targets are design documents, source code and a target URL with authentication details. Storage configuration is not mentioned either way."
+        },
+        {
+          "url": "https://aws.amazon.com/jp/blogs/news/introducing-aws-continuum-security-at-machine-speed/",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Continuum reasons over structured data that already exists in AWS (infrastructure, permissions, network topology, code); whether FSx for ONTAP settings are included is not stated."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether Continuum ingests FSx for ONTAP settings as context. No design here depends on it; the decision trees cover the storage side independently."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/architecture/continuum-security-agent-and-storage.md"
+      ],
+      "note": "Absence from a feature description is not a statement of absence. Treated as unknown, and the document says so."
     }
   ]
 }
