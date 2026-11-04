@@ -13,7 +13,7 @@
 ## Project Overview
 
 FSx for ONTAP Cyber Resilience Patterns — multi-layered security reference architecture combining:
-- ONTAP storage-native security (ARP, FPolicy, SnapLock, Multi-Admin Verification)
+- ONTAP storage-native security (ARP, FPolicy, SnapLock; Multi-Admin Verification is documented for ONTAP, and whether `fsxadmin` can enable it on FSx for ONTAP is not established [E-025])
 - TrendAI Vision One File Security (Vscan/ICAP, S3 AP integration)
 - Deep Instinct for NetApp ONTAP (AI-powered zero-day prevention)
 - Event-driven automated response (FPolicy → EventBridge → Step Functions)

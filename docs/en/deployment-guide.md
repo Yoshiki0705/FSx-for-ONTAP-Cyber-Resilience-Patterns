@@ -37,7 +37,7 @@ Two deployment paths are supported:
 | FPolicy external engine (async) | 9.7 |
 | FPolicy external engine (sync/ICAP) | 9.8 |
 | SnapLock Compliance | 9.10.1 |
-| Multi-Admin Verification (MAV) | 9.11.1 |
+| Multi-Admin Verification (MAV), ONTAP version only; FSx for ONTAP availability not established [E-025] | 9.11.1 |
 | Tamperproof Snapshot | 9.12.1 |
 
 ---

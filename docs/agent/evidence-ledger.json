@@ -844,7 +844,21 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/architecture/continuum-security-agent-and-storage.md"
+        "AGENTS.md",
+        "README.md",
+        "docs/architecture/continuum-security-agent-and-storage.md",
+        "docs/architecture/overview.md",
+        "docs/comparison-security-layers.md",
+        "docs/en/cyber-resilience-framework-mapping.md",
+        "docs/en/deployment-guide.md",
+        "docs/ja/README.md",
+        "docs/ja/cyber-resilience-framework-mapping.md",
+        "docs/ja/deployment-guide.md",
+        "docs/management-planes-cyber-resilience.md",
+        "docs/ontap-native/fsxadmin-limitations.md",
+        "docs/ontap-native/mav-configuration.md",
+        "docs/quickstart-deployment.md",
+        "llms.txt"
       ],
       "note": "The existing mav-configuration.md describes the commands as for ONTAP in general and carries no run on fsxadmin. This document treats the feature as unavailable for planning and states why."
     },

@@ -11,7 +11,7 @@
 | 類型 | 内容 | 主な CSF 2.0 カテゴリ | 扱う節 |
 |---|---|---|---|
 | A | フレームワーク・CMS・プラグインなど共通ソフトウェアの既知脆弱性の悪用 | ID.RA、PR.PS、DE.CM | ストレージ層の対象範囲と境界（ストレージ層は担わない） |
-| B | 管理画面の弱い認証、窃取された認証情報 | PR.AA、DE.CM、GV.RR | 管理面の侵害（ONTAP 管理者の侵害には MAV と Tamperproof Snapshot） |
+| B | 管理画面の弱い認証、窃取された認証情報 | PR.AA、DE.CM、GV.RR | 管理面の侵害（ONTAP 管理者の侵害には Tamperproof Snapshot。MAV は有効化できる環境で。FSx for ONTAP で有効化できるかは確立していない [E-025]） |
 | C | 個別アプリ・API の設計とアクセス制御の不備（過剰なデータ返却、匿名で使える機能、配布アプリに埋め込まれたキー） | PR.AA、PR.DS、PR.PS | ストレージ層の対象範囲と境界、持ち出し型（ファイルストアとして使う場合の S3 Access Points のポリシーとファイルシステムユーザー） |
 | D | 正規の機能を使った大量取得。正常応答に見えるので、エラーの増加だけを見る監視では見落としうる | DE.CM、DE.AE、RS.AN | 持ち出し型 |
 | E | 改ざん、不正プログラムの設置、データの削除 | PR.DS、DE.CM、RC.RP | 暗号化・破壊型 |
@@ -27,9 +27,9 @@
 
 | CSF 2.0 機能 | 主なカテゴリ | 状態 | 本リポジトリ | コンパニオンリポジトリ ([observability](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations)) | ギャップ / 組織的責任 |
 |-------------|-------------|:----:|------------|---------------------|-----|
-| **Govern（統制）** | GV.RM、GV.RR、GV.OC | ⚠️ | CloudFormation-as-code 監査証跡、cfn-guard コンプライアンスルール、`solutions/compliance/` 証跡収集。移行前のデータ保護計画とコストの見積り（[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。破壊的操作の承認（ONTAP の MAV、AWS Backup の MPA） | CloudWatch Logs + SNS 通知証跡 | リスク戦略、役割、取締役会レベルの監督は組織的決定；ツーリングは証跡アーティファクトのみ提供 |
+| **Govern（統制）** | GV.RM、GV.RR、GV.OC | ⚠️ | CloudFormation-as-code 監査証跡、cfn-guard コンプライアンスルール、`solutions/compliance/` 証跡収集。移行前のデータ保護計画とコストの見積り（[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。破壊的操作の承認（AWS Backup の MPA。ONTAP の MAV は有効化できる環境で。FSx for ONTAP では確立していない [E-025]） | CloudWatch Logs + SNS 通知証跡 | リスク戦略、役割、取締役会レベルの監督は組織的決定；ツーリングは証跡アーティファクトのみ提供 |
 | **Identify（識別）** | ID.AM、ID.RA | ⚠️ | CloudFormation のタグ（`Project` / `Layer` / `Component`、ボリュームの `DataClassification` = internal / confidential、`templates/storage.yaml`） | コンテンツレベル PII スキャナー（Amazon Comprehend）、スキーマレベルフィールド分類 | テキスト/構造化データはカバー済み；Office/PDF 抽出は対象外（コンパニオンリポジトリの現状） |
-| **Protect（保護）** | PR.AA、PR.DS、PR.PS、PR.IR | ✅ | SnapLock（WORM）、MAV（マルチ管理者検証）、TrendAI インラインスキャン、Deep Instinct AI 防御、export-policy/name-mapping 強化、KMS 暗号化、論理エアギャップボールト（文書のみ。本リポジトリでは未検証） | ONTAP Snapshot、export-policy、Tamperproof Snapshot | 保護するのは復旧点とファイルの可用性・完全性。認可された読み取りによる持ち出しは止めない（持ち出し型の節） |
+| **Protect（保護）** | PR.AA、PR.DS、PR.PS、PR.IR | ✅ | SnapLock（WORM）、MAV（マルチ管理者検証。ONTAP では documented、FSx for ONTAP では確立していない [E-025]）、TrendAI インラインスキャン、Deep Instinct AI 防御、export-policy/name-mapping 強化、KMS 暗号化、論理エアギャップボールト（文書のみ。本リポジトリでは未検証） | ONTAP Snapshot、export-policy、Tamperproof Snapshot | 保護するのは復旧点とファイルの可用性・完全性。認可された読み取りによる持ち出しは止めない（持ち出し型の節） |
 | **Detect（検知）** | DE.CM、DE.AE | ✅ | ARP/AI 設定（`solutions/ontap-native/`。**S3 Access Point 経由の書き込みも検知する**。実測 2026-08-26）、FPolicy イベントキャプチャ（**NFS / SMB のみ**）、CloudWatch アラーム（`templates/observability.yaml`） | EMS Webhook パイプライン（~30秒）、CloudWatch Log Alarm（~90秒）、FPolicy 外部サーバー | 行動 ML ベースラインは SIEM（Datadog/Elastic/Splunk ML）に委任。ARP の検知条件として文書にあるのは書き込み系で、読み取りだけで発火する条件は文書にない（推論）[E-012]。読み取りだけの持ち出しは監査ログと SIEM で見る |
 | **Respond（対応）** | RS.MA、RS.AN、RS.MI、RS.CO | ✅ | Step Functions オーケストレーション（隔離、承認ワークフロー）、Security Hub 連携 | Lambda 直接ブロック（1.8秒実測、コールドスタート込みで +10-15秒）：name-mapping deny + export-policy deny + NACL deny + セッション切断 + 保護 Snapshot、フォレンジクスダッシュボード（4 SIEM） | 検知元を問わず SNS から起動できる。注: SMB name-mapping deny は NTFS セキュリティスタイルのボリュームでは無効 |
 | **Recover（復旧）** | RC.RP、RC.CO | ⚠️ | SnapMirror ラグ監視（`templates/dr-replication.yaml`）、DR レプリケーションパターン、AWS Backup / 論理エアギャップボールト（restore testing の対象に FSx for ONTAP が入る、documented） | 検証済みクリーン復旧ポイント（FlexClone + 拡張子スキャン + 判定）、TTL 自動ブロック解除 | 完全なリストアリハーサルは AWS Backup restore testing を推奨；RC.CO（ステークホルダーコミュニケーション）は最小限 |
@@ -44,9 +44,9 @@
 
 | 機能 | 暗号化・破壊型の主な制御 | 限界 |
 |---|---|---|
-| GV | 破壊的操作の承認（ONTAP の MAV、AWS Backup の MPA）、保持期間の方針、移行前の保護計画とコストの見積り（ボールト文書） | ガバナンス指針であり法的判断ではない |
+| GV | 破壊的操作の承認（AWS Backup の MPA。ONTAP の MAV は有効化できる環境で。FSx for ONTAP では確立していない [E-025]）、保持期間の方針、移行前の保護計画とコストの見積り（ボールト文書） | ガバナンス指針であり法的判断ではない |
 | ID | 保護対象ボリュームの棚卸し、`DataClassification` タグ（`templates/storage.yaml`） | 分類の自動化はコンパニオンリポジトリ側 |
-| PR | SnapLock、Tamperproof Snapshot、MAV、Vscan（TrendAI）/ Deep Instinct、論理エアギャップボールト（文書のみ、documented） | 同じ管理境界の中の仕組みは、AWS アカウント全体の侵害には備えにならない（推論。管理面の侵害の節） |
+| PR | SnapLock、Tamperproof Snapshot、MAV（FSx for ONTAP では確立していない [E-025]）、Vscan（TrendAI）/ Deep Instinct、論理エアギャップボールト（文書のみ、documented） | 同じ管理境界の中の仕組みは、AWS アカウント全体の侵害には備えにならない（推論。管理面の侵害の節） |
 | DE | ARP / ARP/AI（書き込み経路。S3 Access Points 経由の書き込みも検知、実測 2026-08-26、ONTAP 9.18.1P3D1）、FPolicy（NFS / SMB だけ [E-015]）、スキャンの判定 | `attack_probability` の更新の遅れ（既存の実測）。旧世代 ARP の学習期間の条件（既存記述） |
 | RS | Step Functions による承認つきの隔離（本リポジトリ。所要時間は未測定）。コンパニオンリポジトリの Lambda による直接遮断（ARP の検知から遮断まで 2 分以内、実測、ONTAP 9.17.1P7D1） | SVM 全体に効く操作の影響範囲 |
 | RC | Snapshot / SnapMirror / 論理エアギャップボールトからの復元、FlexClone + S3 Access Points スキャンでの確認 | Malware Protection for AWS Backup の対象外 [E-008]。一時リカバリポイントは restore testing の対象外 [E-017] |
@@ -71,7 +71,7 @@ AWS アカウントや ONTAP 管理者の認証情報が侵害されると、同
 | 段 | 想定する侵害 | 制御 | 根拠の種別 |
 |---|---|---|---|
 | AWS アカウント | IAM 主体の侵害、管理 API の悪用 | IAM / SCP で操作を絞る。CloudTrail が Amazon FSx API の呼び出しを記録する。GuardDuty は CloudTrail の管理イベント・VPC Flow Logs・Route 53 Resolver の DNS クエリログを基盤データソースとして、異常な振る舞いを検知する | documented（[logging-using-cloudtrail-win.html](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/logging-using-cloudtrail-win.html)、[guardduty_data-sources.html](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_data-sources.html)） |
-| ONTAP 管理者 | fsxadmin などの ONTAP 管理者の認証情報の侵害 | MAV（破壊的な操作に複数の承認）、Tamperproof Snapshot、SnapLock、fsxadmin の認証情報を Secrets Manager に置く | documented（MAV、Snapshot のロック）。Secrets Manager は本リポジトリの構成 |
+| ONTAP 管理者 | fsxadmin などの ONTAP 管理者の認証情報の侵害 | Tamperproof Snapshot、SnapLock、fsxadmin の認証情報を Secrets Manager に置く。MAV（破壊的な操作に複数の承認）は有効化できる環境で。FSx for ONTAP では確立していない [E-025] | documented（Snapshot のロック。MAV は ONTAP 一般）。Secrets Manager は本リポジトリの構成 |
 | 管理境界の外 | AWS アカウント全体の侵害・閉鎖 | 論理エアギャップボールト、別アカウントへの SnapMirror / SnapVault | documented（ボールト）。別アカウントの隔離の度合いは推論 |
 
 方式ごとの違いと選び方は、[ボールト文書の「隔離方式の選び方」](../data-protection/aws-backup-logically-air-gapped-vault.md#隔離方式の選び方--how-to-choose-an-isolation-option)にある。アカウント外への共有を取り消す自動修復を置く場合は、論理エアギャップボールトへのコピー中のイベント（`userIdentity.invokedBy = backup.amazonaws.com`）を除外する（documented）。
@@ -127,13 +127,13 @@ FSx for ONTAP の制御が作用するのは、ファイル・オブジェクト
 | Data Encrypted for Impact | T1486 | ARP/AI 検知 → 自動ブロック（name-mapping deny + export-policy deny + NACL deny） |
 | Inhibit System Recovery | T1490 | SnapLock（削除不可）+ Tamperproof Snapshot（ロックの期限まで、管理者を含めて削除の要求を拒否する）+ 論理エアギャップボールト（管理境界の外の復旧点、文書のみ） |
 | Data Destruction | T1485 | FPolicy によるファイル操作リアルタイム検知 → EventBridge → Step Functions 隔離。**検知範囲は NFS / SMB のみ。S3 Access Point 経由の書き込みは FPolicy に届かない**（実測 2026-08-26 / ONTAP 9.18.1P3D1）。AP 経由の経路は ARP が検知する |
-| Account Manipulation | T1098 | Multi-Admin Verification（MAV）— 重要な管理操作に複数管理者の承認を要求 |
+| Account Manipulation | T1098 | Multi-Admin Verification（MAV）— MAV を有効化できる環境では、重要な管理操作に複数管理者の承認を要求。FSx for ONTAP では確立していない [E-025] |
 | Valid Accounts | T1078 | 監査ログパイプライン（全アクセスのトレーサビリティ）+ CloudWatch Log Alarm — 検知/可視性コントロール（防止ではない） |
 | Data from Cloud Storage | T1530 | S3 Access Points 経由の読み取り。アクセスポイントポリシーと IAM で絞る。ONTAP 監査ログに `Source=HTTP` / `Source=S3` で操作が残る（要求者の識別情報は記録されない [E-018]） |
 | Exfiltration Over Web Service | T1567 | ストレージ層は検知を担わない。SIEM とネットワーク側の監視（持ち出し型の節） |
 | Exploit Public-Facing Application | T1190 | ストレージ層の範囲外（ストレージ層の対象範囲と境界の節） |
 | Server Software Component: Web Shell | T1505.003 | Web サーバーのファイルが TrendAI / Deep Instinct のスキャン対象のファイルストア上にあれば、書き込み時に検査される（推論） |
-| Create Account | T1136 | CloudTrail（IAM の操作）。ONTAP の管理者アカウントの作成（`security login create`）は MAV のルールで保護対象にできる（documented） |
+| Create Account | T1136 | CloudTrail（IAM の操作）。ONTAP の管理者アカウントの作成（`security login create`）は ONTAP 一般では MAV のルールで保護対象にできる（documented）。FSx for ONTAP で可能かは確立していない [E-025] |
 
 ## AWS Well-Architected との整合
 

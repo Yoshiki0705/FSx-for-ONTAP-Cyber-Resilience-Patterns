@@ -15,9 +15,9 @@
 
 ## このドキュメントの位置づけ / Scope
 
-FSx for ONTAP のサイバーレジリエンシー機能（Autonomous Ransomware Protection、FPolicy、SnapLock、Tamperproof Snapshot、Multi-Admin Verification、Snapshot/SnapMirror/FlexClone による復旧）は、複数の管理面から操作できる。同じ操作が複数の経路に存在し、経路ごとに前提・制約・課金が異なる。このドキュメントは、サイバーレジリエンシーの各 operation（検知・対応・復旧・監査・設定）を、どの管理面から行えるかを中立に一覧する。特定の経路を推奨・優越として押し出さず、各経路のトレードオフを対称に記す。
+FSx for ONTAP のサイバーレジリエンシー機能（Autonomous Ransomware Protection、FPolicy、SnapLock、Tamperproof Snapshot、Snapshot/SnapMirror/FlexClone による復旧。Multi-Admin Verification は ONTAP 一般の機能で、FSx for ONTAP で有効化できるかは確立していない [E-025]）は、複数の管理面から操作できる。同じ操作が複数の経路に存在し、経路ごとに前提・制約・課金が異なる。このドキュメントは、サイバーレジリエンシーの各 operation（検知・対応・復旧・監査・設定）を、どの管理面から行えるかを中立に一覧する。特定の経路を推奨・優越として押し出さず、各経路のトレードオフを対称に記す。
 
-FSx for ONTAP's cyber resilience features (Autonomous Ransomware Protection, FPolicy, SnapLock, Tamperproof Snapshot, Multi-Admin Verification, and recovery via Snapshot/SnapMirror/FlexClone) can be operated from several management planes. The same operation often exists on more than one path, and each path has different prerequisites, constraints, and costs. This document is a neutral map of which plane can perform each cyber resilience operation (detect, respond, recover, audit, configure). It does not push any single path as superior; it states each path's trade-offs symmetrically.
+FSx for ONTAP's cyber resilience features (Autonomous Ransomware Protection, FPolicy, SnapLock, Tamperproof Snapshot, and recovery via Snapshot/SnapMirror/FlexClone; Multi-Admin Verification is an ONTAP feature whose availability on FSx for ONTAP is not established [E-025]) can be operated from several management planes. The same operation often exists on more than one path, and each path has different prerequisites, constraints, and costs. This document is a neutral map of which plane can perform each cyber resilience operation (detect, respond, recover, audit, configure). It does not push any single path as superior; it states each path's trade-offs symmetrically.
 
 > **Scope note**: このドキュメントは「どの経路でその操作に到達できるか」を扱う。各機能そのものの挙動・不可逆性・設計上の注意は、[ARP 設定ガイド](ontap-native/arp-configuration.md)、[SnapLock 設定](ontap-native/snaplock-configuration.md)、[Tamperproof Snapshot](ontap-native/tamperproof-snapshot.md)、[MAV 設定](ontap-native/mav-configuration.md)、[フレームワークマッピング](en/cyber-resilience-framework-mapping.md) を参照。ここではそれらを重複させない。
 >
@@ -64,7 +64,7 @@ Each cell shows whether the operation is reachable on that plane. ◯ = procedur
 | **SnapMirror 複製** / SnapMirror replication | ◯ | ◯ | ? | ? | ◯ [V4] |
 | **FlexClone 作成** / FlexClone | ◯ | ◯ | ? | ? | ? |
 | **SnapLock / Tamperproof Snapshot（immutable files/snapshots）** [3] | ◯ | ◯ | ? | ? | ◯ [V4] |
-| **MAV（多管理者承認）** / Multi-Admin Verification | ◯ | ◯ | ? | ? | ? |
+| **MAV（多管理者承認）** / Multi-Admin Verification | ? [E-025] | ? [E-025] | ? | ? | ? |
 | **AWS Backup 連携** / AWS Backup | — | — | — | — | — [4] |
 
 脚注 / Footnotes:

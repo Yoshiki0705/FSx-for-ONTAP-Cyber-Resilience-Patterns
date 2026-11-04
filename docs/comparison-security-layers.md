@@ -436,7 +436,7 @@ PoC コストの概算（3 日間、ap-northeast-1、2026 年 6 月時点の料�
 
 本プロジェクトは Amazon FSx for NetApp ONTAP をデモンストレーションプラットフォームとして使用しているが、防御多層化の原則とイベント駆動型応答パターンは汎用的に適用可能である。
 
-This project uses FSx for ONTAP because it provides unique storage-native security primitives (ARP, FPolicy, SnapLock, Tamperproof Snapshots, Multi-Admin Verification) not available in general-purpose storage. However, the defense-in-depth principles and event-driven response patterns are broadly applicable.
+This project uses FSx for ONTAP because it provides unique storage-native security primitives (ARP, FPolicy, SnapLock, Tamperproof Snapshots; Multi-Admin Verification is documented for ONTAP, and whether FSx for ONTAP allows it is not established [E-025]) not available in general-purpose storage. However, the defense-in-depth principles and event-driven response patterns are broadly applicable.
 
 | 本プロジェクトのデモ内容 | 適用可能な一般原則 |
 |------------------------|-------------------|

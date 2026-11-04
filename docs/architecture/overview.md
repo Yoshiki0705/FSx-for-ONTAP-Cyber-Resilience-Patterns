@@ -98,7 +98,7 @@ FSx for ONTAP に組み込まれたセキュリティ機能。追加コンポー
 | **FPolicy** | ファイルアクセスイベントの監視・通知・ブロック。**対象は NFS / SMB のみ。S3 Access Point 経由の操作は通知されず、`mandatory` 指定でも遮断されない**（実測 2026-08-26 / ONTAP 9.18.1P3D1） | 検知・防御 (Detect / Protect)、ただし NFS / SMB 経路のみ |
 | **SnapLock** | WORM によるデータ不変性（Compliance / Enterprise） | 防御 (Protect) |
 | **Tamperproof Snapshot** | 管理者でも削除不可能な Snapshot | 防御 (Protect) |
-| **Multi-Admin Verification** | 破壊的操作の多者承認 | 防御 (Protect) |
+| **Multi-Admin Verification** | 破壊的操作の多者承認。ONTAP 一般の機能で、FSx for ONTAP の `fsxadmin` で有効化できるかは確立していない [E-025] | 防御 (Protect)、有効化できる環境で |
 
 ### Layer 2: File Scanning（ファイルスキャン）
 
@@ -350,7 +350,7 @@ Phase 1 Complete (現在):
 1. Multi-AZ Scanner HA (Auto Scaling Group)
 2. ARP Lifecycle Manager (dry_run → enabled 自動移行)
 3. DR / SnapMirror Cross-Region レプリケーション
-4. Multi-Admin Verification (MAV) 統合
+4. Multi-Admin Verification (MAV) 統合（FSx for ONTAP で有効化できるかの確認後 [E-025]）
 5. コスト最適化 (dev 環境のスキャナー時間帯停止)
 6. 運用ランブック拡充
 
