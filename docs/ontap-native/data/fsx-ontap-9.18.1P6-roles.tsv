@@ -1,0 +1,1468 @@
+# Source: ONTAP 9.18.1P6 on Amazon FSx for NetApp ONTAP (ap-northeast-1, SINGLE_AZ_1), read 2026-11-04 as fsxadmin.
+# Equivalent of: security login role show -fields cmddirname,access,query (cluster roles, plus the SVM roles of one SVM; the roles are identical across the 5 SVMs checked).
+# Cluster and SVM names are masked. scope=cluster|svm. A command takes the access of its longest matching cmddirname, else DEFAULT.
+scope	role	cmddirname	access	query
+cluster	autosupport	DEFAULT	none	
+cluster	autosupport	set	all	
+cluster	autosupport	system node autosupport	all	
+cluster	backup	DEFAULT	none	
+cluster	backup	security jit-privilege elevate	all	
+cluster	backup	security jit-privilege reset	all	
+cluster	backup	security jit-privilege show-remaining-time	all	
+cluster	backup	security login password	all	
+cluster	backup	security login role show-user-capability	all	
+cluster	backup	volume	readonly	
+cluster	backup	vserver services ndmp	all	
+cluster	fsxadmin	DEFAULT	all	
+cluster	fsxadmin	application	all	
+cluster	fsxadmin	autobalance	none	
+cluster	fsxadmin	cf	none	
+cluster	fsxadmin	cluster	none	
+cluster	fsxadmin	cluster application-record	all	
+cluster	fsxadmin	cluster date show	readonly	
+cluster	fsxadmin	cluster ha modify	readonly	
+cluster	fsxadmin	cluster ha show	readonly	
+cluster	fsxadmin	cluster identity modify	readonly	
+cluster	fsxadmin	cluster identity show	readonly	
+cluster	fsxadmin	cluster log-forwarding	all	-port !55555
+cluster	fsxadmin	cluster modify	readonly	
+cluster	fsxadmin	cluster peer	all	
+cluster	fsxadmin	cluster show	readonly	
+cluster	fsxadmin	cluster statistics show	readonly	
+cluster	fsxadmin	cluster time-service ntp server create	readonly	
+cluster	fsxadmin	cluster time-service ntp server delete	readonly	
+cluster	fsxadmin	cluster time-service ntp server modify	readonly	
+cluster	fsxadmin	cluster time-service ntp server show	readonly	
+cluster	fsxadmin	date	none	
+cluster	fsxadmin	debug	none	
+cluster	fsxadmin	debug dm vserver xc	all	
+cluster	fsxadmin	debug locks persistence reconstruction show	all	
+cluster	fsxadmin	debug locks persistence reconstruction show-volume	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	debug locks persistence show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	debug network tcpdump	all	-ipspace !Cluster
+cluster	fsxadmin	debug san lun	all	
+cluster	fsxadmin	df	none	-vserver FsxId*|Cluster
+cluster	fsxadmin	diag	none	
+cluster	fsxadmin	echo	all	
+cluster	fsxadmin	event	none	
+cluster	fsxadmin	event catalog show	readonly	
+cluster	fsxadmin	event config	all	
+cluster	fsxadmin	event config force-sync	none	
+cluster	fsxadmin	event filter	all	
+cluster	fsxadmin	event filter copy	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin	event filter create	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin	event filter delete	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin	event filter prepare-for-revert	none	
+cluster	fsxadmin	event filter rename	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin	event filter show	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin	event filter show-summary	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin	event filter update-access-control-role	none	
+cluster	fsxadmin	event generate	all	
+cluster	fsxadmin	event generate-autosupport-log	all	
+cluster	fsxadmin	event log show	readonly	
+cluster	fsxadmin	event notification	all	-access-control-role fsxadmin
+cluster	fsxadmin	event notification destination	all	-access-control-role fsxadmin
+cluster	fsxadmin	event notification destination check	all	
+cluster	fsxadmin	event notification destination prepare-for-revert	none	
+cluster	fsxadmin	event notification history	all	
+cluster	fsxadmin	fabriclink	none	
+cluster	fsxadmin	job	none	
+cluster	fsxadmin	job delete	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job expunge	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job history	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job pause	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job private	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job resume	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job schedule	all	
+cluster	fsxadmin	job schedule show-jobs	all	-owner !- -owner !FsxId*
+cluster	fsxadmin	job show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job show-bynode	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job show-cluster	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job show-completed	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job softpause	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job stop	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job unclaim	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	job watch-progress	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	logger	none	
+cluster	fsxadmin	lun	all	
+cluster	fsxadmin	lun import prepare-to-downgrade	none	
+cluster	fsxadmin	metrocluster	readonly	
+cluster	fsxadmin	network	none	
+cluster	fsxadmin	network arp	none	
+cluster	fsxadmin	network cloud routing-table create	readonly	
+cluster	fsxadmin	network cloud routing-table delete	readonly	
+cluster	fsxadmin	network cloud routing-table show	readonly	
+cluster	fsxadmin	network connections	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	network connections options buffer modify	readonly	
+cluster	fsxadmin	network connections options buffer show	readonly	
+cluster	fsxadmin	network fcp adapter modify	readonly	-node !FsxId*
+cluster	fsxadmin	network fcp adapter show	readonly	-node !FsxId*
+cluster	fsxadmin	network interface create	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin	network interface delete	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin	network interface dns-lb-stats	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	network interface failover-groups create	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network interface failover-groups delete	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network interface failover-groups modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network interface failover-groups show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network interface lif-weights	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	network interface modify	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin	network interface service-policy	readonly	-vserver !FsxId* -vserver !Cluster -policy !amazon-fsx*
+cluster	fsxadmin	network interface show	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin	network ipspace create	readonly	-ipspace !Cluster
+cluster	fsxadmin	network ipspace delete	readonly	-ipspace !Cluster
+cluster	fsxadmin	network ipspace show	readonly	-ipspace !Cluster
+cluster	fsxadmin	network ndp neighbor	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	network ping	readonly	-vserver !Cluster
+cluster	fsxadmin	network ping6	all	-vserver !Cluster
+cluster	fsxadmin	network port broadcast-domain create	all	-broadcast-domain Fsx
+cluster	fsxadmin	network port broadcast-domain delete	all	-broadcast-domain Fsx
+cluster	fsxadmin	network port broadcast-domain modify	all	-broadcast-domain Fsx
+cluster	fsxadmin	network port broadcast-domain show	all	-broadcast-domain Fsx
+cluster	fsxadmin	network port delete	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network port modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network port show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network route	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	network route cdb	none	
+cluster	fsxadmin	network route show-lifs	readonly	-vserver !FsxId* -vserver !Cluster -lifs !amazon-fsx*
+cluster	fsxadmin	network subnet create	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network subnet modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network subnet show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin	network test-path	all	-connection-detail false
+cluster	fsxadmin	network traceroute	all	-vserver !Cluster
+cluster	fsxadmin	network traceroute6	all	-vserver !Cluster
+cluster	fsxadmin	nonshared-clus	none	
+cluster	fsxadmin	protection-type	none	
+cluster	fsxadmin	protection-type show	readonly	
+cluster	fsxadmin	qos	all	
+cluster	fsxadmin	reallocate	none	
+cluster	fsxadmin	san	none	
+cluster	fsxadmin	san config modify	readonly	
+cluster	fsxadmin	san config show	readonly	
+cluster	fsxadmin	security	none	
+cluster	fsxadmin	security anti-ransomware show	all	
+cluster	fsxadmin	security anti-ransomware volume	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security audit	readonly	
+cluster	fsxadmin	security certificate	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security certificate config modify	readonly	
+cluster	fsxadmin	security certificate config show	readonly	
+cluster	fsxadmin	security certificate create	all	
+cluster	fsxadmin	security certificate delete	all	
+cluster	fsxadmin	security certificate generate-csr	all	
+cluster	fsxadmin	security certificate install	all	
+cluster	fsxadmin	security certificate remove-precluster-cert	none	
+cluster	fsxadmin	security certificate show	all	
+cluster	fsxadmin	security certificate truststore clear	none	
+cluster	fsxadmin	security certificate truststore load	none	
+cluster	fsxadmin	security config modify	all	
+cluster	fsxadmin	security config ocsp show	readonly	
+cluster	fsxadmin	security config show	all	
+cluster	fsxadmin	security dynamic-authorization	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ipsec	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ipsec config	all	
+cluster	fsxadmin	security key-manager external	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security key-manager health policy	all	
+cluster	fsxadmin	security key-manager key create	none	
+cluster	fsxadmin	security key-manager key key-table create	all	
+cluster	fsxadmin	security key-manager key key-table delete	all	
+cluster	fsxadmin	security key-manager key key-table modify	all	
+cluster	fsxadmin	security key-manager key key-table show	all	
+cluster	fsxadmin	security key-manager key query	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security key-manager keystore delete	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security key-manager keystore show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security key-manager show-key-store	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security login	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security login create	all	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login delete	all	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login duo	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security login expire-password	all	-username !FSx* -username !admin -username !autosupport
+cluster	fsxadmin	security login external-role-mapping	all	-ontap-role !fsx-oncall-* -ontap-role !readonly -ontap-role !admin
+cluster	fsxadmin	security login group role-mapping	all	-role !fsx-oncall-* -role !readonly -role !admin
+cluster	fsxadmin	security login information show	readonly	-vserver !Cluster
+cluster	fsxadmin	security login modify	all	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login password	all	-username !FSx* -username !admin -username !autosupport
+cluster	fsxadmin	security login password-prepare-to-downgrade	none	
+cluster	fsxadmin	security login publickey	all	-username !FSx* -username !admin
+cluster	fsxadmin	security login rest-role	all	-role !fsx-oncall-* -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login role	readonly	-role !fsx-oncall-*
+cluster	fsxadmin	security login role config	all	
+cluster	fsxadmin	security login role config modify	none	-vserver FsxId* -role !fsxadmin*
+cluster	fsxadmin	security login role config reset	none	
+cluster	fsxadmin	security login role config show	none	-vserver FsxId* -role !fsxadmin*
+cluster	fsxadmin	security login role create	all	-role !fsx-oncall-* -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login role delete	all	-role !fsx-oncall-* -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login role modify	all	-role !fsx-oncall-* -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login role prepare-to-downgrade	none	
+cluster	fsxadmin	security login role show	all	-role !fsx-oncall-* -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login role show-ontapi	readonly	
+cluster	fsxadmin	security login role show-rest	readonly	
+cluster	fsxadmin	security login role show-user-capability	readonly	
+cluster	fsxadmin	security login show	all	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin	security login whoami	readonly	
+cluster	fsxadmin	security oauth2	all	
+cluster	fsxadmin	security protocol	readonly	
+cluster	fsxadmin	security session kill-cli	all	-username !admin
+cluster	fsxadmin	security session limit create	readonly	
+cluster	fsxadmin	security session limit delete	readonly	
+cluster	fsxadmin	security session limit modify	readonly	
+cluster	fsxadmin	security session limit show	readonly	
+cluster	fsxadmin	security session show	readonly	-username !admin
+cluster	fsxadmin	security snmpusers	none	
+cluster	fsxadmin	security ssh	readonly	
+cluster	fsxadmin	security ssh add	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ssh modify	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ssh prepare-to-downgrade	none	
+cluster	fsxadmin	security ssh remove	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ssh show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	security ssl	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	set	all	
+cluster	fsxadmin	sleep	all	
+cluster	fsxadmin	snaplock	none	
+cluster	fsxadmin	snaplock compliance-clock	all	
+cluster	fsxadmin	snaplock event-retention	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	snaplock legal-hold	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	snaplock log	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	snapmirror	none	
+cluster	fsxadmin	snapmirror abort	all	
+cluster	fsxadmin	snapmirror break	all	
+cluster	fsxadmin	snapmirror cache	all	
+cluster	fsxadmin	snapmirror check	all	
+cluster	fsxadmin	snapmirror create	all	-policy !StrictSync
+cluster	fsxadmin	snapmirror delete	all	
+cluster	fsxadmin	snapmirror failover	all	
+cluster	fsxadmin	snapmirror initialize	all	
+cluster	fsxadmin	snapmirror initialize-ls-set	all	
+cluster	fsxadmin	snapmirror list-destinations	all	
+cluster	fsxadmin	snapmirror list-unprotected	all	
+cluster	fsxadmin	snapmirror mediator	all	
+cluster	fsxadmin	snapmirror modify	all	
+cluster	fsxadmin	snapmirror policy	all	-policy !FSxPolicy*
+cluster	fsxadmin	snapmirror promote	all	
+cluster	fsxadmin	snapmirror protect	all	
+cluster	fsxadmin	snapmirror quiesce	all	
+cluster	fsxadmin	snapmirror release	all	
+cluster	fsxadmin	snapmirror restore	all	
+cluster	fsxadmin	snapmirror resume	all	
+cluster	fsxadmin	snapmirror resync	all	
+cluster	fsxadmin	snapmirror set-preferred-cluster	all	
+cluster	fsxadmin	snapmirror show	all	-policy !StrictSync
+cluster	fsxadmin	snapmirror show-capabilities	all	-endpoint-type !object-store
+cluster	fsxadmin	snapmirror show-history	all	
+cluster	fsxadmin	snapmirror snapshot-owner	all	
+cluster	fsxadmin	snapmirror update	all	
+cluster	fsxadmin	snapmirror update-ls-set	all	
+cluster	fsxadmin	snmp	none	
+cluster	fsxadmin	spm	none	
+cluster	fsxadmin	statistics	none	
+cluster	fsxadmin	statistics aggregate	readonly	
+cluster	fsxadmin	statistics catalog	readonly	-object aggr_efficiency|buf_bufstats|buf_qtype|bufcache|cg*|cifs|client*|cluster_peer|compression|ext_cache*|flexcache*|flexgroup*|fpolicy*|lun*|mount|namespace*|nblade_cifs|netstat|nfs*|nic_common|nvmf*|nwk_ctx|object_store*|qtree*|readahead|repl_counters|resource_headroom_*|smb*|spinhi|system:node|top_client|tsse|volume*|waflremote|witness|workload_volume
+cluster	fsxadmin	statistics lif	readonly	
+cluster	fsxadmin	statistics lun	readonly	
+cluster	fsxadmin	statistics qtree	readonly	
+cluster	fsxadmin	statistics samples	all	-sample-id !FsxId*
+cluster	fsxadmin	statistics settings	all	
+cluster	fsxadmin	statistics show	readonly	-object aggr_efficiency|buf_bufstats|buf_qtype|bufcache|cg*|cifs|client*|cluster_peer|compression|exec_ctx*|ext_cache*|flexcache*|flexgroup*|fpolicy*|lun*|mount|namespace*|nblade_cifs|netstat|nfs*|nic_common|nvmf*|nwk_ctx|object_store*|qtree*|readahead|repl_counters|resource_headroom_*|smb*|spinhi|system:node|top_client|tsse|volume*|waflremote|witness|workload_volume
+cluster	fsxadmin	statistics show-periodic	readonly	
+cluster	fsxadmin	statistics start	all	-sample-id !FsxId*
+cluster	fsxadmin	statistics stop	all	-sample-id !FsxId*
+cluster	fsxadmin	statistics system show	readonly	
+cluster	fsxadmin	statistics top	readonly	
+cluster	fsxadmin	statistics top file show	readonly	
+cluster	fsxadmin	statistics volume show	readonly	
+cluster	fsxadmin	statistics vserver show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	statistics-v1	readonly	
+cluster	fsxadmin	storage	none	
+cluster	fsxadmin	storage aggregate clusterspace show	readonly	
+cluster	fsxadmin	storage aggregate create	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate modify	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate object-store config	readonly	-object-store-name !*
+cluster	fsxadmin	storage aggregate object-store modify	readonly	-aggregate !*
+cluster	fsxadmin	storage aggregate object-store show	readonly	-aggregate !*
+cluster	fsxadmin	storage aggregate object-store show-space	readonly	-aggregate !*
+cluster	fsxadmin	storage aggregate show	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate show-cumulated-efficiency	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate show-efficiency	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate show-space	readonly	-aggregate !aggr0*
+cluster	fsxadmin	storage aggregate show-spare-disks	readonly	-original-owner !FsxId*
+cluster	fsxadmin	storage aggregate show-status	readonly	-aggregate !aggr*
+cluster	fsxadmin	storage disk show	readonly	-owner !FsxId* -mailbox-disk-type !*
+cluster	fsxadmin	storage encryption disk show	readonly	
+cluster	fsxadmin	storage failover modify	readonly	-node !FsxId*
+cluster	fsxadmin	storage failover show	readonly	-node !FsxId*
+cluster	fsxadmin	storage pool create	readonly	-nodes !FsxId*
+cluster	fsxadmin	storage pool show	readonly	-nodes !FsxId*
+cluster	fsxadmin	storage pool show-aggregate	readonly	-aggregate !aggr*
+cluster	fsxadmin	storage pool show-available-capacity	readonly	-node !FsxId*
+cluster	fsxadmin	storage shelf show	readonly	-node !FsxId*
+cluster	fsxadmin	storage-service	readonly	
+cluster	fsxadmin	system	none	
+cluster	fsxadmin	system capability clusterset	readonly	
+cluster	fsxadmin	system controller flash-cache show	readonly	-node !FsxId*
+cluster	fsxadmin	system health alert modify	readonly	
+cluster	fsxadmin	system health alert show	readonly	
+cluster	fsxadmin	system health status show	readonly	
+cluster	fsxadmin	system license delete	all	
+cluster	fsxadmin	system license entitlement-risk show	readonly	-node-name !FsxId*
+cluster	fsxadmin	system license show	all	
+cluster	fsxadmin	system node autosupport history show	all	
+cluster	fsxadmin	system node autosupport invoke	all	-uri !*
+cluster	fsxadmin	system node autosupport invoke-performance-archive	all	-uri !*
+cluster	fsxadmin	system node autosupport modify	readonly	-node !FsxId*
+cluster	fsxadmin	system node autosupport show	readonly	-node !FsxId*
+cluster	fsxadmin	system node external-cache	all	
+cluster	fsxadmin	system node external-cache bypass	none	
+cluster	fsxadmin	system node external-cache modify	all	
+cluster	fsxadmin	system node external-cache show	all	
+cluster	fsxadmin	system node modify	readonly	
+cluster	fsxadmin	system node show	readonly	
+cluster	fsxadmin	system node virtual-machine instance show-settings	readonly	
+cluster	fsxadmin	system ontapi changes	readonly	
+cluster	fsxadmin	system service-processor show	readonly	-node !FsxId*
+cluster	fsxadmin	system services firewall policy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	system services firewall policy service	none	
+cluster	fsxadmin	system timeout modify	all	
+cluster	fsxadmin	system timeout show	all	
+cluster	fsxadmin	template	none	
+cluster	fsxadmin	timezone	all	
+cluster	fsxadmin	version	readonly	
+cluster	fsxadmin	volume	none	
+cluster	fsxadmin	volume activity-tracking	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume analytics	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume autosize	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume check metadata	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume clone	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume clone sharing-by-split undo start-all	all	
+cluster	fsxadmin	volume conversion	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume create	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume delete	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume destroy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency check	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency inactive-data-compression	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency inactive-data-reallocation	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency modify	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency off	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency on	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency policy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency prepare-to-downgrade	none	
+cluster	fsxadmin	volume efficiency promote	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency revert-to	none	
+cluster	fsxadmin	volume efficiency show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency start	all	-vserver !FsxId* -vserver !Cluster -scan-all false
+cluster	fsxadmin	volume efficiency stat	readonly	
+cluster	fsxadmin	volume efficiency stop	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume efficiency undo	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume encryption	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume encryption modify-enc-blob	none	
+cluster	fsxadmin	volume encryption retry-online	all	
+cluster	fsxadmin	volume encryption secure-purge show-version	all	
+cluster	fsxadmin	volume expand	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume explore	all	-format volume,snapshot,qtree,quota,raid
+cluster	fsxadmin	volume file	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume file async-delete prepare-for-revert	none	
+cluster	fsxadmin	volume file clone split load	all	
+cluster	fsxadmin	volume file clone token	all	
+cluster	fsxadmin	volume file copy show	readonly	-source-vserver-id !FsxId* -source-vserver-id !Cluster
+cluster	fsxadmin	volume file copy start	all	-source-paths !FsxId* -source-paths !Cluster -destination-paths !FsxId* -destination-paths !Cluster
+cluster	fsxadmin	volume file fingerprint abort	none	
+cluster	fsxadmin	volume file fingerprint dump	none	
+cluster	fsxadmin	volume file move show	readonly	-source-vserver-id !FsxId* -source-vserver-id !Cluster
+cluster	fsxadmin	volume file move start	all	-source-paths !FsxId* -source-paths !Cluster -destination-paths !FsxId* -destination-paths !Cluster
+cluster	fsxadmin	volume file source	none	
+cluster	fsxadmin	volume flexcache	all	
+cluster	fsxadmin	volume flexcache prepare-to-downgrade	none	
+cluster	fsxadmin	volume flexgroup	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume flexgroup config modify	all	
+cluster	fsxadmin	volume flexgroup config show	all	
+cluster	fsxadmin	volume language	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume make-vsroot	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume managed-feature	all	
+cluster	fsxadmin	volume modify	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume mount	all	
+cluster	fsxadmin	volume move	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume move governor	none	
+cluster	fsxadmin	volume move pause	none	
+cluster	fsxadmin	volume move recommend	none	
+cluster	fsxadmin	volume move resume	none	
+cluster	fsxadmin	volume offline	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume online	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume qtree	all	
+cluster	fsxadmin	volume quota	all	
+cluster	fsxadmin	volume reallocation	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume reallocation off	all	
+cluster	fsxadmin	volume reallocation on	all	
+cluster	fsxadmin	volume rebalance	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume recovery-queue	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume rehost	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume remove-junction	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume rename	all	
+cluster	fsxadmin	volume restrict	none	
+cluster	fsxadmin	volume show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume show-footprint	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume show-space	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume size	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume snaplock	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume snaplock prepare-to-downgrade	none	
+cluster	fsxadmin	volume snapshot	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	volume snapshot event-config modify	readonly	
+cluster	fsxadmin	volume snapshot event-config show	readonly	
+cluster	fsxadmin	volume snapshot policy	all	
+cluster	fsxadmin	volume snapshot prepare-for-revert	none	
+cluster	fsxadmin	volume snapshot snapdb size	none	
+cluster	fsxadmin	volume unmount	all	
+cluster	fsxadmin	vserver	none	
+cluster	fsxadmin	vserver active-directory	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver add-aggregates	none	
+cluster	fsxadmin	vserver add-protocols	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver audit	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver audit prepare-to-downgrade	none	
+cluster	fsxadmin	vserver check	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver cifs	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver cifs branchcache log	all	
+cluster	fsxadmin	vserver cifs cache show-count	all	
+cluster	fsxadmin	vserver cifs prepare-to-downgrade	none	
+cluster	fsxadmin	vserver cifs security-encryption-required-dc-connections-prepare-to-downgrade	none	
+cluster	fsxadmin	vserver cifs stat	all	
+cluster	fsxadmin	vserver config	none	
+cluster	fsxadmin	vserver config-replication	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver consistency-group	all	
+cluster	fsxadmin	vserver context	all	
+cluster	fsxadmin	vserver copy-offload	all	
+cluster	fsxadmin	vserver create	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver create-sync-destination	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver export-policy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver fcp	readonly	
+cluster	fsxadmin	vserver fpolicy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver http prepare-to-downgrade	none	
+cluster	fsxadmin	vserver http-proxy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver iscsi	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver iscsi security prepare-to-downgrade	none	
+cluster	fsxadmin	vserver locks	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver locks show-mirrored-open-count	all	
+cluster	fsxadmin	vserver modify	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver name-mapping	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver name-mapping create	all	-vserver !FsxId* -vserver !Cluster -pattern !amazon-fsx*
+cluster	fsxadmin	vserver name-mapping delete	all	-vserver !FsxId* -vserver !Cluster -pattern !amazon-fsx*
+cluster	fsxadmin	vserver name-mapping insert	all	-vserver !FsxId* -vserver !Cluster -pattern !amazon-fsx*
+cluster	fsxadmin	vserver name-mapping modify	all	-vserver !FsxId* -vserver !Cluster -pattern !amazon-fsx*
+cluster	fsxadmin	vserver name-mapping show	all	-vserver !FsxId* -vserver !Cluster -pattern !amazon-fsx*
+cluster	fsxadmin	vserver nfs	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver nfs client	all	
+cluster	fsxadmin	vserver nfs credentials count	all	
+cluster	fsxadmin	vserver nfs prepare-to-downgrade	none	
+cluster	fsxadmin	vserver nfs storepool	all	
+cluster	fsxadmin	vserver nvme	all	
+cluster	fsxadmin	vserver object-store-server	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver object-store-server bucket	all	-vserver !FsxId* -vserver !Cluster -bucket !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server bucket check-rbac	all	-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server cache flush	all	-vserver !FsxId* -user-name !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server cache show	all	-vserver !FsxId* -user-name !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server check-protocol-rbac	all	-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server create	all	-vserver !FsxId* -vserver !Cluster -object-store-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server delete	all	-vserver !FsxId* -vserver !Cluster -object-store-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server group	all	-vserver !FsxId* -name !amazon-fsx* -users !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server modify	all	-vserver !FsxId* -vserver !Cluster -object-store-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server policy	all	-vserver !FsxId* -policy !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server show	all	-vserver !FsxId* -vserver !Cluster -object-store-server !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server user	all	-vserver !FsxId* -user !amazon-fsx*
+cluster	fsxadmin	vserver object-store-server user delete-keys	all	-vserver !FsxId*
+cluster	fsxadmin	vserver object-store-server user regenerate-keys	all	-vserver !FsxId*
+cluster	fsxadmin	vserver options	all	-option-name replication.throttle.incoming.max_kbs|replication.throttle.outgoing.max_kbs|replication.backoff_high_client_latency_threshold*|wafl.nvfail.always.on
+cluster	fsxadmin	vserver peer	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver peer modify-local-name	all	-new-name !FsxId* -new-name !Cluster
+cluster	fsxadmin	vserver peer repeer	all	
+cluster	fsxadmin	vserver peer transition	all	-local-vserver !FsxId* -local-vserver !Cluster
+cluster	fsxadmin	vserver prepare-for-revert	none	
+cluster	fsxadmin	vserver protect	all	
+cluster	fsxadmin	vserver remove-aggregates	none	
+cluster	fsxadmin	vserver remove-protocols	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver rename	none	
+cluster	fsxadmin	vserver restamp-msid	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver san	none	
+cluster	fsxadmin	vserver security	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services access-check server-discovery show-host	all	
+cluster	fsxadmin	vserver services name-service cache settings modify	all	
+cluster	fsxadmin	vserver services name-service cache settings show	all	
+cluster	fsxadmin	vserver services name-service cache show-count	all	
+cluster	fsxadmin	vserver services name-service ldap client schema	readonly	
+cluster	fsxadmin	vserver services name-service ldap client schema copy	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services name-service ldap client schema delete	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services name-service ldap client schema modify	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services name-service ldap client schema show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver services name-service unix-group max-limit	all	
+cluster	fsxadmin	vserver services name-service unix-user max-limit	all	
+cluster	fsxadmin	vserver services name-service ypbind restart	all	
+cluster	fsxadmin	vserver services name-service ypbind status	all	
+cluster	fsxadmin	vserver services ndmp	all	
+cluster	fsxadmin	vserver services web access	readonly	-role !admin -role !none -role !readonly
+cluster	fsxadmin	vserver services web modify	all	-vserver !FsxId* -vserver !Cluster -name !sysmgr
+cluster	fsxadmin	vserver services web show	all	-vserver !FsxId* -vserver !Cluster -name !sysmgr
+cluster	fsxadmin	vserver show	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver show-aggregates	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver show-protocols	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver smtape	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver snapdiff-rpc-server	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver start	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver stop	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver storage-limit	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver unlock	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver vscan	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin	vserver vsmd	all	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	DEFAULT	none	
+cluster	fsxadmin-readonly	application	readonly	
+cluster	fsxadmin-readonly	cluster application-record	readonly	
+cluster	fsxadmin-readonly	cluster date show	readonly	
+cluster	fsxadmin-readonly	cluster ha modify	readonly	
+cluster	fsxadmin-readonly	cluster ha show	readonly	
+cluster	fsxadmin-readonly	cluster identity modify	readonly	
+cluster	fsxadmin-readonly	cluster identity show	readonly	
+cluster	fsxadmin-readonly	cluster log-forwarding	readonly	-port !55555
+cluster	fsxadmin-readonly	cluster modify	readonly	
+cluster	fsxadmin-readonly	cluster peer	readonly	
+cluster	fsxadmin-readonly	cluster show	readonly	
+cluster	fsxadmin-readonly	cluster statistics show	readonly	
+cluster	fsxadmin-readonly	cluster time-service ntp server create	readonly	
+cluster	fsxadmin-readonly	cluster time-service ntp server delete	readonly	
+cluster	fsxadmin-readonly	cluster time-service ntp server modify	readonly	
+cluster	fsxadmin-readonly	cluster time-service ntp server show	readonly	
+cluster	fsxadmin-readonly	debug locks persistence show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	debug network tcpdump	all	-ipspace !Cluster
+cluster	fsxadmin-readonly	debug san lun	readonly	
+cluster	fsxadmin-readonly	df	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	echo	all	
+cluster	fsxadmin-readonly	event catalog show	readonly	
+cluster	fsxadmin-readonly	event config	readonly	
+cluster	fsxadmin-readonly	event filter	readonly	
+cluster	fsxadmin-readonly	event filter copy	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin-readonly	event filter create	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin-readonly	event filter delete	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin-readonly	event filter rename	none	-access-control-role !fsxadmin  -system-defined !true
+cluster	fsxadmin-readonly	event filter show	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin-readonly	event filter show-summary	none	-access-control-role !fsxadmin -system-defined !true
+cluster	fsxadmin-readonly	event filter update-access-control-role	none	
+cluster	fsxadmin-readonly	event log show	readonly	
+cluster	fsxadmin-readonly	event notification	readonly	-access-control-role fsxadmin
+cluster	fsxadmin-readonly	event notification destination	readonly	-access-control-role fsxadmin
+cluster	fsxadmin-readonly	event notification destination check	all	
+cluster	fsxadmin-readonly	event notification history	readonly	
+cluster	fsxadmin-readonly	job history	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	job schedule	readonly	
+cluster	fsxadmin-readonly	job schedule show-jobs	readonly	-owner !- -owner !FsxId*
+cluster	fsxadmin-readonly	job show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	job show-cluster	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	job show-completed	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	job watch-progress	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	lun	readonly	
+cluster	fsxadmin-readonly	lun import prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	metrocluster	readonly	
+cluster	fsxadmin-readonly	network arp	none	
+cluster	fsxadmin-readonly	network cloud routing-table create	readonly	
+cluster	fsxadmin-readonly	network cloud routing-table delete	readonly	
+cluster	fsxadmin-readonly	network cloud routing-table show	readonly	
+cluster	fsxadmin-readonly	network connections	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	network connections options buffer modify	readonly	
+cluster	fsxadmin-readonly	network connections options buffer show	readonly	
+cluster	fsxadmin-readonly	network fcp adapter modify	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	network fcp adapter show	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	network interface create	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin-readonly	network interface delete	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin-readonly	network interface dns-lb-stats	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	network interface failover-groups create	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network interface failover-groups delete	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network interface failover-groups modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network interface failover-groups show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network interface lif-weights	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	network interface modify	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin-readonly	network interface service-policy	readonly	-vserver !FsxId* -vserver !Cluster -policy !amazon-fsx*
+cluster	fsxadmin-readonly	network interface show	readonly	-role data|cluster_mgmt|intercluster -lif !amazon-fsx*
+cluster	fsxadmin-readonly	network ipspace create	readonly	-ipspace !Cluster
+cluster	fsxadmin-readonly	network ipspace delete	readonly	-ipspace !Cluster
+cluster	fsxadmin-readonly	network ipspace show	readonly	-ipspace !Cluster
+cluster	fsxadmin-readonly	network ndp neighbor	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	network ping	readonly	-vserver !Cluster
+cluster	fsxadmin-readonly	network ping6	all	-vserver !Cluster
+cluster	fsxadmin-readonly	network port broadcast-domain create	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port broadcast-domain delete	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port broadcast-domain modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port broadcast-domain show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port delete	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network port show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network route	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	network route cdb	none	
+cluster	fsxadmin-readonly	network route show-lifs	readonly	-vserver !FsxId* -vserver !Cluster -lifs !amazon-fsx*
+cluster	fsxadmin-readonly	network subnet create	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network subnet modify	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	network subnet show	readonly	-broadcast-domain Fsx
+cluster	fsxadmin-readonly	protection-type show	readonly	
+cluster	fsxadmin-readonly	qos	readonly	
+cluster	fsxadmin-readonly	san config modify	readonly	
+cluster	fsxadmin-readonly	san config show	readonly	
+cluster	fsxadmin-readonly	security anti-ransomware show	readonly	
+cluster	fsxadmin-readonly	security anti-ransomware volume	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security audit	readonly	
+cluster	fsxadmin-readonly	security certificate	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security certificate config modify	readonly	
+cluster	fsxadmin-readonly	security certificate config show	readonly	
+cluster	fsxadmin-readonly	security certificate create	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security certificate delete	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security certificate show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security config modify	readonly	
+cluster	fsxadmin-readonly	security config ocsp show	readonly	
+cluster	fsxadmin-readonly	security config show	readonly	
+cluster	fsxadmin-readonly	security dynamic-authorization	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security dynamic-authorization user-trust-score	none	
+cluster	fsxadmin-readonly	security ipsec	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security ipsec config modify	readonly	
+cluster	fsxadmin-readonly	security ipsec config show	readonly	
+cluster	fsxadmin-readonly	security key-manager external	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security key-manager health policy	readonly	
+cluster	fsxadmin-readonly	security key-manager key key-table create	readonly	
+cluster	fsxadmin-readonly	security key-manager key key-table delete	readonly	
+cluster	fsxadmin-readonly	security key-manager key key-table modify	readonly	
+cluster	fsxadmin-readonly	security key-manager key key-table show	readonly	
+cluster	fsxadmin-readonly	security key-manager key query	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security key-manager keystore delete	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security key-manager keystore show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security key-manager show-key-store	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security login	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security login create	readonly	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin-readonly	security login delete	readonly	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin-readonly	security login duo	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	security login external-role-mapping	readonly	-ontap-role !fsx-oncall-* -ontap-role !readonly -ontap-role !admin
+cluster	fsxadmin-readonly	security login group role-mapping	readonly	-role !fsx-oncall-* -role !readonly -role !admin
+cluster	fsxadmin-readonly	security login information show	readonly	-vserver !Cluster
+cluster	fsxadmin-readonly	security login modify	readonly	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin-readonly	security login password	all	-username !admin -username !autosupport -username !FSx*
+cluster	fsxadmin-readonly	security login password-prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	security login publickey	all	
+cluster	fsxadmin-readonly	security login rest-role	readonly	-vserver !Cluster -vserver  !FsxId*-fsx-*
+cluster	fsxadmin-readonly	security login role	readonly	
+cluster	fsxadmin-readonly	security login role config modify	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login role config show	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login role create	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login role delete	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login role modify	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login role prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	security login role show	none	-vserver FsxId* -role !fsxadmin-readonly
+cluster	fsxadmin-readonly	security login show	readonly	-username !FSx* -role !fsx-oncall-* -role !readonly -vserver !Cluster -vserver !FsxId*-fsx-*
+cluster	fsxadmin-readonly	security login whoami	readonly	
+cluster	fsxadmin-readonly	security oauth2 client	readonly	
+cluster	fsxadmin-readonly	security oauth2 modify	readonly	
+cluster	fsxadmin-readonly	security oauth2 show	readonly	
+cluster	fsxadmin-readonly	security protocol	readonly	
+cluster	fsxadmin-readonly	security session limit create	readonly	
+cluster	fsxadmin-readonly	security session limit delete	readonly	
+cluster	fsxadmin-readonly	security session limit modify	readonly	
+cluster	fsxadmin-readonly	security session limit show	readonly	
+cluster	fsxadmin-readonly	security session show	readonly	-username !admin
+cluster	fsxadmin-readonly	security snmpusers	none	
+cluster	fsxadmin-readonly	security ssh modify	readonly	
+cluster	fsxadmin-readonly	security ssh show	readonly	
+cluster	fsxadmin-readonly	security ssl	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	set	all	
+cluster	fsxadmin-readonly	sleep	all	
+cluster	fsxadmin-readonly	snaplock	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	snaplock compliance-clock	readonly	
+cluster	fsxadmin-readonly	snapmirror create	readonly	
+cluster	fsxadmin-readonly	snapmirror failover	readonly	
+cluster	fsxadmin-readonly	snapmirror list-destinations	readonly	
+cluster	fsxadmin-readonly	snapmirror list-unprotected	readonly	
+cluster	fsxadmin-readonly	snapmirror mediator	readonly	
+cluster	fsxadmin-readonly	snapmirror policy	readonly	-policy !FSxPolicy*
+cluster	fsxadmin-readonly	snapmirror show	readonly	
+cluster	fsxadmin-readonly	snapmirror show-capabilities	readonly	-endpoint-type !object-store
+cluster	fsxadmin-readonly	snapmirror show-history	readonly	
+cluster	fsxadmin-readonly	snapmirror snapshot-owner	readonly	
+cluster	fsxadmin-readonly	statistics aggregate	readonly	
+cluster	fsxadmin-readonly	statistics catalog	readonly	-object aggr_efficiency|buf_bufstats|buf_qtype|bufcache|cg*|cifs|client*|cluster_peer|compression|ext_cache*|flexcache*|flexgroup*|fpolicy*|lun*|mount|namespace*|nblade_cifs|netstat|nfs*|nic_common|nvmf*|nwk_ctx|object_store*|qtree*|readahead|repl_counters|resource_headroom_*|smb*|spinhi|system:node|top_client|tsse|volume*|waflremote|witness|workload_volume
+cluster	fsxadmin-readonly	statistics lif	readonly	
+cluster	fsxadmin-readonly	statistics lun	readonly	
+cluster	fsxadmin-readonly	statistics qtree	readonly	
+cluster	fsxadmin-readonly	statistics samples	readonly	-sample-id !FsxId*
+cluster	fsxadmin-readonly	statistics settings	none	
+cluster	fsxadmin-readonly	statistics show	readonly	-object aggr_efficiency|buf_bufstats|buf_qtype|bufcache|cg*|cifs|client*|cluster_peer|compression|exec_ctx*|ext_cache*|flexcache*|flexgroup*|fpolicy*|lun*|mount|namespace*|nblade_cifs|netstat|nfs*|nic_common|nvmf*|nwk_ctx|object_store*|qtree*|readahead|repl_counters|resource_headroom_*|smb*|spinhi|system:node|top_client|tsse|volume*|waflremote|witness|workload_volume
+cluster	fsxadmin-readonly	statistics show-periodic	readonly	
+cluster	fsxadmin-readonly	statistics system show	readonly	
+cluster	fsxadmin-readonly	statistics top	readonly	
+cluster	fsxadmin-readonly	statistics volume show	readonly	
+cluster	fsxadmin-readonly	statistics vserver show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	statistics-v1	readonly	
+cluster	fsxadmin-readonly	storage aggregate clusterspace show	readonly	
+cluster	fsxadmin-readonly	storage aggregate create	readonly	-aggregate !aggr0*
+cluster	fsxadmin-readonly	storage aggregate modify	readonly	-aggregate !aggr0*
+cluster	fsxadmin-readonly	storage aggregate object-store config	readonly	-object-store-name !*
+cluster	fsxadmin-readonly	storage aggregate object-store modify	readonly	-aggregate !*
+cluster	fsxadmin-readonly	storage aggregate object-store show	readonly	-aggregate !*
+cluster	fsxadmin-readonly	storage aggregate object-store show-space	readonly	-aggregate !*
+cluster	fsxadmin-readonly	storage aggregate show	readonly	-aggregate !aggr0*
+cluster	fsxadmin-readonly	storage aggregate show-cumulated-efficiency	readonly	-aggregate !aggr0*
+cluster	fsxadmin-readonly	storage aggregate show-efficiency	readonly	
+cluster	fsxadmin-readonly	storage aggregate show-space	readonly	-aggregate !aggr0*
+cluster	fsxadmin-readonly	storage disk show	readonly	-owner !FsxId*
+cluster	fsxadmin-readonly	storage failover modify	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	storage failover show	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	storage pool create	readonly	-nodes !FsxId*
+cluster	fsxadmin-readonly	storage pool show	readonly	-nodes !FsxId*
+cluster	fsxadmin-readonly	storage shelf show	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	storage-service	readonly	
+cluster	fsxadmin-readonly	system	none	
+cluster	fsxadmin-readonly	system health alert modify	readonly	
+cluster	fsxadmin-readonly	system health alert show	readonly	
+cluster	fsxadmin-readonly	system health status show	readonly	
+cluster	fsxadmin-readonly	system node autosupport history show	readonly	
+cluster	fsxadmin-readonly	system node autosupport modify	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	system node autosupport show	readonly	-node !FsxId*
+cluster	fsxadmin-readonly	system node external-cache bypass	none	
+cluster	fsxadmin-readonly	system node external-cache modify	readonly	
+cluster	fsxadmin-readonly	system node external-cache show	readonly	
+cluster	fsxadmin-readonly	system node modify	readonly	
+cluster	fsxadmin-readonly	system node show	readonly	
+cluster	fsxadmin-readonly	system node virtual-machine instance show-settings	readonly	
+cluster	fsxadmin-readonly	system ontapi changes	readonly	
+cluster	fsxadmin-readonly	system services firewall policy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	system services firewall policy service	none	
+cluster	fsxadmin-readonly	system timeout modify	readonly	
+cluster	fsxadmin-readonly	system timeout show	readonly	
+cluster	fsxadmin-readonly	timezone	all	
+cluster	fsxadmin-readonly	version	readonly	
+cluster	fsxadmin-readonly	volume activity-tracking	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume analytics	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume check metadata	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume clone	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume create	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency inactive-data-compression	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency inactive-data-reallocation	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency modify	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency policy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	volume efficiency revert-to	none	
+cluster	fsxadmin-readonly	volume efficiency show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume efficiency stat	readonly	
+cluster	fsxadmin-readonly	volume encryption	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume encryption modify-enc-blob	none	
+cluster	fsxadmin-readonly	volume encryption secure-purge show-version	readonly	
+cluster	fsxadmin-readonly	volume explore	all	-format volume,snapshot,qtree,quota,raid
+cluster	fsxadmin-readonly	volume file	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume file async-delete prepare-for-revert	none	
+cluster	fsxadmin-readonly	volume file clone split load modify	readonly	
+cluster	fsxadmin-readonly	volume file clone split load show	readonly	
+cluster	fsxadmin-readonly	volume file clone token create	readonly	
+cluster	fsxadmin-readonly	volume file clone token delete	readonly	
+cluster	fsxadmin-readonly	volume file clone token modify	readonly	
+cluster	fsxadmin-readonly	volume file clone token show	readonly	
+cluster	fsxadmin-readonly	volume file copy show	readonly	-source-vserver-id !FsxId* -source-vserver-id !Cluster
+cluster	fsxadmin-readonly	volume file fingerprint abort	none	
+cluster	fsxadmin-readonly	volume file fingerprint dump	none	
+cluster	fsxadmin-readonly	volume file move show	readonly	-source-vserver-id !FsxId* -source-vserver-id !Cluster
+cluster	fsxadmin-readonly	volume file source	none	
+cluster	fsxadmin-readonly	volume flexcache	readonly	
+cluster	fsxadmin-readonly	volume flexcache prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	volume flexgroup	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume flexgroup config modify	readonly	
+cluster	fsxadmin-readonly	volume flexgroup config show	readonly	
+cluster	fsxadmin-readonly	volume language	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume managed-feature	readonly	
+cluster	fsxadmin-readonly	volume modify	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume move	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume move governor	none	
+cluster	fsxadmin-readonly	volume move pause	none	
+cluster	fsxadmin-readonly	volume move recommend	none	
+cluster	fsxadmin-readonly	volume move resume	none	
+cluster	fsxadmin-readonly	volume qtree	readonly	
+cluster	fsxadmin-readonly	volume quota	readonly	
+cluster	fsxadmin-readonly	volume reallocation	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume rebalance	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume recovery-queue	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume show-footprint	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume show-space	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume snaplock	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume snaplock prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	volume snapshot	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	volume snapshot event-config modify	readonly	
+cluster	fsxadmin-readonly	volume snapshot event-config show	readonly	
+cluster	fsxadmin-readonly	volume snapshot policy	readonly	
+cluster	fsxadmin-readonly	volume snapshot prepare-for-revert	none	
+cluster	fsxadmin-readonly	volume snapshot snapdb size	none	
+cluster	fsxadmin-readonly	vserver active-directory	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver add-aggregates	none	
+cluster	fsxadmin-readonly	vserver audit	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver audit prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver check	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver cifs	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver cifs branchcache log	readonly	
+cluster	fsxadmin-readonly	vserver cifs cache show-count	readonly	
+cluster	fsxadmin-readonly	vserver cifs prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver cifs security-encryption-required-dc-connections-prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver cifs stat	readonly	
+cluster	fsxadmin-readonly	vserver config	none	
+cluster	fsxadmin-readonly	vserver consistency-group	readonly	
+cluster	fsxadmin-readonly	vserver copy-offload	readonly	
+cluster	fsxadmin-readonly	vserver create	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver export-policy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver fcp	readonly	
+cluster	fsxadmin-readonly	vserver fpolicy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver http prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver http-proxy	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver iscsi	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver iscsi security prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver locks	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver locks show-mirrored-open-count	readonly	
+cluster	fsxadmin-readonly	vserver modify	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver name-mapping	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver name-mapping create	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver name-mapping delete	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver name-mapping modify	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver name-mapping show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver nfs	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver nfs client	readonly	
+cluster	fsxadmin-readonly	vserver nfs credentials count	all	
+cluster	fsxadmin-readonly	vserver nfs prepare-to-downgrade	none	
+cluster	fsxadmin-readonly	vserver nfs storepool	readonly	
+cluster	fsxadmin-readonly	vserver nvme	readonly	
+cluster	fsxadmin-readonly	vserver object-store-server	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver object-store-server bucket	readonly	-vserver !FsxId* -vserver !Cluster -bucket !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server bucket check-rbac	readonly	-server !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server cache flush	readonly	-vserver !FsxId* -user-name !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server cache show	readonly	-vserver !FsxId* -user-name !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server create	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver object-store-server delete	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver object-store-server group	readonly	-vserver !FsxId* -name !amazon-fsx* -users !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server modify	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver object-store-server policy	readonly	-vserver !FsxId* -policy !amazon-fsx*
+cluster	fsxadmin-readonly	vserver object-store-server show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver object-store-server user	readonly	-vserver !FsxId*
+cluster	fsxadmin-readonly	vserver options	readonly	-option-name replication.throttle.incoming.max_kbs|replication.throttle.outgoing.max_kbs
+cluster	fsxadmin-readonly	vserver peer	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver prepare-for-revert	none	
+cluster	fsxadmin-readonly	vserver remove-aggregates	none	
+cluster	fsxadmin-readonly	vserver rename	none	
+cluster	fsxadmin-readonly	vserver san	none	
+cluster	fsxadmin-readonly	vserver security	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver services	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver services access-check server-discovery show-host	all	
+cluster	fsxadmin-readonly	vserver services name-service cache settings modify	readonly	
+cluster	fsxadmin-readonly	vserver services name-service cache settings show	readonly	
+cluster	fsxadmin-readonly	vserver services name-service cache show-count	readonly	
+cluster	fsxadmin-readonly	vserver services name-service ldap client schema delete	readonly	
+cluster	fsxadmin-readonly	vserver services name-service ldap client schema modify	readonly	
+cluster	fsxadmin-readonly	vserver services name-service ldap client schema show	readonly	
+cluster	fsxadmin-readonly	vserver services name-service unix-group max-limit	readonly	
+cluster	fsxadmin-readonly	vserver services name-service unix-user max-limit	readonly	
+cluster	fsxadmin-readonly	vserver services name-service ypbind status	all	
+cluster	fsxadmin-readonly	vserver services ndmp	readonly	
+cluster	fsxadmin-readonly	vserver services web access	readonly	-role !admin -role !none -role !readonly
+cluster	fsxadmin-readonly	vserver show	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver show-aggregates	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver show-protocols	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver snapdiff-rpc-server	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver storage-limit	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	fsxadmin-readonly	vserver vscan	readonly	-vserver !FsxId* -vserver !Cluster
+cluster	none	DEFAULT	none	
+cluster	snaplock	DEFAULT	none	
+cluster	snaplock	security jit-privilege elevate	all	
+cluster	snaplock	security jit-privilege reset	all	
+cluster	snaplock	security jit-privilege show-remaining-time	all	
+cluster	snaplock	security login password	all	
+cluster	snaplock	set	all	
+cluster	snaplock	volume create	all	
+cluster	snaplock	volume modify	all	
+cluster	snaplock	volume move	all	
+cluster	snaplock	volume move governor	none	
+cluster	snaplock	volume move recommend	none	
+cluster	snaplock	volume show	all	
+svm	vsadmin	DEFAULT	none	
+svm	vsadmin	application create	all	
+svm	vsadmin	application delete	all	
+svm	vsadmin	application hostdata	all	
+svm	vsadmin	application metadata	all	
+svm	vsadmin	application modify	all	
+svm	vsadmin	application show	readonly	
+svm	vsadmin	application show-lun	readonly	
+svm	vsadmin	application show-statistics	readonly	
+svm	vsadmin	application show-template	readonly	
+svm	vsadmin	application snapshot	all	
+svm	vsadmin	application volume show	readonly	
+svm	vsadmin	cluster application-record	all	
+svm	vsadmin	df	readonly	
+svm	vsadmin	event generate-autosupport-log	all	
+svm	vsadmin	job	all	
+svm	vsadmin	job schedule	all	
+svm	vsadmin	job schedule cron	all	
+svm	vsadmin	job schedule interval	all	
+svm	vsadmin	lun	all	
+svm	vsadmin	network arp	all	
+svm	vsadmin	network connections	readonly	
+svm	vsadmin	network connections active show-clients	none	
+svm	vsadmin	network connections active show-protocols	none	
+svm	vsadmin	network connections active show-services	none	
+svm	vsadmin	network interface dns-lb-stats	readonly	
+svm	vsadmin	network interface failover-groups	readonly	
+svm	vsadmin	network interface lif-weights	readonly	
+svm	vsadmin	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin	network ndp	all	
+svm	vsadmin	network ping	all	
+svm	vsadmin	network ping6	all	
+svm	vsadmin	network port show	readonly	-broadcast-domain Fsx
+svm	vsadmin	network route active-entry show	all	
+svm	vsadmin	network route show	all	
+svm	vsadmin	network route show-lifs	readonly	-lifs !amazon-fsx*
+svm	vsadmin	network traceroute	all	
+svm	vsadmin	network traceroute6	all	
+svm	vsadmin	security certificate	all	
+svm	vsadmin	security certificate file	none	
+svm	vsadmin	security ipsec ca-certificate	all	
+svm	vsadmin	security ipsec config show	readonly	
+svm	vsadmin	security ipsec policy	all	
+svm	vsadmin	security ipsec show-ikesa	readonly	
+svm	vsadmin	security ipsec show-ipsecsa	readonly	
+svm	vsadmin	security jit-privilege elevate	all	
+svm	vsadmin	security jit-privilege reset	all	
+svm	vsadmin	security jit-privilege show-remaining-time	all	
+svm	vsadmin	security key-manager external	all	
+svm	vsadmin	security key-manager key query	all	
+svm	vsadmin	security key-manager keystore	all	
+svm	vsadmin	security key-manager show-key-store	readonly	
+svm	vsadmin	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin	security login banner	all	
+svm	vsadmin	security login motd	all	
+svm	vsadmin	security login password	all	
+svm	vsadmin	security login publickey	all	
+svm	vsadmin	security login role show-ontapi	all	
+svm	vsadmin	security login role show-user-capability	all	
+svm	vsadmin	security login totp	all	
+svm	vsadmin	security login whoami	all	
+svm	vsadmin	security multi-admin-verify request	all	
+svm	vsadmin	security multi-admin-verify request approve	none	
+svm	vsadmin	security multi-admin-verify request veto	none	
+svm	vsadmin	security ssh	all	
+svm	vsadmin	security ssl	all	
+svm	vsadmin	set	all	
+svm	vsadmin	snapdiff api start	all	
+svm	vsadmin	snaplock	all	
+svm	vsadmin	snapmirror	all	
+svm	vsadmin	snapmirror object-store	none	
+svm	vsadmin	statistics	readonly	
+svm	vsadmin	statistics catalog	readonly	
+svm	vsadmin	statistics samples delete	all	
+svm	vsadmin	statistics show-periodic	readonly	
+svm	vsadmin	statistics start	readonly	
+svm	vsadmin	statistics stop	readonly	
+svm	vsadmin	storage-service	readonly	
+svm	vsadmin	storage-unit	all	
+svm	vsadmin	system node virtual-machine instance show-settings	readonly	
+svm	vsadmin	system services firewall policy	readonly	
+svm	vsadmin	timezone	all	
+svm	vsadmin	version	all	
+svm	vsadmin	volume	all	
+svm	vsadmin	volume efficiency	none	
+svm	vsadmin	volume move	none	
+svm	vsadmin	vserver	none	
+svm	vsadmin	vserver active-directory	all	
+svm	vsadmin	vserver audit	all	
+svm	vsadmin	vserver check	readonly	
+svm	vsadmin	vserver cifs	all	
+svm	vsadmin	vserver consistency-group	all	
+svm	vsadmin	vserver copy-offload	readonly	
+svm	vsadmin	vserver export-policy	all	
+svm	vsadmin	vserver fcp	all	
+svm	vsadmin	vserver fpolicy	all	
+svm	vsadmin	vserver http	all	
+svm	vsadmin	vserver http-proxy	all	
+svm	vsadmin	vserver iscsi	all	
+svm	vsadmin	vserver locks	all	
+svm	vsadmin	vserver migrate	readonly	
+svm	vsadmin	vserver name-mapping	none	
+svm	vsadmin	vserver name-mapping create	all	-pattern !amazon-fsx*
+svm	vsadmin	vserver name-mapping insert	all	-pattern !amazon-fsx*
+svm	vsadmin	vserver name-mapping refresh-hostname-ip	all	
+svm	vsadmin	vserver name-mapping swap	all	
+svm	vsadmin	vserver nfs	all	
+svm	vsadmin	vserver nvme	all	
+svm	vsadmin	vserver object-store-server	none	
+svm	vsadmin	vserver object-store-server audit	all	
+svm	vsadmin	vserver object-store-server bucket	all	-bucket !amazon-fsx*
+svm	vsadmin	vserver object-store-server bucket clear-validity-cache	all	
+svm	vsadmin	vserver object-store-server cache settings	all	
+svm	vsadmin	vserver object-store-server cache show	all	-user-name !amazon-fsx*
+svm	vsadmin	vserver object-store-server create	all	-object-store-server !amazon-fsx*
+svm	vsadmin	vserver object-store-server group	all	-name !amazon-fsx* -users !amazon-fsx*
+svm	vsadmin	vserver object-store-server options	all	
+svm	vsadmin	vserver object-store-server policy	all	-policy !amazon-fsx*
+svm	vsadmin	vserver object-store-server show-flexcache-bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin	vserver object-store-server user	all	-user !amazon-fsx*
+svm	vsadmin	vserver peer	readonly	
+svm	vsadmin	vserver security file-directory	all	
+svm	vsadmin	vserver security trace filter	all	
+svm	vsadmin	vserver security trace trace-result	all	
+svm	vsadmin	vserver services	all	
+svm	vsadmin	vserver services name-service unix-group max-limit	none	
+svm	vsadmin	vserver services name-service unix-user max-limit	none	
+svm	vsadmin	vserver services ndmp	all	
+svm	vsadmin	vserver services ndmp status	all	
+svm	vsadmin	vserver services web	none	
+svm	vsadmin	vserver show	readonly	
+svm	vsadmin	vserver show-aggregates	readonly	
+svm	vsadmin	vserver show-protocols	readonly	
+svm	vsadmin	vserver smtape	all	
+svm	vsadmin	vserver smtape break	all	
+svm	vsadmin	vserver snapdiff-rpc-server	readonly	
+svm	vsadmin	vserver vscan	all	
+svm	vsadmin-backup	DEFAULT	none	
+svm	vsadmin-backup	df	readonly	
+svm	vsadmin-backup	job	all	
+svm	vsadmin-backup	job schedule	readonly	
+svm	vsadmin-backup	job schedule cron	none	
+svm	vsadmin-backup	job schedule interval	none	
+svm	vsadmin-backup	network interface dns-lb-stats	readonly	
+svm	vsadmin-backup	network interface failover-groups	readonly	
+svm	vsadmin-backup	network interface lif-weights	readonly	
+svm	vsadmin-backup	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-backup	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin-backup	security certificate	readonly	
+svm	vsadmin-backup	security certificate file	none	
+svm	vsadmin-backup	security ipsec ca-certificate	all	
+svm	vsadmin-backup	security ipsec config show	readonly	
+svm	vsadmin-backup	security ipsec policy	all	
+svm	vsadmin-backup	security ipsec show-ikesa	readonly	
+svm	vsadmin-backup	security ipsec show-ipsecsa	readonly	
+svm	vsadmin-backup	security jit-privilege elevate	all	
+svm	vsadmin-backup	security jit-privilege reset	all	
+svm	vsadmin-backup	security jit-privilege show-remaining-time	all	
+svm	vsadmin-backup	security key-manager external	readonly	
+svm	vsadmin-backup	security key-manager key query	all	
+svm	vsadmin-backup	security key-manager keystore	readonly	
+svm	vsadmin-backup	security key-manager show-key-store	readonly	
+svm	vsadmin-backup	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin-backup	security login banner	readonly	
+svm	vsadmin-backup	security login motd	readonly	
+svm	vsadmin-backup	security login password	all	
+svm	vsadmin-backup	security login publickey	all	
+svm	vsadmin-backup	security login role show-ontapi	all	
+svm	vsadmin-backup	security login role show-user-capability	all	
+svm	vsadmin-backup	security login totp	all	
+svm	vsadmin-backup	security multi-admin-verify request	all	
+svm	vsadmin-backup	security multi-admin-verify request approve	none	
+svm	vsadmin-backup	security multi-admin-verify request veto	none	
+svm	vsadmin-backup	set	all	
+svm	vsadmin-backup	snapdiff api start	all	
+svm	vsadmin-backup	snapmirror	all	
+svm	vsadmin-backup	snapmirror initialize-ls-set	none	
+svm	vsadmin-backup	snapmirror object-store	none	
+svm	vsadmin-backup	snapmirror update-ls-set	none	
+svm	vsadmin-backup	timezone	all	
+svm	vsadmin-backup	version	all	
+svm	vsadmin-backup	volume	all	
+svm	vsadmin-backup	volume clone	none	
+svm	vsadmin-backup	volume efficiency	none	
+svm	vsadmin-backup	volume file	none	
+svm	vsadmin-backup	volume flexcache	none	
+svm	vsadmin-backup	volume move	none	
+svm	vsadmin-backup	volume qtree	none	
+svm	vsadmin-backup	volume quota	none	
+svm	vsadmin-backup	volume snapshot	all	
+svm	vsadmin-backup	vserver peer	readonly	
+svm	vsadmin-backup	vserver services ndmp	all	
+svm	vsadmin-protocol	DEFAULT	none	
+svm	vsadmin-protocol	df	readonly	
+svm	vsadmin-protocol	lun	all	
+svm	vsadmin-protocol	network interface dns-lb-stats	readonly	
+svm	vsadmin-protocol	network interface failover-groups	none	
+svm	vsadmin-protocol	network interface lif-weights	readonly	
+svm	vsadmin-protocol	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-protocol	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin-protocol	security certificate	readonly	
+svm	vsadmin-protocol	security certificate file	none	
+svm	vsadmin-protocol	security ipsec ca-certificate	all	
+svm	vsadmin-protocol	security ipsec config show	readonly	
+svm	vsadmin-protocol	security ipsec policy	all	
+svm	vsadmin-protocol	security ipsec show-ikesa	readonly	
+svm	vsadmin-protocol	security ipsec show-ipsecsa	readonly	
+svm	vsadmin-protocol	security jit-privilege elevate	all	
+svm	vsadmin-protocol	security jit-privilege reset	all	
+svm	vsadmin-protocol	security jit-privilege show-remaining-time	all	
+svm	vsadmin-protocol	security key-manager external	readonly	
+svm	vsadmin-protocol	security key-manager key query	all	
+svm	vsadmin-protocol	security key-manager keystore	readonly	
+svm	vsadmin-protocol	security key-manager show-key-store	readonly	
+svm	vsadmin-protocol	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin-protocol	security login banner	all	
+svm	vsadmin-protocol	security login motd	all	
+svm	vsadmin-protocol	security login password	all	
+svm	vsadmin-protocol	security login publickey	all	
+svm	vsadmin-protocol	security login role show-ontapi	all	
+svm	vsadmin-protocol	security login role show-user-capability	all	
+svm	vsadmin-protocol	security login totp	all	
+svm	vsadmin-protocol	security ssh	all	
+svm	vsadmin-protocol	security ssl	all	
+svm	vsadmin-protocol	set	all	
+svm	vsadmin-protocol	snapdiff api start	all	
+svm	vsadmin-protocol	storage-unit	all	
+svm	vsadmin-protocol	timezone	all	
+svm	vsadmin-protocol	version	all	
+svm	vsadmin-protocol	volume	readonly	
+svm	vsadmin-protocol	volume check	none	
+svm	vsadmin-protocol	volume efficiency	none	
+svm	vsadmin-protocol	volume move	none	
+svm	vsadmin-protocol	vserver	none	
+svm	vsadmin-protocol	vserver active-directory	all	
+svm	vsadmin-protocol	vserver audit	all	
+svm	vsadmin-protocol	vserver check	readonly	
+svm	vsadmin-protocol	vserver cifs	all	
+svm	vsadmin-protocol	vserver consistency-group	all	
+svm	vsadmin-protocol	vserver copy-offload	readonly	
+svm	vsadmin-protocol	vserver export-policy	all	
+svm	vsadmin-protocol	vserver fcp	all	
+svm	vsadmin-protocol	vserver fpolicy	all	
+svm	vsadmin-protocol	vserver http	all	
+svm	vsadmin-protocol	vserver http-proxy	all	
+svm	vsadmin-protocol	vserver iscsi	all	
+svm	vsadmin-protocol	vserver locks	all	
+svm	vsadmin-protocol	vserver migrate	readonly	
+svm	vsadmin-protocol	vserver name-mapping	none	
+svm	vsadmin-protocol	vserver name-mapping create	all	-pattern !amazon-fsx*
+svm	vsadmin-protocol	vserver name-mapping insert	all	-pattern !amazon-fsx*
+svm	vsadmin-protocol	vserver name-mapping refresh-hostname-ip	all	
+svm	vsadmin-protocol	vserver name-mapping swap	all	
+svm	vsadmin-protocol	vserver nfs	all	
+svm	vsadmin-protocol	vserver nvme	all	
+svm	vsadmin-protocol	vserver object-store-server	none	
+svm	vsadmin-protocol	vserver object-store-server audit	all	
+svm	vsadmin-protocol	vserver object-store-server bucket	all	-bucket !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server bucket clear-validity-cache	all	
+svm	vsadmin-protocol	vserver object-store-server cache settings	all	
+svm	vsadmin-protocol	vserver object-store-server cache show	all	-user-name !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server create	all	-object-store-server !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server group	all	-name !amazon-fsx* -users !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server options	all	
+svm	vsadmin-protocol	vserver object-store-server policy	all	-policy !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server show-flexcache-bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-protocol	vserver object-store-server user	all	-user !amazon-fsx*
+svm	vsadmin-protocol	vserver peer	readonly	
+svm	vsadmin-protocol	vserver security trace filter	all	
+svm	vsadmin-protocol	vserver security trace trace-result	all	
+svm	vsadmin-protocol	vserver services	all	
+svm	vsadmin-protocol	vserver services name-service unix-group max-limit	none	
+svm	vsadmin-protocol	vserver services name-service unix-user max-limit	none	
+svm	vsadmin-protocol	vserver services web	none	
+svm	vsadmin-protocol	vserver show	readonly	
+svm	vsadmin-protocol	vserver show-aggregates	readonly	
+svm	vsadmin-protocol	vserver show-protocols	readonly	
+svm	vsadmin-protocol	vserver snapdiff-rpc-server	readonly	
+svm	vsadmin-protocol	vserver vscan	all	
+svm	vsadmin-readonly	DEFAULT	none	
+svm	vsadmin-readonly	application create	readonly	
+svm	vsadmin-readonly	application delete	readonly	
+svm	vsadmin-readonly	application hostdata show	readonly	
+svm	vsadmin-readonly	application metadata show	readonly	
+svm	vsadmin-readonly	application modify	readonly	
+svm	vsadmin-readonly	application show	readonly	
+svm	vsadmin-readonly	application show-lun	readonly	
+svm	vsadmin-readonly	application show-statistics	readonly	
+svm	vsadmin-readonly	application show-template	readonly	
+svm	vsadmin-readonly	application snapshot show	readonly	
+svm	vsadmin-readonly	application volume show	readonly	
+svm	vsadmin-readonly	cluster application-record show	readonly	
+svm	vsadmin-readonly	df	readonly	
+svm	vsadmin-readonly	job show	readonly	
+svm	vsadmin-readonly	lun	readonly	
+svm	vsadmin-readonly	network arp show	readonly	
+svm	vsadmin-readonly	network connections	readonly	
+svm	vsadmin-readonly	network connections active show-clients	none	
+svm	vsadmin-readonly	network connections active show-protocols	none	
+svm	vsadmin-readonly	network connections active show-services	none	
+svm	vsadmin-readonly	network interface dns-lb-stats	readonly	
+svm	vsadmin-readonly	network interface failover-groups	none	
+svm	vsadmin-readonly	network interface lif-weights	readonly	
+svm	vsadmin-readonly	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-readonly	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin-readonly	network ndp neighbor show	readonly	
+svm	vsadmin-readonly	network ping	all	
+svm	vsadmin-readonly	network ping6	all	
+svm	vsadmin-readonly	network port show	readonly	-broadcast-domain Fsx
+svm	vsadmin-readonly	network route active-entry show	readonly	
+svm	vsadmin-readonly	network route show	readonly	
+svm	vsadmin-readonly	network route show-lifs	readonly	-lifs !amazon-fsx*
+svm	vsadmin-readonly	network traceroute	all	
+svm	vsadmin-readonly	network traceroute6	all	
+svm	vsadmin-readonly	security certificate	readonly	
+svm	vsadmin-readonly	security certificate file	none	
+svm	vsadmin-readonly	security ipsec ca-certificate	all	
+svm	vsadmin-readonly	security ipsec config show	readonly	
+svm	vsadmin-readonly	security ipsec policy	readonly	
+svm	vsadmin-readonly	security ipsec show-ikesa	readonly	
+svm	vsadmin-readonly	security ipsec show-ipsecsa	readonly	
+svm	vsadmin-readonly	security jit-privilege elevate	all	
+svm	vsadmin-readonly	security jit-privilege reset	all	
+svm	vsadmin-readonly	security jit-privilege show-remaining-time	all	
+svm	vsadmin-readonly	security key-manager external	readonly	
+svm	vsadmin-readonly	security key-manager key query	all	
+svm	vsadmin-readonly	security key-manager keystore	readonly	
+svm	vsadmin-readonly	security key-manager show-key-store	readonly	
+svm	vsadmin-readonly	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin-readonly	security login banner	readonly	
+svm	vsadmin-readonly	security login motd	readonly	
+svm	vsadmin-readonly	security login password	all	
+svm	vsadmin-readonly	security login publickey	all	
+svm	vsadmin-readonly	security login role show-ontapi	all	
+svm	vsadmin-readonly	security login role show-user-capability	all	
+svm	vsadmin-readonly	security login totp	all	
+svm	vsadmin-readonly	security login whoami	readonly	
+svm	vsadmin-readonly	security ssh	readonly	
+svm	vsadmin-readonly	security ssl	readonly	
+svm	vsadmin-readonly	set	all	
+svm	vsadmin-readonly	snapdiff api status	readonly	
+svm	vsadmin-readonly	snapmirror	readonly	
+svm	vsadmin-readonly	snapmirror object-store	none	
+svm	vsadmin-readonly	statistics	readonly	
+svm	vsadmin-readonly	statistics cache	none	
+svm	vsadmin-readonly	statistics catalog	readonly	
+svm	vsadmin-readonly	statistics lif	none	
+svm	vsadmin-readonly	statistics lun	none	
+svm	vsadmin-readonly	statistics samples	none	
+svm	vsadmin-readonly	statistics show-periodic	none	
+svm	vsadmin-readonly	statistics start	none	
+svm	vsadmin-readonly	statistics stop	none	
+svm	vsadmin-readonly	statistics volume	none	
+svm	vsadmin-readonly	storage-service	readonly	
+svm	vsadmin-readonly	storage-unit	readonly	
+svm	vsadmin-readonly	system node virtual-machine instance show-settings	readonly	
+svm	vsadmin-readonly	system services firewall policy	readonly	
+svm	vsadmin-readonly	timezone	all	
+svm	vsadmin-readonly	version	all	
+svm	vsadmin-readonly	volume	readonly	
+svm	vsadmin-readonly	volume check	none	
+svm	vsadmin-readonly	volume efficiency	none	
+svm	vsadmin-readonly	volume move	none	
+svm	vsadmin-readonly	vserver	none	
+svm	vsadmin-readonly	vserver active-directory	readonly	
+svm	vsadmin-readonly	vserver audit	readonly	
+svm	vsadmin-readonly	vserver check	readonly	
+svm	vsadmin-readonly	vserver cifs	readonly	
+svm	vsadmin-readonly	vserver cifs users-and-groups import	none	
+svm	vsadmin-readonly	vserver consistency-group	readonly	
+svm	vsadmin-readonly	vserver copy-offload	readonly	
+svm	vsadmin-readonly	vserver export-policy	readonly	
+svm	vsadmin-readonly	vserver export-policy config-checker	none	
+svm	vsadmin-readonly	vserver fcp	readonly	
+svm	vsadmin-readonly	vserver fpolicy	readonly	
+svm	vsadmin-readonly	vserver http-proxy	readonly	
+svm	vsadmin-readonly	vserver iscsi	readonly	
+svm	vsadmin-readonly	vserver locks	readonly	
+svm	vsadmin-readonly	vserver migrate	readonly	
+svm	vsadmin-readonly	vserver name-mapping	none	
+svm	vsadmin-readonly	vserver name-mapping create	readonly	-pattern !amazon-fsx*
+svm	vsadmin-readonly	vserver nfs	readonly	
+svm	vsadmin-readonly	vserver nvme	readonly	
+svm	vsadmin-readonly	vserver object-store-server	none	
+svm	vsadmin-readonly	vserver object-store-server active-directory	readonly	
+svm	vsadmin-readonly	vserver object-store-server audit	readonly	
+svm	vsadmin-readonly	vserver object-store-server bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server bucket clear-validity-cache	readonly	
+svm	vsadmin-readonly	vserver object-store-server cache settings	readonly	
+svm	vsadmin-readonly	vserver object-store-server cache show	readonly	-user-name !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server create	readonly	-object-store-server !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server group	readonly	-name !amazon-fsx* -users !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server options	readonly	
+svm	vsadmin-readonly	vserver object-store-server policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server show-flexcache-bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-readonly	vserver object-store-server user	readonly	
+svm	vsadmin-readonly	vserver peer	readonly	
+svm	vsadmin-readonly	vserver security file-directory	readonly	
+svm	vsadmin-readonly	vserver security trace filter	readonly	
+svm	vsadmin-readonly	vserver security trace trace-result	readonly	
+svm	vsadmin-readonly	vserver services	readonly	
+svm	vsadmin-readonly	vserver services name-service unix-group max-limit	none	
+svm	vsadmin-readonly	vserver services name-service unix-user max-limit	none	
+svm	vsadmin-readonly	vserver services ndmp	readonly	
+svm	vsadmin-readonly	vserver services ndmp status	readonly	
+svm	vsadmin-readonly	vserver services web	none	
+svm	vsadmin-readonly	vserver show	readonly	
+svm	vsadmin-readonly	vserver show-aggregates	readonly	
+svm	vsadmin-readonly	vserver show-protocols	readonly	
+svm	vsadmin-readonly	vserver snapdiff-rpc-server	readonly	
+svm	vsadmin-readonly	vserver vscan	readonly	
+svm	vsadmin-snaplock	DEFAULT	none	
+svm	vsadmin-snaplock	df	readonly	
+svm	vsadmin-snaplock	job	all	
+svm	vsadmin-snaplock	job schedule	readonly	
+svm	vsadmin-snaplock	job schedule cron	none	
+svm	vsadmin-snaplock	job schedule interval	none	
+svm	vsadmin-snaplock	network interface dns-lb-stats	readonly	
+svm	vsadmin-snaplock	network interface failover-groups	readonly	
+svm	vsadmin-snaplock	network interface lif-weights	readonly	
+svm	vsadmin-snaplock	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-snaplock	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin-snaplock	security certificate	readonly	
+svm	vsadmin-snaplock	security certificate file	none	
+svm	vsadmin-snaplock	security ipsec ca-certificate	all	
+svm	vsadmin-snaplock	security ipsec config show	readonly	
+svm	vsadmin-snaplock	security ipsec policy	all	
+svm	vsadmin-snaplock	security ipsec show-ikesa	readonly	
+svm	vsadmin-snaplock	security ipsec show-ipsecsa	readonly	
+svm	vsadmin-snaplock	security jit-privilege elevate	all	
+svm	vsadmin-snaplock	security jit-privilege reset	all	
+svm	vsadmin-snaplock	security jit-privilege show-remaining-time	all	
+svm	vsadmin-snaplock	security key-manager external	readonly	
+svm	vsadmin-snaplock	security key-manager key query	all	
+svm	vsadmin-snaplock	security key-manager keystore	readonly	
+svm	vsadmin-snaplock	security key-manager show-key-store	readonly	
+svm	vsadmin-snaplock	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin-snaplock	security login banner	all	
+svm	vsadmin-snaplock	security login motd	all	
+svm	vsadmin-snaplock	security login password	all	
+svm	vsadmin-snaplock	security login publickey	all	
+svm	vsadmin-snaplock	security login role show-ontapi	all	
+svm	vsadmin-snaplock	security login role show-user-capability	all	
+svm	vsadmin-snaplock	security login totp	all	
+svm	vsadmin-snaplock	security multi-admin-verify request	all	
+svm	vsadmin-snaplock	security multi-admin-verify request approve	none	
+svm	vsadmin-snaplock	security multi-admin-verify request veto	none	
+svm	vsadmin-snaplock	security ssh	all	
+svm	vsadmin-snaplock	security ssl	all	
+svm	vsadmin-snaplock	set	all	
+svm	vsadmin-snaplock	snaplock	all	
+svm	vsadmin-snaplock	timezone	all	
+svm	vsadmin-snaplock	version	all	
+svm	vsadmin-snaplock	volume	all	
+svm	vsadmin-snaplock	vserver	none	
+svm	vsadmin-snaplock	vserver active-directory	all	
+svm	vsadmin-snaplock	vserver audit	all	
+svm	vsadmin-snaplock	vserver check	readonly	
+svm	vsadmin-snaplock	vserver cifs	all	
+svm	vsadmin-snaplock	vserver consistency-group	readonly	
+svm	vsadmin-snaplock	vserver copy-offload	readonly	
+svm	vsadmin-snaplock	vserver export-policy	all	
+svm	vsadmin-snaplock	vserver fcp	readonly	
+svm	vsadmin-snaplock	vserver fpolicy	all	
+svm	vsadmin-snaplock	vserver http	all	
+svm	vsadmin-snaplock	vserver http-proxy	readonly	
+svm	vsadmin-snaplock	vserver iscsi	readonly	
+svm	vsadmin-snaplock	vserver locks	all	
+svm	vsadmin-snaplock	vserver migrate	readonly	
+svm	vsadmin-snaplock	vserver name-mapping	none	
+svm	vsadmin-snaplock	vserver name-mapping create	all	-pattern !amazon-fsx*
+svm	vsadmin-snaplock	vserver name-mapping insert	all	-pattern !amazon-fsx*
+svm	vsadmin-snaplock	vserver name-mapping refresh-hostname-ip	all	
+svm	vsadmin-snaplock	vserver name-mapping swap	all	
+svm	vsadmin-snaplock	vserver nfs	all	
+svm	vsadmin-snaplock	vserver nvme	readonly	
+svm	vsadmin-snaplock	vserver object-store-server	none	
+svm	vsadmin-snaplock	vserver object-store-server active-directory	readonly	
+svm	vsadmin-snaplock	vserver object-store-server audit	readonly	
+svm	vsadmin-snaplock	vserver object-store-server bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server bucket clear-validity-cache	readonly	
+svm	vsadmin-snaplock	vserver object-store-server cache settings	readonly	
+svm	vsadmin-snaplock	vserver object-store-server cache show	readonly	-user-name !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server create	readonly	-object-store-server !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server group	readonly	-name !amazon-fsx* -users !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server options	readonly	
+svm	vsadmin-snaplock	vserver object-store-server policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server show-flexcache-bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-snaplock	vserver object-store-server user	readonly	-user !amazon-fsx*
+svm	vsadmin-snaplock	vserver peer	readonly	
+svm	vsadmin-snaplock	vserver security trace filter	all	
+svm	vsadmin-snaplock	vserver security trace trace-result	all	
+svm	vsadmin-snaplock	vserver services	all	
+svm	vsadmin-snaplock	vserver services name-service unix-group max-limit	none	
+svm	vsadmin-snaplock	vserver services name-service unix-user max-limit	none	
+svm	vsadmin-snaplock	vserver show	readonly	
+svm	vsadmin-snaplock	vserver show-aggregates	readonly	
+svm	vsadmin-snaplock	vserver show-protocols	readonly	
+svm	vsadmin-snaplock	vserver snapdiff-rpc-server	readonly	
+svm	vsadmin-snaplock	vserver vscan	all	
+svm	vsadmin-volume	DEFAULT	none	
+svm	vsadmin-volume	df	readonly	
+svm	vsadmin-volume	job	all	
+svm	vsadmin-volume	job schedule	readonly	
+svm	vsadmin-volume	job schedule cron	none	
+svm	vsadmin-volume	job schedule interval	none	
+svm	vsadmin-volume	lun	all	
+svm	vsadmin-volume	network interface dns-lb-stats	readonly	
+svm	vsadmin-volume	network interface failover-groups	none	
+svm	vsadmin-volume	network interface lif-weights	readonly	
+svm	vsadmin-volume	network interface service-policy	readonly	-policy !amazon-fsx*
+svm	vsadmin-volume	network interface show	readonly	-lif !amazon-fsx*
+svm	vsadmin-volume	security certificate	readonly	
+svm	vsadmin-volume	security certificate file	none	
+svm	vsadmin-volume	security ipsec ca-certificate	all	
+svm	vsadmin-volume	security ipsec config show	readonly	
+svm	vsadmin-volume	security ipsec policy	all	
+svm	vsadmin-volume	security ipsec show-ikesa	readonly	
+svm	vsadmin-volume	security ipsec show-ipsecsa	readonly	
+svm	vsadmin-volume	security jit-privilege elevate	all	
+svm	vsadmin-volume	security jit-privilege reset	all	
+svm	vsadmin-volume	security jit-privilege show-remaining-time	all	
+svm	vsadmin-volume	security key-manager external	readonly	
+svm	vsadmin-volume	security key-manager key query	all	
+svm	vsadmin-volume	security key-manager keystore	readonly	
+svm	vsadmin-volume	security key-manager show-key-store	readonly	
+svm	vsadmin-volume	security key-manager volume-encryption-supported	readonly	
+svm	vsadmin-volume	security login banner	all	
+svm	vsadmin-volume	security login motd	all	
+svm	vsadmin-volume	security login password	all	
+svm	vsadmin-volume	security login publickey	all	
+svm	vsadmin-volume	security login role show-ontapi	all	
+svm	vsadmin-volume	security login role show-user-capability	all	
+svm	vsadmin-volume	security login totp	all	
+svm	vsadmin-volume	security multi-admin-verify request	all	
+svm	vsadmin-volume	security multi-admin-verify request approve	none	
+svm	vsadmin-volume	security multi-admin-verify request veto	none	
+svm	vsadmin-volume	security ssh	all	
+svm	vsadmin-volume	security ssl	all	
+svm	vsadmin-volume	set	all	
+svm	vsadmin-volume	snapdiff api start	all	
+svm	vsadmin-volume	storage-unit	all	
+svm	vsadmin-volume	timezone	all	
+svm	vsadmin-volume	version	all	
+svm	vsadmin-volume	volume	all	
+svm	vsadmin-volume	volume efficiency	none	
+svm	vsadmin-volume	volume move	none	
+svm	vsadmin-volume	vserver	none	
+svm	vsadmin-volume	vserver active-directory	all	
+svm	vsadmin-volume	vserver audit	all	
+svm	vsadmin-volume	vserver check	readonly	
+svm	vsadmin-volume	vserver cifs	all	
+svm	vsadmin-volume	vserver consistency-group	all	
+svm	vsadmin-volume	vserver copy-offload	readonly	
+svm	vsadmin-volume	vserver export-policy	all	
+svm	vsadmin-volume	vserver fcp	all	
+svm	vsadmin-volume	vserver fpolicy	all	
+svm	vsadmin-volume	vserver http	all	
+svm	vsadmin-volume	vserver http-proxy	readonly	
+svm	vsadmin-volume	vserver iscsi	all	
+svm	vsadmin-volume	vserver locks	all	
+svm	vsadmin-volume	vserver migrate	readonly	
+svm	vsadmin-volume	vserver name-mapping	none	
+svm	vsadmin-volume	vserver name-mapping create	all	-pattern !amazon-fsx*
+svm	vsadmin-volume	vserver name-mapping insert	all	-pattern !amazon-fsx*
+svm	vsadmin-volume	vserver name-mapping refresh-hostname-ip	all	
+svm	vsadmin-volume	vserver name-mapping swap	all	
+svm	vsadmin-volume	vserver nfs	all	
+svm	vsadmin-volume	vserver nvme	all	
+svm	vsadmin-volume	vserver object-store-server	none	
+svm	vsadmin-volume	vserver object-store-server audit	all	
+svm	vsadmin-volume	vserver object-store-server bucket	all	-bucket !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server bucket clear-validity-cache	all	
+svm	vsadmin-volume	vserver object-store-server cache settings	all	
+svm	vsadmin-volume	vserver object-store-server cache show	all	-user-name !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server create	all	-object-store-server !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server group	all	-name !amazon-fsx* -users !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server options	all	
+svm	vsadmin-volume	vserver object-store-server policy	all	-policy !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server show-flexcache-bucket	readonly	-bucket !amazon-fsx*
+svm	vsadmin-volume	vserver object-store-server user	all	-user !amazon-fsx*
+svm	vsadmin-volume	vserver peer	readonly	
+svm	vsadmin-volume	vserver security trace filter	all	
+svm	vsadmin-volume	vserver security trace trace-result	all	
+svm	vsadmin-volume	vserver services	all	
+svm	vsadmin-volume	vserver services name-service unix-group max-limit	none	
+svm	vsadmin-volume	vserver services name-service unix-user max-limit	none	
+svm	vsadmin-volume	vserver services web	none	
+svm	vsadmin-volume	vserver show	readonly	
+svm	vsadmin-volume	vserver show-aggregates	readonly	
+svm	vsadmin-volume	vserver show-protocols	readonly	
+svm	vsadmin-volume	vserver smtape	readonly	
+svm	vsadmin-volume	vserver snapdiff-rpc-server	readonly	
+svm	vsadmin-volume	vserver vscan	all	

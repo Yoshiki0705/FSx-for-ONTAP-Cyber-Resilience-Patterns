@@ -1,0 +1,575 @@
+# Source: ONTAP 9.18.1P6 on Amazon FSx for NetApp ONTAP (ap-northeast-1, SINGLE_AZ_1), read 2026-11-04 as fsxadmin.
+# Equivalent of: security login role show-rest. Lists every REST endpoint of this ONTAP version, whatever the user's privilege.
+# get_http: HTTP code of one GET as fsxadmin with max_records=1 (response bodies not kept). '-' = not probed: GET not supported, or the path has parameters.
+# 403 'not authorized for that command' means ONTAP has the endpoint and the fsxadmin role does not allow it.
+endpoint	operations	cli_commands	get_http	get_note
+/application/applications	GET,POST	application	200	
+/application/applications/{application.uuid}/components	GET		-	
+/application/applications/{application.uuid}/components/{component.uuid}/snapshots	GET,POST		-	
+/application/applications/{application.uuid}/components/{component.uuid}/snapshots/{uuid}	DELETE,GET		-	
+/application/applications/{application.uuid}/components/{component.uuid}/snapshots/{uuid}/restore	POST		-	
+/application/applications/{application.uuid}/components/{uuid}	GET		-	
+/application/applications/{application.uuid}/snapshots	GET,POST		-	
+/application/applications/{application.uuid}/snapshots/{uuid}	DELETE,GET		-	
+/application/applications/{application.uuid}/snapshots/{uuid}/restore	POST		-	
+/application/applications/{uuid}	DELETE,GET,PATCH	application	-	
+/application/consistency-groups	GET,POST	vserver consistency-group; vserver consistency-group create; vserver consistency-group show'	200	
+/application/consistency-groups/{consistency_group.uuid}/metrics	GET	vserver consistency-group	-	
+/application/consistency-groups/{consistency_group.uuid}/snapshots	GET,POST	vserver consistency-group snapshot	-	
+/application/consistency-groups/{consistency_group.uuid}/snapshots/{uuid}	DELETE,GET,PATCH	vserver consistency-group snapshot	-	
+/application/consistency-groups/{uuid}	DELETE,GET,PATCH	vserver consistency-group; vserver consistency-group delete; vserver consistency-group modify; vserver consistency-group show	-	
+/application/containers	POST	vserver consistency-group	-	
+/application/templates	GET	application show-template	200	
+/application/templates/{name}	GET	application show-template	-	
+/cloud/targets	GET,POST	snapmirror object-store config; snapmirror object-store config show; storage aggregate object-store config; storage aggregate object-store config create; storage aggregate object-store config show	403	6:not authorized for that command
+/cloud/targets/{uuid}	DELETE,GET,PATCH	snapmirror object-store config; storage aggregate object-store config; storage aggregate object-store config delete; storage aggregate object-store config modify; storage aggregate object-store config show	-	
+/cluster	GET,PATCH,POST	cluster; cluster identity modify; system health status; system node modify; timezone; version; vserver; vserver active-directory create; vserver active-directory delete; vserver active-directory modify; vserver cifs security modify; vserver services dns modify; vserver services name-service dns modify	200	
+/cluster/chassis	GET	system chassis; system chassis fru show; system chassis show	403	6:not authorized for that command
+/cluster/chassis/{id}	GET	system chassis; system chassis fru show; system chassis show	-	
+/cluster/counter/tables	GET	statistics	200	
+/cluster/counter/tables/{counter_table.name}/rows	GET	statistics	-	
+/cluster/counter/tables/{counter_table.name}/rows/{id}	GET	statistics	-	
+/cluster/counter/tables/{name}	GET	statistics	-	
+/cluster/firmware/history	GET		200	
+/cluster/jobs	GET	job delete; job pause; job show; job stop	200	
+/cluster/jobs/{uuid}	GET,PATCH	job delete; job pause; job show; job stop	-	
+/cluster/licensing/capacity-pools	GET	system license show; system license show-status	200	
+/cluster/licensing/capacity-pools/{serial_number}	GET	system license show; system license show-status	-	
+/cluster/licensing/license-managers	GET	system license license-manager; system license license-manager show	200	
+/cluster/licensing/license-managers/{uuid}	GET,PATCH	system license license-manager; system license license-manager modify; system license license-manager show	-	
+/cluster/licensing/licenses	GET,POST	system license; system license add; system license show; system license show-status	200	
+/cluster/licensing/licenses/{name}	DELETE,GET	system license; system license delete; system license show; system license show-status	-	
+/cluster/mediator-ping	POST	snapmirror mediator add	-	
+/cluster/mediators	GET,POST	metrocluster configuration-settings mediator add; storage iscsi-initiator show	200	
+/cluster/mediators/{uuid}	DELETE,GET,PATCH	metrocluster configuration-settings mediator add; storage iscsi-initiator show	-	
+/cluster/metrics	GET	cluster statistics show	200	
+/cluster/metrocluster	GET,PATCH,POST	metrocluster configuration-settings connection connect; metrocluster configuration-settings dr-group create; metrocluster configuration-settings interface create; metrocluster configuration-settings mediator add; metrocluster configure; metrocluster heal; metrocluster modify; metrocluster node show; metrocluster show; metrocluster switchback; metrocluster switchover; storage aggregate create; storage aggregate mirror	200	
+/cluster/metrocluster/diagnostics	GET,POST	metrocluster check show	500	"2426405:MetroCluster is not configured in cluster ""<cluster>"". Run ""metrocluster show"" to verify "
+/cluster/metrocluster/dr-groups	GET,POST	metrocluster configuration-settings dr-group create; metrocluster configuration-settings dr-group show	200	
+/cluster/metrocluster/dr-groups/{id}	DELETE,GET	metrocluster configuration-settings dr-group delete; metrocluster configuration-settings dr-group show	-	
+/cluster/metrocluster/interconnects	GET	metrocluster interconnect mirror show	500	"2424994:MetroCluster is not supported when HAOSC is not set to ""mcc"", ""mcc-2n"" or ""mccip"". Run the ""ha-config "
+/cluster/metrocluster/interconnects/{node.uuid}/{partner_type}/{adapter}	GET,PATCH	metrocluster configuration-settings interface modify; metrocluster interconnect mirror show	-	
+/cluster/metrocluster/nodes	GET	metrocluster node show	200	
+/cluster/metrocluster/nodes/{node.uuid}	GET	metrocluster node show	-	
+/cluster/metrocluster/operations	GET	metrocluster operation show	200	
+/cluster/metrocluster/operations/{uuid}	GET	metrocluster operation show	-	
+/cluster/metrocluster/svms	GET	metrocluster vserver show	200	
+/cluster/metrocluster/svms/{cluster.uuid}/{svm.uuid}	GET	metrocluster vserver show	-	
+/cluster/nodes	GET,POST	cluster add-node; cluster ring; network interface create; snaplock compliance-clock show; storage aggregate auto-provision; storage failover; system ha; system health; system node; system node modify; system node show; system service-processor; system service-processor network modify	200	
+/cluster/nodes/{uuid}	DELETE,GET,PATCH	cluster add-node; cluster add-node-status; cluster date show; cluster ha modify; cluster ha show; cluster remove-node; cluster ring; network interface show; network port show; snaplock compliance-clock show; storage failover; storage failover modify; storage failover show; system controller show; system ha; system health; system node; system node modify; system node power off; system node power on; system node reboot; system node show; system node show-discovered; system service-processor; system service-processor api-service show; system service-processor image modify; system service-processor image show; system service-processor network auto-configuration disable; system service-processor network auto-configuration enable; system service-processor network auto-configuration show; system service-processor network modify; system service-processor network show; system service-processor reboot-sp; system service-processor show; system service-processor ssh show; version	-	
+/cluster/nodes/{uuid}/metrics	GET		-	
+/cluster/ntp			-	
+/cluster/ntp/keys	GET,POST	cluster time-service ntp key; cluster time-service ntp key create; cluster time-service ntp key show	403	6:not authorized for that command
+/cluster/ntp/keys/{id}	DELETE,GET,PATCH	cluster time-service ntp key; cluster time-service ntp key delete; cluster time-service ntp key modify; cluster time-service ntp key show	-	
+/cluster/ntp/servers	GET,POST	cluster time-service ntp server; cluster time-service ntp server create; cluster time-service ntp server show	200	
+/cluster/ntp/servers/{server}	DELETE,GET,PATCH	cluster time-service ntp server; cluster time-service ntp server delete; cluster time-service ntp server modify; cluster time-service ntp server show	-	
+/cluster/peers	GET,POST	cluster peer	200	
+/cluster/peers/{uuid}	DELETE,GET,PATCH	cluster peer	-	
+/cluster/schedules	GET,POST	job schedule	200	
+/cluster/schedules/{uuid}	DELETE,GET,PATCH	job schedule	-	
+/cluster/sensors	GET	system node environment sensors; system node environment sensors show	403	6:not authorized for that command
+/cluster/sensors/{node.uuid}/{index}	GET	system node environment sensors	-	
+/cluster/software	GET,PATCH	cluster image; cluster image cancel-update; cluster image pause-update; cluster image resume-update; cluster image show; cluster image show-update-progress; cluster image update; cluster image validate; system node image package show	403	6:not authorized for that command
+/cluster/software/download	GET,POST	cluster image package get	403	6:not authorized for that command
+/cluster/software/history	GET	cluster image show-update-history	403	6:not authorized for that command
+/cluster/software/packages	GET	cluster image package; cluster image package show-repository	403	6:not authorized for that command
+/cluster/software/packages/{version}	DELETE,GET	cluster image package; cluster image package delete; cluster image package show-repository	-	
+/cluster/software/upload	POST	cluster image package; cluster image package get	-	
+/cluster/web	GET,PATCH	security ssl modify; security ssl show; system services web; system services web modify; system services web show	403	6:not authorized for that command
+/name-services/cache/group-membership/settings	GET	vserver services name-service cache group-membership settings; vserver services name-service cache group-membership settings show	200	
+/name-services/cache/group-membership/settings/{svm.uuid}	GET,PATCH	vserver services name-service cache group-membership settings; vserver services name-service cache group-membership settings modify; vserver services name-service cache group-membership settings show	-	
+/name-services/cache/host/settings	GET	vserver services name-service cache hosts settings; vserver services name-service cache hosts settings show	200	
+/name-services/cache/host/settings/{uuid}	GET,PATCH	vserver services name-service cache hosts settings; vserver services name-service cache hosts settings modify; vserver services name-service cache hosts settings show	-	
+/name-services/cache/netgroup/settings	GET	vserver services name-service cache netgroups settings; vserver services name-service cache netgroups settings show	200	
+/name-services/cache/netgroup/settings/{svm.uuid}	GET,PATCH	vserver services name-service cache netgroups settings; vserver services name-service cache netgroups settings modify; vserver services name-service cache netgroups settings show	-	
+/name-services/cache/setting	GET,PATCH	vserver services name-service cache settings; vserver services name-service cache settings modify; vserver services name-service cache settings show	200	
+/name-services/cache/unix-group/settings	GET	vserver services name-service cache unix-group settings; vserver services name-service cache unix-group settings show	200	
+/name-services/cache/unix-group/settings/{svm.uuid}	GET,PATCH	vserver services name-service cache unix-group settings; vserver services name-service cache unix-group settings modify; vserver services name-service cache unix-group settings show	-	
+/name-services/cache/unix-user/settings	GET	vserver services name-service cache unix-user settings; vserver services name-service cache unix-user settings show	200	
+/name-services/cache/unix-user/settings/{svm.uuid}	GET,PATCH	vserver services name-service cache unix-user settings; vserver services name-service cache unix-user settings modify; vserver services name-service cache unix-user settings show	-	
+/name-services/dns	GET,POST	vserver services access-check dns srv-lookup; vserver services name-service dns; vserver services name-service dns check; vserver services name-service dns dynamic-update show; vserver services name-service dns show	200	
+/name-services/dns/{uuid}	DELETE,GET,PATCH	vserver services access-check dns srv-lookup; vserver services name-service dns; vserver services name-service dns check; vserver services name-service dns delete; vserver services name-service dns dynamic-update modify; vserver services name-service dns dynamic-update show; vserver services name-service dns modify; vserver services name-service dns show	-	
+/name-services/host-record/{svm.uuid}/{host}	GET	vserver services name-service getxxbyyy; vserver services name-service getxxbyyy getaddrinfo; vserver services name-service getxxbyyy getnameinfo	-	
+/name-services/ldap	GET,POST	vserver services name-service ldap	200	
+/name-services/ldap-schemas	GET,POST	vserver services name-service ldap client schema; vserver services name-service ldap client schema copy; vserver services name-service ldap client schema show	200	
+/name-services/ldap-schemas/{owner.uuid}/{name}	DELETE,GET,PATCH	vserver services name-service ldap client schema; vserver services name-service ldap client schema delete; vserver services name-service ldap client schema modify; vserver services name-service ldap client schema show	-	
+/name-services/ldap/{svm.uuid}	DELETE,GET,PATCH	vserver services name-service ldap	-	
+/name-services/local-hosts	GET,POST	vserver services name-service dns hosts; vserver services name-service dns hosts create; vserver services name-service dns hosts show	200	
+/name-services/local-hosts/{owner.uuid}/{address}	DELETE,GET,PATCH	vserver services name-service dns hosts; vserver services name-service dns hosts delete; vserver services name-service dns hosts modify; vserver services name-service dns hosts show	-	
+/name-services/name-mappings	GET,POST	vserver name-mapping; vserver name-mapping create; vserver name-mapping insert; vserver name-mapping show	200	
+/name-services/name-mappings/{svm.uuid}/{direction}/{index}	DELETE,GET,PATCH	vserver name-mapping; vserver name-mapping delete; vserver name-mapping modify; vserver name-mapping show; vserver name-mapping swap	-	
+/name-services/netgroup-files/{svm.uuid}	DELETE,GET	vserver services name-service netgroup file delete; vserver services name-service netgroup file show; vserver services name-service netgroup status	-	
+/name-services/nis	GET,POST	vserver services name-service nis-domain; vserver services name-service nis-domain create; vserver services name-service nis-domain show; vserver services name-service nis-domain show-bound; vserver services name-service nis-domain show-bound-debug	200	
+/name-services/nis/{svm.uuid}	DELETE,GET,PATCH	vserver services name-service nis-domain; vserver services name-service nis-domain delete; vserver services name-service nis-domain modify; vserver services name-service nis-domain show; vserver services name-service nis-domain show-bound; vserver services name-service nis-domain show-bound-debug	-	
+/name-services/unix-groups	GET,POST	vserver services name-service unix-group; vserver services name-service unix-group show	200	
+/name-services/unix-groups/{svm.uuid}/{name}	DELETE,GET,PATCH	vserver services name-service unix-group; vserver services name-service unix-group delete; vserver services name-service unix-group show	-	
+/name-services/unix-groups/{svm.uuid}/{unix_group.name}/users	GET,POST	vserver services name-service unix-group; vserver services name-service unix-group adduser; vserver services name-service unix-group addusers; vserver services name-service unix-group show	-	
+/name-services/unix-groups/{svm.uuid}/{unix_group.name}/users/{name}	DELETE,GET	vserver services name-service unix-group; vserver services name-service unix-group deluser; vserver services name-service unix-group show	-	
+/name-services/unix-users	GET,POST	vserver services name-service unix-user; vserver services name-service unix-user show	200	
+/name-services/unix-users/{svm.uuid}/{name}	DELETE,GET,PATCH	vserver services name-service unix-user; vserver services name-service unix-user delete; vserver services name-service unix-user show	-	
+/network/ethernet/broadcast-domains	GET,POST	network port broadcast-domain; network port broadcast-domain create; network port broadcast-domain show	200	
+/network/ethernet/broadcast-domains/{uuid}	DELETE,GET,PATCH	network port broadcast-domain; network port broadcast-domain delete; network port broadcast-domain modify; network port broadcast-domain move; network port broadcast-domain rename; network port broadcast-domain show	-	
+/network/ethernet/ports	GET,POST	network port; network port ifgrp create; network port ifgrp show; network port show; network port vlan create; network port vlan show	200	
+/network/ethernet/ports/{uuid}	DELETE,GET,PATCH	network port; network port broadcast-domain add-ports; network port broadcast-domain remove-ports; network port ifgrp add-port; network port ifgrp delete; network port ifgrp remove-port; network port ifgrp show; network port modify; network port reachability repair; network port show; network port vlan delete; network port vlan show	-	
+/network/ethernet/ports/{uuid}/metrics	GET		-	
+/network/ethernet/switch/ports	GET	system switch ethernet interface show	403	6:not authorized for that command
+/network/ethernet/switch/ports/{switch}/{identity.name}/{identity.index}	GET	system switch ethernet interface show	-	
+/network/ethernet/switches	GET,POST	system switch ethernet create; system switch ethernet delete; system switch ethernet show	403	6:not authorized for that command
+/network/ethernet/switches/{name}	DELETE,GET,PATCH	system switch ethernet create; system switch ethernet delete; system switch ethernet modify; system switch ethernet show	-	
+/network/fc/fabrics	GET	network fcp topology show; network fcp zone show	403	6:not authorized for that command
+/network/fc/fabrics/{fabric.name}/switches	GET	network fcp topology show	-	
+/network/fc/fabrics/{fabric.name}/switches/{wwn}	GET	network fcp topology show	-	
+/network/fc/fabrics/{fabric.name}/zones	GET	network fcp zone show	-	
+/network/fc/fabrics/{fabric.name}/zones/{name}	GET	network fcp zone show	-	
+/network/fc/fabrics/{name}	GET	network fcp topology show; network fcp zone show	-	
+/network/fc/interfaces	GET,POST	network interface create; network interface show; vserver fcp interface show	200	
+/network/fc/interfaces/{fc_interface.uuid}/metrics	GET	network interface show	-	
+/network/fc/interfaces/{fc_interface.uuid}/metrics/{timestamp}	GET	network interface show	-	
+/network/fc/interfaces/{uuid}	DELETE,GET,PATCH	network interface delete; network interface modify; network interface show; vserver fcp interface show	-	
+/network/fc/logins	GET	vserver fcp initiator; vserver fcp initiator show	200	
+/network/fc/logins/{interface.uuid}/{initiator.wwpn}	GET	vserver fcp initiator; vserver fcp initiator show	-	
+/network/fc/ports	GET	network fcp adapter; network fcp adapter show	200	
+/network/fc/ports/{fc_port.uuid}/metrics	GET	network fcp adapter	-	
+/network/fc/ports/{fc_port.uuid}/metrics/{timestamp}	GET	network fcp adapter	-	
+/network/fc/ports/{uuid}	GET,PATCH	network fcp adapter; network fcp adapter modify; network fcp adapter show	-	
+/network/fc/wwpn-aliases	GET,POST	vserver fcp wwpn-alias; vserver fcp wwpn-alias set; vserver fcp wwpn-alias show	200	
+/network/fc/wwpn-aliases/{svm.uuid}/{alias}	DELETE,GET	vserver fcp wwpn-alias; vserver fcp wwpn-alias remove; vserver fcp wwpn-alias show	-	
+/network/http-proxy	GET,POST	vserver http-proxy; vserver http-proxy create; vserver http-proxy show	200	
+/network/http-proxy/{uuid}	DELETE,GET,PATCH	vserver http-proxy; vserver http-proxy delete; vserver http-proxy modify; vserver http-proxy show	-	
+/network/ip/bgp/peer-groups	GET,POST	network bgp peer-group; network bgp peer-group create	403	6:not authorized for that command
+/network/ip/bgp/peer-groups/{uuid}	DELETE,GET,PATCH	network bgp peer-group; network bgp peer-group delete; network bgp peer-group modify; network bgp peer-group rename; network bgp peer-group show	-	
+/network/ip/interfaces	GET,POST	network interface; network interface create	200	
+/network/ip/interfaces/{uuid}	DELETE,GET,PATCH	network interface; network interface delete; network interface migrate; network interface modify; network interface rename; network interface revert; network interface show	-	
+/network/ip/interfaces/{uuid}/metrics	GET	network interface show	-	
+/network/ip/routes	GET,POST	network route; network route create; network route show; network route show-lifs	200	
+/network/ip/routes/{uuid}	DELETE,GET	network route; network route delete; network route show; network route show-lifs	-	
+/network/ip/service-policies	GET,POST	network interface service-policy; network interface service-policy create; network interface service-policy show	200	
+/network/ip/service-policies/{uuid}	DELETE,GET,PATCH	network interface service-policy; network interface service-policy add-service; network interface service-policy delete; network interface service-policy modify-service; network interface service-policy remove-service; network interface service-policy rename; network interface service-policy show	-	
+/network/ip/subnets	GET,POST	network subnet; network subnet create	200	
+/network/ip/subnets/{uuid}	DELETE,GET,PATCH	network subnet; network subnet add-ranges; network subnet delete; network subnet modify; network subnet remove-ranges; network subnet rename; network subnet show	-	
+/network/ipspaces	GET,POST	network ipspace; network ipspace create; network ipspace show	200	
+/network/ipspaces/{uuid}	DELETE,GET,PATCH	network ipspace; network ipspace delete; network ipspace rename; network ipspace show	-	
+/protocols/active-directory	GET,POST	vserver active-directory; vserver active-directory create; vserver active-directory discovered-servers show; vserver active-directory preferred-dc show; vserver active-directory show; vserver cifs security show	200	
+/protocols/active-directory/{svm.uuid}	DELETE,GET,PATCH	vserver active-directory; vserver active-directory delete; vserver active-directory discovered-servers reset-servers; vserver active-directory discovered-servers show; vserver active-directory modify; vserver active-directory preferred-dc show; vserver active-directory show; vserver cifs security modify; vserver cifs security show	-	
+/protocols/active-directory/{svm.uuid}/preferred-domain-controllers	GET,POST	vserver active-directory preferred-dc; vserver active-directory preferred-dc add; vserver active-directory preferred-dc show	-	
+/protocols/active-directory/{svm.uuid}/preferred-domain-controllers/{fqdn}/{server_ip}	DELETE,GET	vserver active-directory preferred-dc; vserver active-directory preferred-dc delete; vserver active-directory preferred-dc show	-	
+/protocols/audit	GET,POST	vserver audit create; vserver audit enable; vserver audit show	200	
+/protocols/audit/{svm.uuid}	DELETE,GET,PATCH	vserver audit delete; vserver audit disable; vserver audit modify; vserver audit show	-	
+/protocols/audit/{svm.uuid}/object-store	DELETE,GET,PATCH,POST	vserver object-store-server audit create; vserver object-store-server audit delete; vserver object-store-server audit disable; vserver object-store-server audit enable; vserver object-store-server audit modify; vserver object-store-server audit show	-	
+/protocols/cifs/connections	GET	vserver cifs connection	200	
+/protocols/cifs/domains	GET	vserver cifs domain; vserver cifs domain discovered-servers show; vserver cifs domain name-mapping-search show; vserver cifs domain preferred-dc show; vserver cifs domain schedule show; vserver cifs domain trusts show	200	
+/protocols/cifs/domains/{svm.uuid}	GET,PATCH	vserver cifs domain; vserver cifs domain discovered-servers discovery-mode modify; vserver cifs domain discovered-servers discovery-mode show; vserver cifs domain discovered-servers show; vserver cifs domain name-mapping-search show; vserver cifs domain password change; vserver cifs domain password reset; vserver cifs domain password schedule modify; vserver cifs domain password schedule show; vserver cifs domain preferred-dc show; vserver cifs domain trusts show	-	
+/protocols/cifs/domains/{svm.uuid}/preferred-domain-controllers	GET,POST	vserver cifs domain preferred-dc; vserver cifs domain preferred-dc add; vserver cifs domain preferred-dc check; vserver cifs domain preferred-dc show	-	
+/protocols/cifs/domains/{svm.uuid}/preferred-domain-controllers/{fqdn}/{server_ip}	DELETE,GET	vserver cifs domain preferred-dc; vserver cifs domain preferred-dc check; vserver cifs domain preferred-dc delete; vserver cifs domain preferred-dc show	-	
+/protocols/cifs/group-policies	GET	vserver cifs group-policy show-defined	200	
+/protocols/cifs/group-policies/{svm.uuid}	GET,PATCH	vserver cifs group-policy show-defined; vserver cifs group-policy update	-	
+/protocols/cifs/group-policies/{svm.uuid}/central-access-policies	GET	vserver cifs group-policy central-access-policy; vserver cifs group-policy central-access-policy show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/central-access-policies/{name}	GET	vserver cifs group-policy central-access-policy; vserver cifs group-policy central-access-policy show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/central-access-rules	GET	vserver cifs group-policy central-access-rule; vserver cifs group-policy central-access-rule show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/central-access-rules/{name}	GET	vserver cifs group-policy central-access-rule; vserver cifs group-policy central-access-rule show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/objects	GET	vserver cifs group-policy; vserver cifs group-policy show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/objects/{index}	GET	vserver cifs group-policy; vserver cifs group-policy show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/restricted-groups	GET	vserver cifs group-policy restricted-group; vserver cifs group-policy restricted-group show-applied	-	
+/protocols/cifs/group-policies/{svm.uuid}/restricted-groups/{policy_index}/{group_name}	GET	vserver cifs group-policy restricted-group; vserver cifs group-policy restricted-group show-applied	-	
+/protocols/cifs/home-directory/search-paths	GET,POST	cifs server home-directory search-path add; cifs server home-directory search-path show; vserver cifs home-directory	200	
+/protocols/cifs/home-directory/search-paths/{svm.uuid}/{index}	DELETE,GET,PATCH	cifs server home-directory search-path remove; cifs server home-directory search-path reorder; cifs server home-directory search-path show; vserver cifs home-directory	-	
+/protocols/cifs/local-groups	GET,POST	vserver cifs users-and-groups local-group; vserver cifs users-and-groups local-group create; vserver cifs users-and-groups local-group show; vserver cifs users-and-groups local-group show-members	200	
+/protocols/cifs/local-groups/{svm.uuid}/{local_cifs_group.sid}/members	DELETE,GET,POST	vserver cifs users-and-groups local-group; vserver cifs users-and-groups local-group add-members; vserver cifs users-and-groups local-group remove-members; vserver cifs users-and-groups local-group show-members	-	
+/protocols/cifs/local-groups/{svm.uuid}/{local_cifs_group.sid}/members/{name}	DELETE,GET	vserver cifs users-and-groups local-group; vserver cifs users-and-groups local-group remove-members; vserver cifs users-and-groups local-group show-members	-	
+/protocols/cifs/local-groups/{svm.uuid}/{sid}	DELETE,GET,PATCH	vserver cifs users-and-groups local-group; vserver cifs users-and-groups local-group delete; vserver cifs users-and-groups local-group modify; vserver cifs users-and-groups local-group rename; vserver cifs users-and-groups local-group show; vserver cifs users-and-groups local-group show-members	-	
+/protocols/cifs/local-users	GET,POST	vserver cifs users-and-groups local-user; vserver cifs users-and-groups local-user create; vserver cifs users-and-groups local-user show; vserver cifs users-and-groups local-user show-membership	200	
+/protocols/cifs/local-users/{svm.uuid}/{sid}	DELETE,GET,PATCH	vserver cifs users-and-groups local-user; vserver cifs users-and-groups local-user delete; vserver cifs users-and-groups local-user modify; vserver cifs users-and-groups local-user rename; vserver cifs users-and-groups local-user set-password; vserver cifs users-and-groups local-user show; vserver cifs users-and-groups local-user show-membership	-	
+/protocols/cifs/netbios	GET	vserver cifs nbtstat	200	
+/protocols/cifs/services	GET,POST	vserver cifs security modify; vserver cifs server add-netbios-aliases; vserver cifs server create; vserver cifs server options modify; vserver cifs server options show; vserver cifs server security show; vserver cifs server show; vserver cifs show	200	
+/protocols/cifs/services/{svm.uuid}	DELETE,GET,PATCH	vserver cifs group-policy modify; vserver cifs remove-netbios-aliases; vserver cifs security modify; vserver cifs server add-netbios-aliases; vserver cifs server delete; vserver cifs server modify; vserver cifs server options modify; vserver cifs server options show; vserver cifs server remove-netbios-aliases; vserver cifs server security show; vserver cifs server show; vserver cifs show	-	
+/protocols/cifs/services/{svm.uuid}/metrics	GET		-	
+/protocols/cifs/session/files	GET	vserver cifs session file	200	
+/protocols/cifs/session/files/{node.uuid}/{svm.uuid}/{identifier}/{connection.identifier}/{session.identifier}	DELETE,GET	vserver cifs session file	-	
+/protocols/cifs/sessions	GET	vserver cifs session	200	
+/protocols/cifs/sessions/{node.uuid}/{svm.uuid}/{identifier}/{connection_id}	DELETE,GET	vserver cifs session	-	
+/protocols/cifs/shadow-copies	GET	vserver cifs shadowcopy show-shares	200	
+/protocols/cifs/shadow-copies/{client_uuid}	GET,PATCH	vserver cifs shadowcopy show-shares	-	
+/protocols/cifs/shadowcopy-sets	GET	vserver cifs shadowcopy show-sets	200	
+/protocols/cifs/shadowcopy-sets/{uuid}	GET,PATCH	vserver cifs shadowcopy show-sets	-	
+/protocols/cifs/shares	GET,POST	vserver cifs share; vserver cifs share access-control create; vserver cifs share create; vserver cifs share properties add; vserver cifs share properties show; vserver cifs share show	200	
+/protocols/cifs/shares/{svm.uuid}/{name}	DELETE,GET,PATCH	vserver cifs share; vserver cifs share delete; vserver cifs share modify; vserver cifs share properties add; vserver cifs share properties remove; vserver cifs share properties show; vserver cifs share show	-	
+/protocols/cifs/shares/{svm.uuid}/{share}/acls	GET,POST	vserver cifs share access-control create; vserver cifs share access-control show	-	
+/protocols/cifs/shares/{svm.uuid}/{share}/acls/{user_or_group}/{type}	DELETE,GET,PATCH	vserver cifs share access-control delete; vserver cifs share access-control modify; vserver cifs share access-control show	-	
+/protocols/cifs/unix-symlink-mapping	GET,POST	vserver cifs symlink; vserver cifs symlink create; vserver cifs symlink show	200	
+/protocols/cifs/unix-symlink-mapping/{svm.uuid}/{unix_path}	DELETE,GET,PATCH	vserver cifs symlink; vserver cifs symlink delete; vserver cifs symlink modify; vserver cifs symlink show	-	
+/protocols/cifs/users-and-groups/bulk-import/{svm.uuid}	GET,PATCH,POST	vserver cifs users-and-groups import; vserver cifs users-and-groups import get-status; vserver cifs users-and-groups import load-from-uri	-	
+/protocols/cifs/users-and-groups/privileges	GET,POST	vserver cifs users-and-groups privilege; vserver cifs users-and-groups privilege add-privilege; vserver cifs users-and-groups privilege show	200	
+/protocols/cifs/users-and-groups/privileges/{svm.uuid}/{name}	GET,PATCH	vserver cifs users-and-groups privilege; vserver cifs users-and-groups privilege reset-privilege; vserver cifs users-and-groups privilege show	-	
+/protocols/file-security/effective-permissions/{svm.uuid}/{path}	GET	vserver security file-directory show-effective-permissions	-	
+/protocols/file-security/permissions/{svm.uuid}/{path}	DELETE,GET,PATCH,POST	vserver security file-directory; vserver security file-directory apply; vserver security file-directory ntfs create; vserver security file-directory ntfs dacl add; vserver security file-directory ntfs modify; vserver security file-directory ntfs sacl add; vserver security file-directory policy create; vserver security file-directory policy task add; vserver security file-directory show	-	
+/protocols/file-security/permissions/{svm.uuid}/{path}/acl	POST	vserver security file-directory; vserver security file-directory ntfs dacl add; vserver security file-directory ntfs sacl add	-	
+/protocols/file-security/permissions/{svm.uuid}/{path}/acl/{user}	DELETE,PATCH	vserver security file-directory; vserver security file-directory ntfs dacl modify; vserver security file-directory ntfs dacl remove; vserver security file-directory ntfs sacl modify; vserver security file-directory ntfs sacl remove	-	
+/protocols/fpolicy	GET,POST	fpolicy enable; fpolicy persistent-store create; fpolicy persistent-store show; fpolicy policy create; fpolicy policy event create; fpolicy policy event show; fpolicy policy external-engine create; fpolicy policy external-engine show; fpolicy policy scope create; fpolicy policy scope show; fpolicy policy show; fpolicy show; vserver fpolicy	200	
+/protocols/fpolicy/{svm.uuid}	DELETE,GET	fpolicy delete; fpolicy persistent-store delete; fpolicy persistent-store show; fpolicy policy delete; fpolicy policy event delete; fpolicy policy event show; fpolicy policy external-engine delete; fpolicy policy external-engine show; fpolicy policy scope delete; fpolicy policy scope show; fpolicy policy show; fpolicy show; vserver fpolicy	-	
+/protocols/fpolicy/{svm.uuid}/connections	GET	vserver fpolicy show-engine; vserver fpolicy show-passthrough-read-connection	-	
+/protocols/fpolicy/{svm.uuid}/connections/{node.uuid}/{policy.name}/{server}	GET,PATCH	vserver fpolicy engine-connect; vserver fpolicy engine-disconnect; vserver fpolicy show-engine	-	
+/protocols/fpolicy/{svm.uuid}/engines	GET,POST	fpolicy policy external-engine create; fpolicy policy external-engine show	-	
+/protocols/fpolicy/{svm.uuid}/engines/{name}	DELETE,GET,PATCH	fpolicy policy external-engine delete; fpolicy policy external-engine modify; fpolicy policy external-engine show	-	
+/protocols/fpolicy/{svm.uuid}/events	GET,POST	fpolicy policy event create; fpolicy policy event show	-	
+/protocols/fpolicy/{svm.uuid}/events/{name}	DELETE,GET,PATCH	fpolicy policy event delete; fpolicy policy event modify; fpolicy policy event show	-	
+/protocols/fpolicy/{svm.uuid}/persistent-stores	GET,POST	fpolicy persistent-store create; fpolicy persistent-store show	-	
+/protocols/fpolicy/{svm.uuid}/persistent-stores/{name}	DELETE,GET,PATCH	fpolicy persistent-store delete; fpolicy persistent-store modify; fpolicy persistent-store show	-	
+/protocols/fpolicy/{svm.uuid}/policies	GET,POST	fpolicy enable; fpolicy policy create; fpolicy policy scope create; fpolicy policy scope show; fpolicy policy show	-	
+/protocols/fpolicy/{svm.uuid}/policies/{name}	DELETE,GET,PATCH	fpolicy disable; fpolicy enable; fpolicy policy delete; fpolicy policy modify; fpolicy policy scope delete; fpolicy policy scope modify; fpolicy policy scope show; fpolicy policy show; fpolicy show	-	
+/protocols/locks	GET	vserver locks  show; vserver locks break; vserver locks show	200	
+/protocols/locks/{uuid}	DELETE,GET	vserver locks break; vserver locks show	-	
+/protocols/ndmp	GET,PATCH	system services ndmp node-scope-mode; system services ndmp node-scope-mode status	403	6:not authorized for that command
+/protocols/ndmp/nodes	GET	system services ndmp; system services ndmp show	403	6:not authorized for that command
+/protocols/ndmp/nodes/{node.uuid}	GET,PATCH	system services ndmp; system services ndmp modify; system services ndmp show	-	
+/protocols/ndmp/sessions	GET	system services ndmp probe; vserver services ndmp probe; vserver services ndmp status	200	
+/protocols/ndmp/sessions/{owner.uuid}/{session.id}	DELETE,GET	system services ndmp kill; system services ndmp probe; vserver services ndmp kill; vserver services ndmp probe; vserver services ndmp status	-	
+/protocols/ndmp/svms	GET	vserver services ndmp; vserver services ndmp show	200	
+/protocols/ndmp/svms/{svm.uuid}	GET,PATCH	vserver services ndmp; vserver services ndmp modify; vserver services ndmp show	-	
+/protocols/ndmp/svms/{svm.uuid}/passwords/{user}	GET	vserver services ndmp generate-password	-	
+/protocols/nfs/connected-client-maps	GET	vserver nfs connected-clients	200	
+/protocols/nfs/connected-client-settings	GET,PATCH	vserver nfs connected-clients	200	
+/protocols/nfs/connected-clients	GET	vserver nfs connected-clients	200	
+/protocols/nfs/export-policies	GET,POST	vserver export-policy; vserver export-policy create; vserver export-policy rule create; vserver export-policy rule show; vserver export-policy show	200	
+/protocols/nfs/export-policies/{id}	DELETE,GET,PATCH	vserver export-policy; vserver export-policy delete; vserver export-policy rename; vserver export-policy rule create; vserver export-policy rule delete; vserver export-policy rule show; vserver export-policy show	-	
+/protocols/nfs/export-policies/{policy.id}/rules	GET,POST	vserver export-policy rule create; vserver export-policy rule show	-	
+/protocols/nfs/export-policies/{policy.id}/rules/{index}	DELETE,GET,PATCH	vserver export-policy rule delete; vserver export-policy rule modify; vserver export-policy rule setindex; vserver export-policy rule show	-	
+/protocols/nfs/export-policies/{policy.id}/rules/{index}/clients	GET,POST	vserver export-policy rule add-clientmatches	-	
+/protocols/nfs/export-policies/{policy.id}/rules/{index}/clients/{match}	DELETE	vserver export-policy rule remove-clientmatches	-	
+/protocols/nfs/kerberos/interfaces	GET	vserver nfs kerberos interface; vserver nfs kerberos interface show	200	
+/protocols/nfs/kerberos/interfaces/{interface.uuid}	GET,PATCH	vserver nfs kerberos interface; vserver nfs kerberos interface disable; vserver nfs kerberos interface enable; vserver nfs kerberos interface modify; vserver nfs kerberos interface show	-	
+/protocols/nfs/kerberos/realms	GET,POST	vserver nfs kerberos realm; vserver nfs kerberos realm create; vserver nfs kerberos realm show	200	
+/protocols/nfs/kerberos/realms/{svm.uuid}/{name}	DELETE,GET,PATCH	vserver nfs kerberos realm	-	
+/protocols/nfs/services	GET,POST	export-policy access-cache config show; vserver export-policy check-access; vserver nfs create; vserver nfs show; vserver nfs status	200	
+/protocols/nfs/services/{svm.uuid}	DELETE,GET,PATCH	vserver nfs delete; vserver nfs modify; vserver nfs off; vserver nfs on; vserver nfs show; vserver nfs start; vserver nfs status; vserver nfs stop	-	
+/protocols/nfs/services/{svm.uuid}/metrics	GET		-	
+/protocols/nfs/tls/interfaces	GET	vserver nfs tls interface; vserver nfs tls interface show	200	
+/protocols/nfs/tls/interfaces/{interface.uuid}	GET,PATCH	vserver nfs tls interface; vserver nfs tls interface disable; vserver nfs tls interface enable; vserver nfs tls interface modify; vserver nfs tls interface show	-	
+/protocols/nvme/interfaces	GET	vserver nvme show-interface	200	
+/protocols/nvme/interfaces/{uuid}	GET	vserver nvme show-interface	-	
+/protocols/nvme/services	GET,POST	vserver nvme create; vserver nvme show	200	
+/protocols/nvme/services/{svm.uuid}	DELETE,GET,PATCH	vserver nvme delete; vserver nvme modify; vserver nvme show	-	
+/protocols/nvme/services/{svm.uuid}/metrics	GET	vserver nvme show	-	
+/protocols/nvme/services/{svm.uuid}/metrics/{timestamp}	GET	vserver nvme show	-	
+/protocols/nvme/subsystem-controllers	GET	vserver nvme subsystem controller; vserver nvme subsystem controller show	200	
+/protocols/nvme/subsystem-controllers/{subsystem.uuid}/{id}	GET	vserver nvme subsystem controller; vserver nvme subsystem controller show	-	
+/protocols/nvme/subsystem-maps	GET,POST	vserver nvme subsystem map; vserver nvme subsystem map add; vserver nvme subsystem map show	200	
+/protocols/nvme/subsystem-maps/{subsystem.uuid}/{namespace.uuid}	DELETE,GET	vserver nvme subsystem map; vserver nvme subsystem map remove; vserver nvme subsystem map show	-	
+/protocols/nvme/subsystems	GET,POST	vserver nvme subsystem create; vserver nvme subsystem host add; vserver nvme subsystem host show; vserver nvme subsystem map show; vserver nvme subsystem show	200	
+/protocols/nvme/subsystems/{subsystem.uuid}/hosts	GET,POST	vserver nvme subsystem host; vserver nvme subsystem host add; vserver nvme subsystem map show; vserver nvme subsystem show	-	
+/protocols/nvme/subsystems/{subsystem.uuid}/hosts/{nqn}	DELETE,GET,PATCH	vserver nvme subsystem host; vserver nvme subsystem host add-proximal-vserver; vserver nvme subsystem host remove; vserver nvme subsystem host remove-proximal-vserver; vserver nvme subsystem host show	-	
+/protocols/nvme/subsystems/{uuid}	DELETE,GET,PATCH	vserver nvme subsystem delete; vserver nvme subsystem host add; vserver nvme subsystem host show; vserver nvme subsystem map show; vserver nvme subsystem modify; vserver nvme subsystem show	-	
+/protocols/s3/buckets	GET,POST	vserver object-store-server bucket; vserver object-store-server bucket cors-rule create; vserver object-store-server bucket cors-rule show; vserver object-store-server bucket create; vserver object-store-server bucket lifecycle-management-rule create; vserver object-store-server bucket lifecycle-management-rule show; vserver object-store-server bucket policy statement create; vserver object-store-server bucket policy statement show; vserver object-store-server bucket policy-statement-condition show; vserver object-store-server bucket show	200	
+/protocols/s3/buckets/{svm.uuid}/{uuid}	DELETE,GET,PATCH	vserver object-store-server bucket; vserver object-store-server bucket cors-rule create; vserver object-store-server bucket cors-rule delete; vserver object-store-server bucket cors-rule show; vserver object-store-server bucket delete; vserver object-store-server bucket lifecycle-management-rule delete; vserver object-store-server bucket lifecycle-management-rule show; vserver object-store-server bucket modify; vserver object-store-server bucket policy statement delete; vserver object-store-server bucket policy statement modify; vserver object-store-server bucket policy statement show; vserver object-store-server bucket policy-statement-condition delete; vserver object-store-server bucket policy-statement-condition modify; vserver object-store-server bucket policy-statement-condition show; vserver object-store-server bucket show; vserver object-store-server bucket snapshot restore show; vserver object-store-server bucket snapshot restore start	-	
+/protocols/s3/services	GET,POST	vserver object-store-server; vserver object-store-server bucket cors-rule create; vserver object-store-server bucket create; vserver object-store-server bucket policy statement create; vserver object-store-server bucket policy-statement-condition create; vserver object-store-server create; vserver object-store-server show; vserver object-store-server user create	200	
+/protocols/s3/services/{svm.uuid}	DELETE,GET,PATCH	vserver object-store-server; vserver object-store-server delete; vserver object-store-server modify; vserver object-store-server show	-	
+/protocols/s3/services/{svm.uuid}/buckets	GET,POST	vserver object-store-server bucket; vserver object-store-server bucket cors-rule create; vserver object-store-server bucket create; vserver object-store-server bucket lifecycle-management-rule create; vserver object-store-server bucket lifecycle-management-rule show; vserver object-store-server bucket policy statement create; vserver object-store-server bucket policy statement show; vserver object-store-server bucket policy-statement-condition create; vserver object-store-server bucket policy-statement-condition show; vserver object-store-server bucket show; vserver object-store-server bucket snapshot restore show	-	
+/protocols/s3/services/{svm.uuid}/buckets/{s3_bucket.uuid}/rules	GET,POST	vserver object-store-server bucket lifecycle-management-rule; vserver object-store-server bucket lifecycle-management-rule create; vserver object-store-server bucket lifecycle-management-rule show	-	
+/protocols/s3/services/{svm.uuid}/buckets/{s3_bucket.uuid}/rules/{name}	DELETE,GET,PATCH	vserver object-store-server bucket lifecycle-management-rule; vserver object-store-server bucket lifecycle-management-rule delete; vserver object-store-server bucket lifecycle-management-rule modify; vserver object-store-server bucket lifecycle-management-rule show	-	
+/protocols/s3/services/{svm.uuid}/buckets/{s3_bucket.uuid}/snapshots	GET,POST	vserver object-store-server bucket snapshot; vserver object-store-server bucket snapshot create; vserver object-store-server bucket snapshot show	-	
+/protocols/s3/services/{svm.uuid}/buckets/{s3_bucket.uuid}/snapshots/{uuid}	DELETE,GET	vserver object-store-server bucket snapshot; vserver object-store-server bucket snapshot delete; vserver object-store-server bucket snapshot show	-	
+/protocols/s3/services/{svm.uuid}/buckets/{uuid}	DELETE,GET,PATCH	vserver object-store-server bucket; vserver object-store-server bucket cors-rule create; vserver object-store-server bucket cors-rule delete; vserver object-store-server bucket cors-rule show; vserver object-store-server bucket delete; vserver object-store-server bucket lifecycle-management-rule delete; vserver object-store-server bucket lifecycle-management-rule show; vserver object-store-server bucket modify; vserver object-store-server bucket policy statement delete; vserver object-store-server bucket policy statement modify; vserver object-store-server bucket policy statement show; vserver object-store-server bucket policy-statement-condition delete; vserver object-store-server bucket policy-statement-condition modify; vserver object-store-server bucket policy-statement-condition show; vserver object-store-server bucket show; vserver object-store-server bucket snapshot restore show; vserver object-store-server bucket snapshot restore start	-	
+/protocols/s3/services/{svm.uuid}/groups	GET,POST	vserver object-store-server group; vserver object-store-server group create; vserver object-store-server group show	-	
+/protocols/s3/services/{svm.uuid}/groups/{id}	DELETE,GET,PATCH	vserver object-store-server group; vserver object-store-server group delete; vserver object-store-server group modify; vserver object-store-server group show	-	
+/protocols/s3/services/{svm.uuid}/metrics	GET		-	
+/protocols/s3/services/{svm.uuid}/policies	GET,POST	vserver object-store-server policy; vserver object-store-server policy add-statement; vserver object-store-server policy create; vserver object-store-server policy show	-	
+/protocols/s3/services/{svm.uuid}/policies/{name}	DELETE,GET,PATCH	vserver object-store-server policy; vserver object-store-server policy delete; vserver object-store-server policy delete-statement; vserver object-store-server policy modify; vserver object-store-server policy modify-statement; vserver object-store-server policy show	-	
+/protocols/s3/services/{svm.uuid}/users	GET,POST	vserver object-store-server user; vserver object-store-server user create; vserver object-store-server user show	-	
+/protocols/s3/services/{svm.uuid}/users/{name}	DELETE,GET,PATCH	vserver object-store-server user; vserver object-store-server user delete; vserver object-store-server user delete-keys; vserver object-store-server user regenerate-keys; vserver object-store-server user show	-	
+/protocols/san/fcp/services	GET,POST	vserver fcp create; vserver fcp show	200	
+/protocols/san/fcp/services/{svm.uuid}	DELETE,GET,PATCH	vserver fcp delete; vserver fcp modify; vserver fcp show; vserver fcp start; vserver fcp stop	-	
+/protocols/san/fcp/services/{svm.uuid}/metrics	GET	vserver fcp show	-	
+/protocols/san/fcp/services/{svm.uuid}/metrics/{timestamp}	GET	vserver fcp show	-	
+/protocols/san/igroups	GET,POST	lun igroup; lun igroup create; lun igroup show; lun mapping show	200	
+/protocols/san/igroups/{igroup.uuid}/igroups	GET,POST	lun igroup add; lun igroup show	-	
+/protocols/san/igroups/{igroup.uuid}/igroups/{uuid}	DELETE,GET	lun igroup remove; lun igroup show	-	
+/protocols/san/igroups/{igroup.uuid}/initiators	GET,POST	lun igroup add; lun igroup show	-	
+/protocols/san/igroups/{igroup.uuid}/initiators/{name}	DELETE,GET,PATCH	lun igroup initiator modify; lun igroup remove; lun igroup show	-	
+/protocols/san/igroups/{uuid}	DELETE,GET,PATCH	lun igroup; lun igroup bind; lun igroup delete; lun igroup modify; lun igroup rename; lun igroup show; lun igroup unbind; lun mapping show	-	
+/protocols/san/initiators	GET	lun igroup initiator; lun igroup initiator show	200	
+/protocols/san/initiators/{svm.uuid}/{name}	GET	lun igroup initiator; lun igroup initiator show	-	
+/protocols/san/iscsi/credentials	GET,POST	vserver iscsi security; vserver iscsi security create; vserver iscsi security show	200	
+/protocols/san/iscsi/credentials/{svm.uuid}/{initiator}	DELETE,GET,PATCH	vserver iscsi security; vserver iscsi security add-initiator-address-ranges; vserver iscsi security default; vserver iscsi security delete; vserver iscsi security modify; vserver iscsi security remove-initiator-address-ranges; vserver iscsi security show	-	
+/protocols/san/iscsi/services	GET,POST	vserver iscsi create; vserver iscsi show	200	
+/protocols/san/iscsi/services/{svm.uuid}	DELETE,GET,PATCH	vserver iscsi delete; vserver iscsi modify; vserver iscsi show; vserver iscsi start; vserver iscsi stop	-	
+/protocols/san/iscsi/services/{svm.uuid}/metrics	GET	vserver iscsi show	-	
+/protocols/san/iscsi/services/{svm.uuid}/metrics/{timestamp}	GET	vserver iscsi show	-	
+/protocols/san/iscsi/sessions	GET	vserver iscsi connection show; vserver iscsi session; vserver iscsi session parameter show; vserver iscsi session show	200	
+/protocols/san/iscsi/sessions/{svm.uuid}/{tpgroup}/{tsih}	GET	vserver iscsi connection show; vserver iscsi session; vserver iscsi session parameter show; vserver iscsi session show	-	
+/protocols/san/lun-maps	GET,POST	lun mapping; lun mapping create; lun mapping show	200	
+/protocols/san/lun-maps/{lun.uuid}/{igroup.uuid}	DELETE,GET,PATCH	lun mapping; lun mapping delete; lun mapping modify; lun mapping show	-	
+/protocols/san/lun-maps/{lun.uuid}/{igroup.uuid}/reporting-nodes	GET,POST	lun mapping; lun mapping add-reporting-nodes; lun mapping show	-	
+/protocols/san/lun-maps/{lun.uuid}/{igroup.uuid}/reporting-nodes/{uuid}	DELETE,GET	lun mapping; lun mapping remove-reporting-nodes; lun mapping show	-	
+/protocols/san/portsets	GET,POST	lun portset; lun portset create; lun portset show	200	
+/protocols/san/portsets/{portset.uuid}/interfaces	GET,POST	lun portset add; lun portset show	-	
+/protocols/san/portsets/{portset.uuid}/interfaces/{uuid}	DELETE,GET	lun portset remove; lun portset show	-	
+/protocols/san/portsets/{uuid}	DELETE,GET	lun portset; lun portset delete; lun portset show	-	
+/protocols/san/vvol-bindings	GET,POST	[doc /protocols/san/vvol-bindings](#docs-san-protocols_san_vvol-bindings); lun bind; lun bind create; lun bind show	200	
+/protocols/san/vvol-bindings/{protocol_endpoint.uuid}/{vvol.uuid}	DELETE,GET	lun bind; lun bind destroy; lun bind show	-	
+/protocols/vscan	GET,POST	vserver vscan; vserver vscan enable; vserver vscan on-access-policy create; vserver vscan on-access-policy file-ext-to-exclude add; vserver vscan on-access-policy file-ext-to-exclude show; vserver vscan on-access-policy file-ext-to-include add; vserver vscan on-access-policy file-ext-to-include show; vserver vscan on-access-policy paths-to-exclude add; vserver vscan on-access-policy paths-to-exclude show; vserver vscan on-access-policy show; vserver vscan on-demand-task create; vserver vscan on-demand-task show; vserver vscan scanner-pool apply-policy; vserver vscan scanner-pool create; vserver vscan scanner-pool privileged-users add; vserver vscan scanner-pool privileged-users show; vserver vscan scanner-pool servers add; vserver vscan scanner-pool servers show; vserver vscan scanner-pool show; vserver vscan show	200	
+/protocols/vscan/server-status	GET	vserver vscan connection-status show-all	200	
+/protocols/vscan/{svm.uuid}	DELETE,GET,PATCH	vserver vscan; vserver vscan disable; vserver vscan enable; vserver vscan on-access-policy delete; vserver vscan on-access-policy file-ext-to-exclude show; vserver vscan on-access-policy file-ext-to-include show; vserver vscan on-access-policy paths-to-exclude show; vserver vscan on-access-policy show; vserver vscan on-demand-policy delete; vserver vscan on-demand-task show; vserver vscan reset; vserver vscan scanner-pool delete; vserver vscan scanner-pool privileged-users show; vserver vscan scanner-pool servers show; vserver vscan scanner-pool show; vserver vscan show	-	
+/protocols/vscan/{svm.uuid}/events	GET	vserver vscan show-events	-	
+/protocols/vscan/{svm.uuid}/on-access-policies	GET,POST	vserver vscan on-access-policy create; vserver vscan on-access-policy disable; vserver vscan on-access-policy enable; vserver vscan on-access-policy file-ext-to-exclude add; vserver vscan on-access-policy file-ext-to-exclude show; vserver vscan on-access-policy file-ext-to-include add; vserver vscan on-access-policy file-ext-to-include show; vserver vscan on-access-policy paths-to-exclude add; vserver vscan on-access-policy paths-to-exclude show; vserver vscan on-access-policy show	-	
+/protocols/vscan/{svm.uuid}/on-access-policies/{name}	DELETE,GET,PATCH	vserver vscan on-access-policy delete; vserver vscan on-access-policy disable; vserver vscan on-access-policy enable; vserver vscan on-access-policy file-ext-to-exclude add; vserver vscan on-access-policy file-ext-to-exclude remove; vserver vscan on-access-policy file-ext-to-exclude show; vserver vscan on-access-policy file-ext-to-include add; vserver vscan on-access-policy file-ext-to-include remove; vserver vscan on-access-policy file-ext-to-include show; vserver vscan on-access-policy modify; vserver vscan on-access-policy paths-to-exclude add; vserver vscan on-access-policy paths-to-exclude remove; vserver vscan on-access-policy paths-to-exclude show; vserver vscan on-access-policy show	-	
+/protocols/vscan/{svm.uuid}/on-demand-policies	GET,POST	vserver vscan on-demand-task create; vserver vscan on-demand-task schedule; vserver vscan on-demand-task show	-	
+/protocols/vscan/{svm.uuid}/on-demand-policies/{name}	DELETE,GET,PATCH	vserver vscan on-demand-task delete; vserver vscan on-demand-task modify; vserver vscan on-demand-task schedule; vserver vscan on-demand-task show; vserver vscan on-demand-task unschedule	-	
+/protocols/vscan/{svm.uuid}/scanner-pools	GET,POST	vserver vscan scanner-pool apply-policy; vserver vscan scanner-pool create; vserver vscan scanner-pool privileged-users add; vserver vscan scanner-pool privileged-users show; vserver vscan scanner-pool servers add; vserver vscan scanner-pool servers show; vserver vscan scanner-pool show	-	
+/protocols/vscan/{svm.uuid}/scanner-pools/{name}	DELETE,GET,PATCH	vserver vscan scanner-pool apply-policy; vserver vscan scanner-pool delete; vserver vscan scanner-pool modify; vserver vscan scanner-pool privileged-users add; vserver vscan scanner-pool privileged-users remove; vserver vscan scanner-pool privileged-users show; vserver vscan scanner-pool servers add; vserver vscan scanner-pool servers remove; vserver vscan scanner-pool servers show; vserver vscan scanner-pool show	-	
+/resource-tags	GET		200	
+/resource-tags/{resource_tag.value}/resources	GET,POST		-	
+/resource-tags/{resource_tag.value}/resources/{href}	DELETE,GET		-	
+/resource-tags/{value}	GET		-	
+/security	GET,PATCH	security config modify; security config show; security key-manager key query	200	
+/security/accounts	GET,POST	security login; security login create; security login show	200	
+/security/accounts/{owner.uuid}/{name}	DELETE,GET,PATCH	security login; security login create; security login delete; security login lock; security login modify; security login password; security login show; security login unlock	-	
+/security/anti-ransomware	GET,PATCH	security anti-ransomware show; security anti-ransomware update-package-from-uri	403	6:not authorized for that command
+/security/anti-ransomware/auto-enable	GET,PATCH	security anti-ransomware volume	200	
+/security/anti-ransomware/suspects	GET	security anti-ransomware volume; security anti-ransomware volume attack generate-report	200	
+/security/anti-ransomware/suspects/{volume.uuid}	DELETE	security anti-ransomware volume; security anti-ransomware volume attack clear-suspect	-	
+/security/anti-ransomware/volume/entropy-stats	GET	security anti-ransomware volume	200	
+/security/anti-ransomware/volume/entropy-stats/{volume.uuid}/{entropy_stats_type}/{timestamp}	GET	security anti-ransomware volume	-	
+/security/audit	GET,PATCH	security audit show	200	
+/security/audit/destinations	GET,POST	cluster log-forwarding	200	
+/security/audit/destinations/{address}/{port}	DELETE,GET,PATCH	cluster log-forwarding	-	
+/security/audit/messages	GET	security audit log	200	
+/security/authentication/cluster/ad-proxy	DELETE,GET,PATCH,POST	security login domain-tunnel; security login domain-tunnel create; security login domain-tunnel delete; security login domain-tunnel modify; security login domain-tunnel show	404	4:entry doesn't exist
+/security/authentication/cluster/ldap	DELETE,GET,PATCH,POST	vserver services name-service ldap	404	4:entry doesn't exist
+/security/authentication/cluster/nis	DELETE,GET,PATCH,POST	vserver services name-service nis-domain	404	4:entry doesn't exist
+/security/authentication/cluster/oauth2	GET,PATCH	security oauth2; security oauth2 modify; security oauth2 show	200	
+/security/authentication/cluster/oauth2/clients	GET,POST	security oauth2 client; security oauth2 client create; security oauth2 client show	200	
+/security/authentication/cluster/oauth2/clients/{name}	DELETE,GET	security oauth2 client; security oauth2 client delete; security oauth2 client show	-	
+/security/authentication/cluster/saml-sp	DELETE,GET,PATCH,POST	security saml-sp	403	6:not authorized for that command
+/security/authentication/cluster/saml-sp/default-metadata	DELETE,GET,POST	security saml-sp default-metadata	403	6:not authorized for that command
+/security/authentication/duo/groups	GET,POST	security login duo group; security login duo group create; security login duo group show	200	
+/security/authentication/duo/groups/{owner.uuid}/{name}	DELETE,GET,PATCH	security login duo group; security login duo group delete; security login duo group modify; security login duo group show	-	
+/security/authentication/duo/profiles	GET,POST	security login duo; security login duo create; security login duo show	200	
+/security/authentication/duo/profiles/{owner.uuid}	DELETE,GET,PATCH	security login duo; security login duo delete; security login duo modify; security login duo show	-	
+/security/authentication/password	POST	security login password	-	
+/security/authentication/publickeys	GET,POST	security login publickey; security login publickey create; security login publickey show	200	
+/security/authentication/publickeys/{owner.uuid}/{account.name}/{index}	DELETE,GET,PATCH	security login publickey; security login publickey delete; security login publickey modify; security login publickey show	-	
+/security/aws-kms	GET,POST	security key-manager external aws; security key-manager external aws check; security key-manager external aws enable; security key-manager external aws show	200	
+/security/aws-kms/{aws_kms.uuid}/rekey-external	POST	security key-manager external aws rekey-external	-	
+/security/aws-kms/{aws_kms.uuid}/rekey-internal	POST	security key-manager external aws rekey-internal	-	
+/security/aws-kms/{aws_kms.uuid}/restore	POST	security key-manager external aws restore	-	
+/security/aws-kms/{uuid}	DELETE,GET,PATCH	security key-manager external aws; security key-manager external aws check; security key-manager external aws disable; security key-manager external aws show; security key-manager external aws update-config; security key-manager external aws update-credentials	-	
+/security/azure-key-vaults	GET,POST	security key-manager external azure; security key-manager external azure check; security key-manager external azure create-config; security key-manager external azure enable; security key-manager external azure show; security key-manager external azure update-config	200	
+/security/azure-key-vaults/{azure_key_vault.uuid}/rekey-external	POST	security key-manager external azure rekey-external	-	
+/security/azure-key-vaults/{uuid}	DELETE,GET,PATCH	security key-manager external azure; security key-manager external azure check; security key-manager external azure disable; security key-manager external azure show; security key-manager external azure update-client-secret; security key-manager external azure update-config; security key-manager external azure update-credentials	-	
+/security/azure-key-vaults/{uuid}/rekey-internal	POST	security key-manager external azure rekey-internal	-	
+/security/azure-key-vaults/{uuid}/restore	POST	security key-manager external azure restore	-	
+/security/barbican-kms	GET,POST	security key-manager external barbican; security key-manager external barbican check; security key-manager external barbican create-config; security key-manager external barbican show	200	
+/security/barbican-kms/{uuid}	GET,PATCH	security key-manager external barbican; security key-manager external barbican check; security key-manager external barbican show; security key-manager external barbican update-config; security key-manager external barbican update-credentials	-	
+/security/barbican-kms/{uuid}/rekey-internal	POST	security key-manager external barbican rekey-internal	-	
+/security/barbican-kms/{uuid}/restore	POST	security key-manager external barbican restore	-	
+/security/certificate-signing-request	POST	security certificate generate-csr	-	
+/security/certificates	GET,POST	security certificate; security certificate azure-install; security certificate create; security certificate install; security certificate show	200	
+/security/certificates/{ca.uuid}/sign	POST	security certificate sign	-	
+/security/certificates/{uuid}	DELETE,GET	security certificate; security certificate delete; security certificate show	-	
+/security/cluster-network	GET,PATCH	'security cluster-network modify'; 'security cluster-network show'; security cluster-network	403	6:not authorized for that command
+/security/cluster-network/certificates	GET,POST	'security cluster-network certificate create'; 'security cluster-network certificate show'; security cluster-network certificate	403	6:not authorized for that command
+/security/cluster-network/certificates/{node.uuid}	DELETE,GET,PATCH	'security cluster-network certificate delete'; 'security cluster-network certificate modify'; 'security cluster-network certificate show'; security cluster-network certificate	-	
+/security/external-role-mappings	GET,POST	security login external-role-mapping; security login external-role-mapping create; security login external-role-mapping show	200	
+/security/external-role-mappings/{external_role}/{provider}	DELETE,GET,PATCH	security login external-role-mapping; security login external-role-mapping delete; security login external-role-mapping modify; security login external-role-mapping show	-	
+/security/gcp-kms	GET,POST	security key-manager external gcp; security key-manager external gcp check; security key-manager external gcp enable; security key-manager external gcp show	200	
+/security/gcp-kms/{gcp_kms.uuid}/rekey-external	POST	security key-manager external gcp rekey-external	-	
+/security/gcp-kms/{uuid}	DELETE,GET,PATCH	security key-manager external gcp; security key-manager external gcp check; security key-manager external gcp disable; security key-manager external gcp show; security key-manager external gcp update-config; security key-manager external gcp update-credentials	-	
+/security/gcp-kms/{uuid}/rekey-internal	POST	security key-manager external gcp rekey-internal	-	
+/security/gcp-kms/{uuid}/restore	POST	security key-manager external gcp restore	-	
+/security/group/role-mappings	GET,POST	security login group role-mapping; security login group role-mapping create; security login group role-mapping show	200	
+/security/group/role-mappings/{group_id}/{ontap_role.name}	DELETE,GET,PATCH	security login group role-mapping; security login group role-mapping delete; security login group role-mapping modify; security login group role-mapping show	-	
+/security/groups	GET,POST	security login group; security login group create; security login group show	200	
+/security/groups/{owner.uuid}/{name}/{type}	DELETE,GET,PATCH	security login group; security login group delete; security login group modify; security login group show	-	
+/security/ha-network	GET,PATCH	'security ha-network modify'; 'security ha-network show'; security ha-network	403	6:not authorized for that command
+/security/ipsec	GET,PATCH	'security ipsec config modify'; 'security ipsec config show'; security ipsec config	200	
+/security/ipsec/ca-certificates	GET,POST	security ipsec ca-certificate; security ipsec ca-certificate add; security ipsec ca-certificate show	200	
+/security/ipsec/ca-certificates/{certificate.uuid}	DELETE,GET	security ipsec ca-certificate; security ipsec ca-certificate remove; security ipsec ca-certificate show	-	
+/security/ipsec/policies	GET,POST	security ipsec policy; security ipsec policy create; security ipsec policy show	200	
+/security/ipsec/policies/{uuid}	DELETE,GET,PATCH	security ipsec policy; security ipsec policy delete; security ipsec policy modify; security ipsec policy show	-	
+/security/ipsec/security-associations	GET	security ipsec show-ikesa; security ipsec show-ipsecsa	200	
+/security/ipsec/security-associations/{uuid}	GET	security ipsec show-ikesa; security ipsec show-ipsecsa	-	
+/security/jit-privilege-users	GET,POST	security jit-privilege user; security jit-privilege user create; security jit-privilege user show	403	6:not authorized for that command
+/security/jit-privilege-users/{owner.uuid}/{account.name}/{application}	DELETE,GET	security jit-privilege user; security jit-privilege user delete; security jit-privilege user show	-	
+/security/jit-privileges	GET	security jit-privilege; security jit-privilege show	403	6:not authorized for that command
+/security/jit-privileges/{owner.uuid}/{application}	GET,PATCH	security jit-privilege; security jit-privilege modify; security jit-privilege show	-	
+/security/key-manager-configs	GET,PATCH	security key-manager config; security key-manager config modify; security key-manager config show; security key-manager health policy modify; security key-manager health policy show	403	6:not authorized for that command
+/security/key-managers	GET,POST	security key-manager; security key-manager external enable; security key-manager external show; security key-manager external show-status; security key-manager onboard enable; security key-manager onboard show-backup; security key-manager onboard sync; security key-manager show-key-store	200	
+/security/key-managers/{security_key_manager.uuid}/auth-keys	GET,POST	security key-manager key create; security key-manager key delete; security key-manager key query	-	
+/security/key-managers/{security_key_manager.uuid}/auth-keys/{key_id}	DELETE,GET	security key-manager key create; security key-manager key delete; security key-manager key query	-	
+/security/key-managers/{security_key_manager.uuid}/keys/{node.uuid}/key-ids	GET	security key-manager key query; security key-manager key query -node <node>; security key-manager key query -node <node> -key-manager <key_manager>	-	
+/security/key-managers/{security_key_manager.uuid}/keys/{node.uuid}/key-ids/{key_id}	GET	security key-manager key query; security key-manager key query -key-id <key_id>; security key-manager key query -key-id <key_id> -node <node>; security key-manager key query -key-id <key_id> -node <node> -key-manager <key_manager>	-	
+/security/key-managers/{security_key_manager.uuid}/restore	POST	security key-manager external restore	-	
+/security/key-managers/{source.uuid}/migrate	POST	security key-manager; security key-manager key migrate	-	
+/security/key-managers/{uuid}	DELETE,GET,PATCH	security key-manager; security key-manager external disable; security key-manager external modify; security key-manager external show; security key-manager external show-status; security key-manager onboard disable; security key-manager onboard show-backup; security key-manager onboard sync; security key-manager onboard update-passphrase; security key-manager show-key-store	-	
+/security/key-managers/{uuid}/key-servers	GET,POST	security key-manager external add-servers; security key-manager external show; security key-manager external show-status	-	
+/security/key-managers/{uuid}/key-servers/{server}	DELETE,GET,PATCH	security key-manager external modify-server; security key-manager external remove-servers; security key-manager external show; security key-manager external show-status	-	
+/security/key-stores	GET	security key-manager keystore show; security key-manager show-key-store	200	
+/security/key-stores/{uuid}	DELETE,GET,PATCH	security key-manager keystore delete; security key-manager keystore disable; security key-manager keystore enable; security key-manager keystore show; security key-manager show-key-store	-	
+/security/login/messages	GET	security login banner; security login motd	200	
+/security/login/messages/{uuid}	GET,PATCH	security login banner; security login motd	-	
+/security/login/totps	GET,POST	security login totp; security login totp create; security login totp show	200	
+/security/login/totps/{owner.uuid}/{account.name}	DELETE,GET,PATCH	security login totp; security login totp delete; security login totp modify; security login totp show	-	
+/security/multi-admin-verify	GET,PATCH	security multi-admin-verify modify; security multi-admin-verify show	403	6:not authorized for that command
+/security/multi-admin-verify/approval-groups	GET,POST	security multi-admin-verify approval-group	403	6:not authorized for that command
+/security/multi-admin-verify/approval-groups/{owner.uuid}/{name}	DELETE,GET,PATCH	security multi-admin-verify approval-group	-	
+/security/multi-admin-verify/requests	GET,POST	security multi-admin-verify request	403	6:not authorized for that command
+/security/multi-admin-verify/requests/{index}	DELETE,GET,PATCH	security multi-admin-verify request	-	
+/security/multi-admin-verify/rules	GET,POST	security multi-admin-verify rule	403	6:not authorized for that command
+/security/multi-admin-verify/rules/{owner.uuid}/{operation}	DELETE,GET,PATCH	security multi-admin-verify rule	-	
+/security/roles	GET,POST	security login rest-role; security login rest-role create; security login rest-role show; security login role; security login role create; security login role show	200	
+/security/roles/{owner.uuid}/{name}	DELETE,GET	security login rest-role; security login rest-role delete; security login rest-role show; security login role; security login role delete; security login role show	-	
+/security/roles/{owner.uuid}/{name}/privileges	GET,POST	security login rest-role create; security login rest-role show; security login role create; security login role show	-	
+/security/roles/{owner.uuid}/{name}/privileges/{path}	DELETE,GET,PATCH	security login rest-role delete; security login rest-role modify; security login rest-role show; security login role delete; security login role modify; security login role show	-	
+/security/ssh	GET,PATCH	security protocol ssh; security ssh	200	
+/security/ssh/svms	GET	security ssh	200	
+/security/ssh/svms/{svm.uuid}	GET,PATCH	security ssh	-	
+/security/webauthn/credentials	GET	security webauthn credentials; security webauthn credentials show	403	6:not authorized for that command
+/security/webauthn/credentials/{owner.uuid}/{username}/{index}/{relying_party.id}	DELETE,GET	security webauthn credentials; security webauthn credentials delete; security webauthn credentials show	-	
+/security/webauthn/global-settings	GET	security webauthn; security webauthn show	403	6:not authorized for that command
+/security/webauthn/global-settings/{owner.uuid}	GET	security webauthn; security webauthn show	-	
+/security/webauthn/supported-algorithms	GET	security webauthn supported-algorithms; security webauthn supported-algorithms show	403	6:not authorized for that command
+/security/webauthn/supported-algorithms/{owner.uuid}/{algorithm.name}	GET	security webauthn supported-algorithms; security webauthn supported-algorithms show	-	
+/snapmirror/policies	GET,POST	snapmirror policy; snapmirror policy create; snapmirror policy show	200	
+/snapmirror/policies/{uuid}	DELETE,GET,PATCH	snapmirror policy; snapmirror policy delete; snapmirror policy modify	-	
+/snapmirror/relationships	GET,POST	snapmirror; snapmirror create; snapmirror list-destinations; snapmirror protect; snapmirror show	200	
+/snapmirror/relationships/{relationship.uuid}/transfers	GET,POST	snapmirror; snapmirror initialize; snapmirror restore; snapmirror show; snapmirror update	-	
+/snapmirror/relationships/{relationship.uuid}/transfers/{uuid}	GET,PATCH	snapmirror; snapmirror abort; snapmirror show	-	
+/snapmirror/relationships/{uuid}	DELETE,GET,PATCH	snapmirror; snapmirror break; snapmirror delete; snapmirror initialize; snapmirror list-destinations; snapmirror modify; snapmirror quiesce; snapmirror release; snapmirror resume; snapmirror resync; snapmirror show	-	
+/storage/aggregates	GET,POST	storage aggregate; storage aggregate auto-provision; storage aggregate create; storage aggregate show	200	
+/storage/aggregates/{aggregate.uuid}/cloud-stores	GET,POST	storage aggregate object-store; storage aggregate object-store attach; storage aggregate object-store mirror; storage aggregate object-store show	-	
+/storage/aggregates/{aggregate.uuid}/cloud-stores/{target.uuid}	DELETE,GET,PATCH	storage aggregate object-store; storage aggregate object-store modify; storage aggregate object-store show; storage aggregate object-store unmirror	-	
+/storage/aggregates/{aggregate.uuid}/plexes	GET	storage aggregate plex show	-	
+/storage/aggregates/{aggregate.uuid}/plexes/{name}	GET	storage aggregate plex show	-	
+/storage/aggregates/{uuid}	DELETE,GET,PATCH	storage aggregate; storage aggregate add-disks; storage aggregate delete; storage aggregate mirror; storage aggregate modify; storage aggregate relocation start; storage aggregate rename; storage aggregate show	-	
+/storage/aggregates/{uuid}/metrics	GET	statistics aggregate show	-	
+/storage/bridges	GET	storage bridge show; system bridge	403	6:not authorized for that command
+/storage/bridges/{wwn}	GET	storage bridge show; system bridge	-	
+/storage/cluster	GET	storage aggregate show-space	200	
+/storage/cluster/metrics		statistics cluster space show	-	
+/storage/disks	GET,PATCH	security key-manager key query -key-type nse-ak; storage disk; storage disk assign; storage disk removeowner; storage disk sanitize-spare; storage disk show; storage disk unfail; storage encryption disk modify -data-key-id; storage encryption disk sanitize	200	
+/storage/disks/{name}	GET	storage disk; storage disk show; storage encryption disk show	-	
+/storage/file/clone	POST	volume file clone	-	
+/storage/file/clone/split-loads	GET	volume file clone split load	200	
+/storage/file/clone/split-loads/{node.uuid}	GET,PATCH	volume file clone split load	-	
+/storage/file/clone/split-status	GET	volume file clone split status	200	
+/storage/file/clone/split-status/{volume.uuid}	GET	volume file clone split status	-	
+/storage/file/clone/tokens	GET,POST	volume file clone token	200	
+/storage/file/clone/tokens/{node.uuid}/{uuid}	DELETE,GET,PATCH	volume file clone token	-	
+/storage/file/copy	POST	volume file copy start	-	
+/storage/file/moves	GET,POST	volume file move; volume file move show; volume file move start; volume rebalance file-move; volume rebalance file-move show; volume rebalance file-move start	200	
+/storage/file/moves/{node.uuid}/{uuid}/{index}	GET	volume file move; volume file move show; volume rebalance file-move; volume rebalance file-move show	-	
+/storage/flexcache/connection-status	GET	volume flexcache connection-status; volume flexcache connection-status show	200	
+/storage/flexcache/connection-status/{node}/{svm}/{local_fg_msid}/{remote_svm_uuid}/{remote_vol_const_msid}	GET	volume flexcache connection-status; volume flexcache connection-status show	-	
+/storage/flexcache/flexcaches	GET,POST	volume flexcache; volume flexcache create; volume flexcache prepopulate start; volume flexcache show	200	
+/storage/flexcache/flexcaches/{uuid}	DELETE,GET,PATCH	volume flexcache; volume flexcache config modify; volume flexcache delete; volume flexcache prepopulate start; volume flexcache show	-	
+/storage/flexcache/origins	GET	volume flexcache origin; volume flexcache origin show-caches	200	
+/storage/flexcache/origins/{uuid}	GET,PATCH	volume flexcache origin; volume flexcache origin config modify; volume flexcache origin show-caches	-	
+/storage/luns	GET,POST	lun bind show; lun convert-from-namespace; lun copy; lun copy show; lun copy start; lun create; lun delete; lun mapping show; lun move; lun move show; lun move-in-volume; lun resize; lun show; volume file clone autodelete; volume file clone create; volume file clone show-autodelete	200	
+/storage/luns/{lun.uuid}/attributes	GET,POST	lun attribute	-	
+/storage/luns/{lun.uuid}/attributes/{name}	DELETE,GET,PATCH	lun attribute	-	
+/storage/luns/{lun.uuid}/metrics	GET	lun show	-	
+/storage/luns/{lun.uuid}/metrics/{timestamp}	GET	lun show	-	
+/storage/luns/{uuid}	DELETE,GET,PATCH	lun bind show; lun convert-from-namespace; lun copy; lun copy cancel; lun copy modify; lun copy pause; lun copy resume; lun copy show; lun delete; lun mapping show; lun modify; lun move; lun move modify; lun move pause; lun move resume; lun move show; lun move start; lun move-in-volume; lun resize; lun show; volume file clone autodelete; volume file clone show-autodelete	-	
+/storage/namespaces	GET,POST	volume file clone autodelete; volume file clone create; vserver nvme namespace convert-from-lun; vserver nvme namespace create; vserver nvme namespace delete; vserver nvme namespace show; vserver nvme subsystem map show	200	
+/storage/namespaces/{nvme_namespace.uuid}/metrics	GET	statistics namespace show; vserver nvme namespace show	-	
+/storage/namespaces/{nvme_namespace.uuid}/metrics/{timestamp}	GET	statistics namespace show; vserver nvme namespace show	-	
+/storage/namespaces/{uuid}	DELETE,GET,PATCH	volume file clone autodelete; vserver nvme namespace convert-from-lun; vserver nvme namespace delete; vserver nvme namespace modify; vserver nvme namespace show; vserver nvme subsystem map show	-	
+/storage/pools	GET,POST	storage pool; storage pool create; storage pool show	200	
+/storage/pools/{uuid}	DELETE,GET,PATCH	storage pool; storage pool add; storage pool delete; storage pool reassign; storage pool rename; storage pool show -storage-pool-uuid	-	
+/storage/ports	GET	storage port; storage port show	403	6:not authorized for that command
+/storage/ports/{node.uuid}/{name}	GET,PATCH	storage port; storage port disable; storage port enable; storage port modify; storage port show	-	
+/storage/qos/policies	GET,POST	qos; qos adaptive-policy-group create; qos policy-group create	200	
+/storage/qos/policies/{uuid}	DELETE,GET,PATCH	qos; qos adaptive-policy-group delete; qos adaptive-policy-group modify; qos adaptive-policy-group show; qos policy-group delete; qos policy-group modify; qos policy-group show	-	
+/storage/qos/qos-options	GET,PATCH	qos settings cluster-options; qos settings cluster-options modify; qos settings cluster-options show	200	
+/storage/qos/workloads	GET	qos	200	
+/storage/qos/workloads/{uuid}	GET	qos	-	
+/storage/qtrees	GET,POST	qtree create; qtree show; volume qtree	200	
+/storage/qtrees/{volume.uuid}/{id}	DELETE,GET,PATCH	qtree delete; qtree modify; qtree rename; qtree show; volume qtree	-	
+/storage/qtrees/{volume.uuid}/{qtree.id}/metrics	GET		-	
+/storage/quota			-	
+/storage/quota/reports	GET	quota report; volume quota report	200	
+/storage/quota/reports/{volume.uuid}/{index}	GET	quota report; volume quota report	-	
+/storage/quota/rules	GET,POST	quota policy rule create; quota policy rule show; volume quota policy rule	200	
+/storage/quota/rules/{uuid}	DELETE,GET,PATCH	quota policy rule delete; quota policy rule modify; quota policy rule show; quota resize; volume quota policy rule	-	
+/storage/shelves	GET	storage shelf; storage shelf acp show; storage shelf drawer show; storage shelf drawer show-slot; storage shelf port show; storage shelf show	200	
+/storage/shelves/{uid}	GET,PATCH	storage shelf; storage shelf acp show; storage shelf drawer show; storage shelf drawer show-slot; storage shelf location-led modify; storage shelf port show; storage shelf show	-	
+/storage/snaplock/audit-logs	GET,POST	snaplock log; snaplock log create; snaplock log show	200	
+/storage/snaplock/audit-logs/{svm.uuid}	DELETE,GET,PATCH	snaplock log; snaplock log delete; snaplock log modify; snaplock log show	-	
+/storage/snaplock/compliance-clocks	GET,POST	snaplock compliance-clock; snaplock compliance-clock initialize; snaplock compliance-clock show	200	
+/storage/snaplock/compliance-clocks/{node.uuid}	GET	snaplock compliance-clock; snaplock compliance-clock show	-	
+/storage/snaplock/event-retention/operations	GET,POST	snaplock event-retention; snaplock event-retention apply; snaplock event-retention show	400	"14090242:Only a user with the security login role ""vsadmin-snaplock"" is allowed to perform this operation."
+/storage/snaplock/event-retention/operations/{id}	DELETE,GET	snaplock event-retention; snaplock event-retention abort; snaplock event-retention show	-	
+/storage/snaplock/event-retention/policies	GET,POST	snaplock event-retention policy; snaplock event-retention policy create; snaplock event-retention policy show	401	"13763280:Only a user with the security login role ""vsadmin-snaplock"" is allowed to perform this operation."
+/storage/snaplock/event-retention/policies/{policy.name}	DELETE,GET,PATCH	snaplock event-retention policy; snaplock event-retention policy delete; snaplock event-retention policy modify; snaplock event-retention policy show	-	
+/storage/snaplock/file-fingerprints	GET,POST	volume file fingerprint; volume file fingerprint show; volume file fingerprint start	400	14090441:Invalid key values. Provide session ID or SVM UUID and volume UUID.
+/storage/snaplock/file-fingerprints/{id}	DELETE,GET	volume file fingerprint; volume file fingerprint abort; volume file fingerprint dump	-	
+/storage/snaplock/file/{volume.uuid}/{path}	DELETE,GET,PATCH	volume file privileged-delete; volume file retention set; volume file retention show	-	
+/storage/snaplock/litigations	GET,POST	snaplock legal-hold; snaplock legal-hold begin; snaplock legal-hold show	401	"13763280:Only a user with the security login role ""vsadmin-snaplock"" is allowed to perform this operation."
+/storage/snaplock/litigations/{id}	DELETE,GET	snaplock legal-hold; snaplock legal-hold end; snaplock legal-hold show	-	
+/storage/snaplock/litigations/{litigation.id}/files	GET		-	
+/storage/snaplock/litigations/{litigation.id}/operations	POST	snaplock legal-hold begin; snaplock legal-hold end	-	
+/storage/snaplock/litigations/{litigation.id}/operations/{id}	DELETE,GET	snaplock legal-hold abort; snaplock legal-hold show	-	
+/storage/snapshot-policies	GET,POST	snapshot policy create; snapshot policy show; volume snapshot policy	200	
+/storage/snapshot-policies/{snapshot_policy.uuid}/schedules	GET,POST	snapshot policy add-schedule; snapshot policy show; volume snapshot policy	-	
+/storage/snapshot-policies/{snapshot_policy.uuid}/schedules/{schedule.uuid}	DELETE,GET,PATCH	snapshot policy modify-schedule; snapshot policy remove-schedule; snapshot policy show; volume snapshot policy	-	
+/storage/snapshot-policies/{uuid}	DELETE,GET,PATCH	snapshot policy add-schedule; snapshot policy delete; snapshot policy modify; snapshot policy modify-schedule; snapshot policy show; volume snapshot policy	-	
+/storage/switches	GET	storage switch show; system switch fibre-channel	403	6:not authorized for that command
+/storage/switches/{name}	GET	storage switch show; system switch fibre-channel	-	
+/storage/tape-devices	GET	storage tape; storage tape show	403	6:not authorized for that command
+/storage/tape-devices/{node.uuid}/{device_id}	GET,PATCH	storage tape; storage tape alias-clear; storage tape alias-set; storage tape offline; storage tape online; storage tape position; storage tape show	-	
+/storage/volume-efficiency-policies	GET,POST	volume efficiency policy; volume efficiency policy create; volume efficiency policy show	200	
+/storage/volume-efficiency-policies/{uuid}	DELETE,GET,PATCH	volume efficiency policy; volume efficiency policy delete; volume efficiency policy modify; volume efficiency policy show	-	
+/storage/volumes	GET,POST	security anti-ransomware volume show; security anti-ransomware volume space show; volume; volume clone create; volume clone show; volume create; volume efficiency show; volume encryption show; volume file async-delete client show; volume flexcache show; volume flexgroup show; volume move show; volume quota show; volume rebalance show; volume show; volume show-space; volume snaplock show	200	
+/storage/volumes/{uuid}	DELETE,GET,PATCH	security anti-ransomware volume attack generate-report; security anti-ransomware volume disable; security anti-ransomware volume dry-run; security anti-ransomware volume enable; security anti-ransomware volume pause; security anti-ransomware volume resume; security anti-ransomware volume show; security anti-ransomware volume space show; volume; volume clone delete; volume clone modify; volume clone show; volume delete; volume efficiency modify; volume efficiency show; volume encryption conversion pause; volume encryption conversion resume; volume encryption conversion start; volume encryption rekey pause; volume encryption rekey resume; volume encryption rekey start; volume encryption show; volume file async-delete client disable; volume file async-delete client enable; volume file async-delete client show; volume flexcache show; volume flexgroup show; volume modify; volume mount; volume move; volume move show; volume offline; volume online; volume quota off; volume quota on; volume quota show; volume rebalance modify; volume rebalance show; volume rebalance start; volume rebalance stop; volume show; volume show-space; volume snaplock modify; volume snaplock show; volume unmount	-	
+/storage/volumes/{volume.uuid}/files/{path}	DELETE,GET,PATCH,POST		-	
+/storage/volumes/{volume.uuid}/metrics	GET	statistics volume show	-	
+/storage/volumes/{volume.uuid}/snapshots	GET,POST	snapshot compute-reclaimable; snapshot create; snapshot show; snapshot show-delta	-	
+/storage/volumes/{volume.uuid}/snapshots/{uuid}	DELETE,GET,PATCH	snapshot delete; snapshot modify; snapshot rename; snapshot show	-	
+/storage/volumes/{volume.uuid}/top-metrics/clients	GET		-	
+/storage/volumes/{volume.uuid}/top-metrics/directories	GET		-	
+/storage/volumes/{volume.uuid}/top-metrics/files	GET		-	
+/storage/volumes/{volume.uuid}/top-metrics/users	GET		-	
+/support/auto-update	GET,PATCH	system node autosupport	200	
+/support/auto-update/configurations	GET		200	
+/support/auto-update/configurations/{uuid}	GET,PATCH		-	
+/support/auto-update/updates	GET		200	
+/support/auto-update/updates/{uuid}	GET,PATCH		-	
+/support/autosupport	GET,PATCH	system node autosupport check; system node autosupport check show-details; system node autosupport modify; system node autosupport show; system node autosupport show -instance	200	
+/support/autosupport/messages	GET,POST	system node autosupport history; system node autosupport history show; system node autosupport invoke	200	
+/support/autosupport/messages/{node.uuid}/{index}/{destination}	GET	system node autosupport history; system node autosupport invoke	-	
+/support/configuration-backup	GET,PATCH	system configuration backup settings	403	6:not authorized for that command
+/support/configuration-backup/backups	GET,POST	system configuration backup; system configuration backup create; system configuration backup show	403	6:not authorized for that command
+/support/configuration-backup/backups/{node.uuid}/{name}	DELETE,GET	system configuration backup; system configuration backup delete; system configuration backup show	-	
+/support/coredump/coredumps	GET	system node coredump delete; system node coredump show	403	6:not authorized for that command
+/support/coredump/coredumps/{node.uuid}/{name}	DELETE,GET	system node coredump delete; system node coredump show	-	
+/support/ems	GET,PATCH	event config; event config modify; event config show	200	
+/support/ems/application-logs	POST	event generate-autosupport-log	-	
+/support/ems/destinations	GET,POST	event notification; event notification create; event notification destination; event notification destination create; event notification destination show; event notification show	200	
+/support/ems/destinations/{name}	DELETE,GET,PATCH	event notification; event notification delete; event notification destination; event notification destination delete; event notification destination modify; event notification destination show; event notification modify; event notification show	-	
+/support/ems/events	GET	event log; event log show	200	
+/support/ems/filters	GET,POST	event filter; event filter create; event filter show	200	
+/support/ems/filters/{name}	DELETE,GET,PATCH	event filter; event filter delete; event filter rename; event filter rule add; event filter rule delete; event filter rule reorder; event filter show	-	
+/support/ems/filters/{name}/rules	GET,POST	event filter rule add; event filter show	-	
+/support/ems/filters/{name}/rules/{index}	DELETE,GET,PATCH	event filter rule add; event filter rule delete; event filter show	-	
+/support/ems/messages	GET	event catalog; event catalog show	200	
+/support/ems/role-configs	GET,POST	event role-config; event role-config create; event role-config show	403	6:not authorized for that command
+/support/ems/role-configs/{access_control_role.name}	DELETE,GET,PATCH	event role-config; event role-config delete; event role-config modify; event role-config show	-	
+/support/snmp	GET,PATCH	options snmp.enable; system snmp; system snmp authtrap; system snmp init; system snmp show	403	6:not authorized for that command
+/support/snmp/traphosts	GET,POST	system snmp traphost; system snmp traphost add; system snmp traphost show	403	6:not authorized for that command
+/support/snmp/traphosts/{host}	DELETE,GET	system snmp traphost	-	
+/support/snmp/users	GET,POST	security login create; security login show -application snmp; security snmpusers; system snmp community add	403	6:not authorized for that command
+/support/snmp/users/{engine_id}/{name}	DELETE,GET,PATCH	security login delete; security login modify; security login show -application snmp -vserver <svm name> -user-or-group-name <user name>; security snmpusers; security snmpusers -vserver <svm name> -username <user name>; system snmp community delete	-	
+/svm/migrations	GET,POST	vserver migrate; vserver migrate show; vserver migrate start	403	6:not authorized for that command
+/svm/migrations/{svm_migration.uuid}/volumes	GET	vserver migrate show-volume	-	
+/svm/migrations/{svm_migration.uuid}/volumes/{volume.uuid}	GET	vserver migrate show-volume	-	
+/svm/migrations/{uuid}	DELETE,GET,PATCH	vserver migrate; vserver migrate abort; vserver migrate cutover; vserver migrate pause; vserver migrate resume; vserver migrate source-cleanup	-	
+/svm/peer-permissions	GET,POST	vserver peer permission; vserver peer permission create; vserver peer permission show	200	
+/svm/peer-permissions/{cluster_peer.uuid}/{svm.uuid}	DELETE,GET,PATCH	vserver peer permission; vserver peer permission delete; vserver peer permission modify; vserver peer permission show	-	
+/svm/peers	GET,POST	vserver peer; vserver peer create; vserver peer show	200	
+/svm/peers/{uuid}	DELETE,GET,PATCH	vserver peer; vserver peer delete; vserver peer modify; vserver peer show	-	
+/svm/svms	GET,POST	network interface create; network route create; vserver; vserver add-aggregates; vserver add-protocols; vserver cifs create; vserver create; vserver fcp create; vserver iscsi create; vserver nfs create; vserver nvme create; vserver object-store-server create; vserver remove-protocols; vserver services name-service dns create; vserver services name-service ldap client create; vserver services name-service nis-domain create; vserver services name-service ns-switch create; vserver show	200	
+/svm/svms/{svm.uuid}/top-metrics/clients	GET		-	
+/svm/svms/{svm.uuid}/top-metrics/directories	GET		-	
+/svm/svms/{svm.uuid}/top-metrics/files	GET		-	
+/svm/svms/{svm.uuid}/top-metrics/users	GET		-	
+/svm/svms/{svm.uuid}/web	GET,PATCH		-	
+/svm/svms/{uuid}	DELETE,GET,PATCH	security ssl modify; vserver; vserver add-protocols; vserver delete; vserver modify; vserver remove-protocols; vserver rename; vserver start; vserver stop	-	

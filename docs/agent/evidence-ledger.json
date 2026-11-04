@@ -925,6 +925,33 @@
         "docs/architecture/continuum-security-agent-and-storage.md"
       ],
       "note": "Supersedes this document's earlier statement that Continuum for code vulnerabilities was in limited preview, which was accurate only as of the 2026-06-17 announcement. Corrected 2026-11-04. The specific regions for code vulnerabilities (US East N. Virginia, US West Oregon) were reported by a third party (dev.to) and a sibling repository's independent check, not read verbatim in the AWS post itself; treat the region list as needing a check against the AWS Region table before relying on it."
+    },
+    {
+      "id": "E-028",
+      "claim": "The REST path /security/anti-ransomware/volumes/{uuid} is not an endpoint of ONTAP 9.18.1P6 on FSx for ONTAP. The version's endpoint list has no such path, and a GET of /api/security/anti-ransomware/volumes returned HTTP 404.",
+      "subject": "ONTAP REST API, anti-ransomware volume path, ONTAP 9.18.1P6",
+      "tier": "verified",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-cli/security-login-role-show-rest.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Describes security login role show-rest as listing the ONTAP REST APIs with their mapped CLI commands and supported operations; the observation below uses it to list the endpoints."
+        }
+      ],
+      "observation": "2026-11-04, ap-northeast-1, ONTAP 9.18.1P6, as fsxadmin. security login role show-rest returned 570 endpoints; under /security/anti-ransomware it lists auto-enable, suspects, suspects/{volume.uuid} and volume/entropy-stats, and no /volumes path. One GET of /api/security/anti-ransomware/volumes returned HTTP 404. The per-volume state is set through PATCH /storage/volumes/{uuid} (anti_ransomware.state), the path E-004 observed.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Which path ONTAP 9.18.1P6 offers for the per-volume ARP state. The endpoint list and E-004 already identify PATCH /storage/volumes/{uuid}."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/ontap-command-api-snapshot.md"
+      ],
+      "note": "Observed once on one version. solutions/shared/ontap_client.py (enable_arp, get_arp_status) and docs/ontap-native/arp-configuration.md use the absent path; their tests replace HTTP, so they do not catch it. Not fixed in this change."
     }
   ]
 }

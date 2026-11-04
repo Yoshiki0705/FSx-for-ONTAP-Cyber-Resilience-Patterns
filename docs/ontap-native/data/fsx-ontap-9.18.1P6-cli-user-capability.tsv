@@ -1,0 +1,1748 @@
+# Source: ONTAP 9.18.1P6 on Amazon FSx for NetApp ONTAP (ap-northeast-1, SINGLE_AZ_1), read 2026-11-04 as fsxadmin.
+# Equivalent of: security login role show-user-capability (object_name with dots shown as spaces, plus operation_name).
+# These are the CLI commands the logged-in user (fsxadmin) can run. A command that is absent here is not available to fsxadmin.
+command
+application check-consistency
+application provisioning config modify
+application provisioning config show
+application provisioning show-aggr
+application provisioning show-job
+application provisioning show-lun-result
+application provisioning show-volume
+application provisioning show-volume-result
+application show
+application show-detail
+application show-lun
+application show-namespace
+application show-statistics
+application show-template
+application snapshot show
+application snapshot show-invalid
+application volume remove
+application volume show
+cluster application-record create
+cluster application-record delete
+cluster application-record modify
+cluster application-record show
+cluster date show
+cluster ha show
+cluster identity show
+cluster log-forwarding create
+cluster log-forwarding delete
+cluster log-forwarding modify
+cluster log-forwarding show
+cluster log-forwarding statistics show
+cluster peer address active insert
+cluster peer address active register
+cluster peer address active show
+cluster peer address stable show
+cluster peer connection destroy
+cluster peer connection show
+cluster peer create
+cluster peer delete
+cluster peer health show
+cluster peer modify
+cluster peer modify-local-name
+cluster peer offer cancel
+cluster peer offer modify
+cluster peer offer show
+cluster peer ping
+cluster peer policy modify
+cluster peer policy show
+cluster peer show
+cluster peer update-checks
+cluster show
+cluster statistics show
+cluster time-service ntp server show
+debug dm vserver xc baseline generate
+debug dm vserver xc marker insert
+debug dm vserver xc stream create
+debug dm vserver xc stream delete
+debug dm vserver xc stream modify
+debug dm vserver xc stream pause
+debug dm vserver xc stream resume
+debug locks persistence reconstruction show
+debug locks persistence reconstruction show-volume
+debug locks persistence show
+debug network tcpdump show
+debug network tcpdump start
+debug network tcpdump stop
+debug san lun show-metadata
+debug san lun show-report-luns
+debug san lun show-state
+debug san lun show-target-port-groups
+df df
+echo echo
+event catalog show
+event config modify
+event config set-mail-server-password
+event config set-proxy-password
+event config show
+event filter copy
+event filter create
+event filter delete
+event filter rename
+event filter rule add
+event filter rule delete
+event filter rule reorder
+event filter show
+event filter show-summary
+event filter test
+event generate
+event generate-autosupport-log
+event log show
+event notification create
+event notification delete
+event notification destination check
+event notification destination create
+event notification destination delete
+event notification destination modify
+event notification destination show
+event notification history show
+event notification modify
+event notification show
+job delete
+job expunge
+job history show
+job pause
+job private delete
+job private pause
+job private resume
+job private show
+job private show-completed
+job private softpause
+job private stop
+job private watch-progress
+job resume
+job schedule cron create
+job schedule cron delete
+job schedule cron modify
+job schedule cron show
+job schedule delete
+job schedule interval create
+job schedule interval delete
+job schedule interval modify
+job schedule interval show
+job schedule show
+job schedule show-jobs
+job show
+job show-bynode
+job show-cluster
+job show-completed
+job softpause
+job stop
+job unclaim
+job watch-progress
+lun alignment reset-statistics
+lun alignment show
+lun attribute set
+lun attribute show
+lun attribute unset
+lun bind create
+lun bind destroy
+lun bind show
+lun comment
+lun convert-from-namespace
+lun copy cancel
+lun copy modify
+lun copy pause
+lun copy resume
+lun copy show
+lun copy show-by-job-info
+lun copy start
+lun create
+lun delete
+lun geometry
+lun igroup add
+lun igroup bind
+lun igroup create
+lun igroup delete
+lun igroup disable-aix-support
+lun igroup initiator add-proximal-vserver
+lun igroup initiator modify
+lun igroup initiator remove-proximal-vserver
+lun igroup initiator show
+lun igroup initiator upgrade missing-logins delete
+lun igroup initiator upgrade missing-logins show
+lun igroup initiator upgrade show-partially-connected
+lun igroup modify
+lun igroup remove
+lun igroup rename
+lun igroup set
+lun igroup show
+lun igroup unbind
+lun import create
+lun import delete
+lun import pause
+lun import resume
+lun import show
+lun import start
+lun import stop
+lun import throttle
+lun import verify start
+lun import verify stop
+lun location-database sync
+lun mapping add-reporting-nodes
+lun mapping create
+lun mapping delete
+lun mapping delete-stale
+lun mapping modify
+lun mapping remove-reporting-nodes
+lun mapping show
+lun mapping show-initiator
+lun mapping show-stale
+lun maxsize
+lun modify
+lun move cancel
+lun move modify
+lun move pause
+lun move recover-source
+lun move resume
+lun move show
+lun move show-by-job-info
+lun move start
+lun move-in-volume
+lun offline
+lun online
+lun persistent-reservation clear
+lun persistent-reservation show
+lun portset add
+lun portset create
+lun portset delete
+lun portset remove
+lun portset show
+lun rescan
+lun resize
+lun select
+lun serial
+lun set dev_id
+lun set reservation
+lun set space-alloc
+lun show
+lun stats
+lun transition 7-mode delete
+lun transition 7-mode show
+lun transition show
+lun transition start
+metrocluster check aggregate show
+metrocluster check cluster show
+metrocluster check config-cluster diff show
+metrocluster check config-cluster objects show
+metrocluster check config-cluster stream show
+metrocluster check config-replication show
+metrocluster check config-replication show-aggregate-eligibility
+metrocluster check config-replication show-capture-status
+metrocluster check connection show
+metrocluster check lif show
+metrocluster check lif-placement-failures show
+metrocluster check node show
+metrocluster check show
+metrocluster check volume show
+metrocluster config-replication cluster-storage-configuration show
+metrocluster config-replication resync-status show
+metrocluster configuration-settings calibration show
+metrocluster configuration-settings connection show
+metrocluster configuration-settings dr-group show
+metrocluster configuration-settings interface show
+metrocluster configuration-settings mediator show
+metrocluster configuration-settings show-status
+metrocluster interconnect adapter show
+metrocluster interconnect connection show
+metrocluster interconnect ipfo show
+metrocluster interconnect mirror multipath show
+metrocluster interconnect mirror show
+metrocluster interconnect show-reachable show
+metrocluster node show
+metrocluster operation history show
+metrocluster operation show
+metrocluster operation statistics show
+metrocluster progress-table show
+metrocluster show
+metrocluster transition show-mode
+metrocluster vserver lost-found-config show
+metrocluster vserver show
+metrocluster vserver switchback latency show-details-per-vserver
+metrocluster vserver switchover latency show-details-per-vserver
+network cloud routing-table show
+network connections active delete
+network connections active show
+network connections active show-clients
+network connections active show-lifs
+network connections active show-protocols
+network connections active show-services
+network connections listening show
+network connections options buffer show
+network fcp adapter show
+network interface dns-lb-stats show
+network interface failover-groups show
+network interface lif-weights show
+network interface service-policy show
+network interface show
+network ipspace show
+network ndp neighbor active-entry delete
+network ndp neighbor active-entry show
+network ndp neighbor create
+network ndp neighbor delete
+network ndp neighbor show
+network ping
+network ping6
+network port broadcast-domain create
+network port broadcast-domain delete
+network port broadcast-domain modify
+network port broadcast-domain show
+network port show
+network route active-entry show
+network route create
+network route delete
+network route show
+network route show-lifs
+network subnet show
+network test-path
+network traceroute
+network traceroute6
+protection-type show
+qos adaptive-policy-group create
+qos adaptive-policy-group delete
+qos adaptive-policy-group modify
+qos adaptive-policy-group rename
+qos adaptive-policy-group show
+qos config count show
+qos policy-group create
+qos policy-group delete
+qos policy-group modify
+qos policy-group rename
+qos policy-group show
+qos settings cache modify
+qos settings cache show
+qos settings cluster-options modify
+qos settings cluster-options show
+qos settings nested-qos-svm-vol
+qos settings read-ahead create
+qos settings read-ahead delete
+qos settings read-ahead modify
+qos settings read-ahead show
+qos settings throughput-floors-v2
+qos statistics characteristics show
+qos statistics latency show
+qos statistics performance show
+qos statistics resource cpu show
+qos statistics resource disk show
+qos statistics volume characteristics show
+qos statistics volume latency show
+qos statistics volume performance show
+qos statistics volume resource cpu show
+qos statistics volume resource disk show
+qos statistics workload characteristics show
+qos statistics workload latency show
+qos statistics workload performance show
+qos statistics workload resource cpu show
+qos statistics workload resource disk show
+qos workload delete
+qos workload modify
+qos workload show
+san config show
+security anti-ransomware show
+security anti-ransomware volume attack clear-suspect
+security anti-ransomware volume attack generate-report
+security anti-ransomware volume attack-detection-parameters modify
+security anti-ransomware volume attack-detection-parameters show
+security anti-ransomware volume auto-switch-to-enable-mode show
+security anti-ransomware volume disable
+security anti-ransomware volume dry-run
+security anti-ransomware volume enable
+security anti-ransomware volume entropy-stat show-encryption-percentage-histogram
+security anti-ransomware volume entropy-stat show-recent-daily-stat
+security anti-ransomware volume entropy-stat show-recent-high-encryption-stat
+security anti-ransomware volume entropy-stat show-recent-hourly-stat
+security anti-ransomware volume entropy-stat show-recent-sub-hourly-stat
+security anti-ransomware volume event-log modify
+security anti-ransomware volume event-log show
+security anti-ransomware volume pause
+security anti-ransomware volume resume
+security anti-ransomware volume show
+security anti-ransomware volume space show
+security anti-ransomware volume workload-behavior clear-surge
+security anti-ransomware volume workload-behavior show
+security anti-ransomware volume workload-behavior update-baseline-from-surge
+security audit log show
+security audit show
+security certificate azure-install
+security certificate ca-issued revoke
+security certificate ca-issued show
+security certificate config show
+security certificate create
+security certificate delete
+security certificate file show
+security certificate generate-csr
+security certificate install
+security certificate print
+security certificate rename
+security certificate show
+security certificate sign
+security certificate sync
+security certificate truststore check
+security config modify
+security config ocsp show
+security config show
+security dynamic-authorization authentication-history-policy modify
+security dynamic-authorization authentication-history-policy show
+security dynamic-authorization executed-commands show
+security dynamic-authorization group create
+security dynamic-authorization group delete
+security dynamic-authorization group modify
+security dynamic-authorization group show
+security dynamic-authorization modify
+security dynamic-authorization rule create
+security dynamic-authorization rule delete
+security dynamic-authorization rule modify
+security dynamic-authorization rule show
+security dynamic-authorization show
+security dynamic-authorization trust-score-component create
+security dynamic-authorization trust-score-component delete
+security dynamic-authorization trust-score-component modify
+security dynamic-authorization trust-score-component show
+security dynamic-authorization user-trust-score reset
+security ipsec ca-certificate add
+security ipsec ca-certificate remove
+security ipsec ca-certificate show
+security ipsec config modify
+security ipsec config show
+security ipsec policy create
+security ipsec policy delete
+security ipsec policy modify
+security ipsec policy show
+security ipsec show-ikesa
+security ipsec show-ipsecsa
+security key-manager external add-servers
+security key-manager external aws check
+security key-manager external aws disable
+security key-manager external aws enable
+security key-manager external aws invoke
+security key-manager external aws rekey-external
+security key-manager external aws rekey-internal
+security key-manager external aws restore
+security key-manager external aws show
+security key-manager external aws update-config
+security key-manager external aws update-credentials
+security key-manager external azure check
+security key-manager external azure create-config
+security key-manager external azure disable
+security key-manager external azure enable
+security key-manager external azure invoke
+security key-manager external azure rekey-external
+security key-manager external azure rekey-internal
+security key-manager external azure restore
+security key-manager external azure show
+security key-manager external azure update-client-secret
+security key-manager external azure update-config
+security key-manager external azure update-credentials
+security key-manager external barbican check
+security key-manager external barbican create-config
+security key-manager external barbican rekey-internal
+security key-manager external barbican restore
+security key-manager external barbican show
+security key-manager external barbican update-config
+security key-manager external barbican update-credentials
+security key-manager external disable
+security key-manager external enable
+security key-manager external gcp check
+security key-manager external gcp disable
+security key-manager external gcp enable
+security key-manager external gcp invoke
+security key-manager external gcp rekey-external
+security key-manager external gcp rekey-internal
+security key-manager external gcp restore
+security key-manager external gcp show
+security key-manager external gcp update-config
+security key-manager external gcp update-credentials
+security key-manager external keys check-keys
+security key-manager external keys locate-uuids
+security key-manager external keys show-uuids
+security key-manager external log modify
+security key-manager external log show
+security key-manager external modify
+security key-manager external modify-server
+security key-manager external remove-servers
+security key-manager external restore
+security key-manager external show
+security key-manager external show-status
+security key-manager external sync-key-cache
+security key-manager external sync-missing-keys
+security key-manager health policy modify
+security key-manager health policy show
+security key-manager key key-table create
+security key-manager key key-table delete
+security key-manager key key-table modify
+security key-manager key key-table show
+security key-manager key query
+security key-manager keystore show
+security key-manager show-key-store
+security login banner modify
+security login banner show
+security login create
+security login delete
+security login domain-tunnel create
+security login domain-tunnel delete
+security login domain-tunnel modify
+security login domain-tunnel show
+security login duo create
+security login duo delete
+security login duo group create
+security login duo group delete
+security login duo group modify
+security login duo group show
+security login duo modify
+security login duo show
+security login expire-password
+security login external-role-mapping create
+security login external-role-mapping delete
+security login external-role-mapping modify
+security login external-role-mapping show
+security login group create
+security login group delete
+security login group modify
+security login group role-mapping create
+security login group role-mapping delete
+security login group role-mapping modify
+security login group role-mapping show
+security login group show
+security login group-authentication cache clear
+security login information show
+security login lock
+security login modify
+security login motd modify
+security login motd show
+security login password
+security login publickey create
+security login publickey delete
+security login publickey load-from-uri
+security login publickey modify
+security login publickey show
+security login rest-role create
+security login rest-role delete
+security login rest-role expanded-rest-roles modify
+security login rest-role expanded-rest-roles show
+security login rest-role modify
+security login rest-role show
+security login role config modify
+security login role config show
+security login role create
+security login role delete
+security login role modify
+security login role show
+security login role show-ontapi
+security login role show-rest
+security login role show-user-capability
+security login show
+security login totp create
+security login totp delete
+security login totp modify
+security login totp show
+security login unlock
+security login userprofile-thread-pool modify
+security login userprofile-thread-pool show
+security login whoami
+security oauth2 client create
+security oauth2 client delete
+security oauth2 client show
+security oauth2 modify
+security oauth2 scope cli-to-scope generate
+security oauth2 scope scope-to-cli generate
+security oauth2 show
+security protocol show
+security protocol ssh show
+security session kill-cli
+security session limit show
+security session show
+security ssh add
+security ssh ems-job show
+security ssh modify
+security ssh remove
+security ssh show
+security ssl modify
+security ssl show
+set set
+sleep sleep
+snapdiff api end
+snapdiff api next
+snapdiff api session kill
+snapdiff api session show
+snapdiff api start
+snapdiff api start-to-end
+snapdiff api status
+snaplock compliance-clock initialize
+snaplock compliance-clock ntp modify
+snaplock compliance-clock ntp show
+snaplock compliance-clock show
+snaplock event-retention abort
+snaplock event-retention apply
+snaplock event-retention policy create
+snaplock event-retention policy delete
+snaplock event-retention policy modify
+snaplock event-retention policy show
+snaplock event-retention show
+snaplock event-retention show-vservers
+snaplock legal-hold abort
+snaplock legal-hold begin
+snaplock legal-hold dump-files
+snaplock legal-hold dump-litigations
+snaplock legal-hold end
+snaplock legal-hold show
+snaplock log create
+snaplock log delete
+snaplock log file archive
+snaplock log file close
+snaplock log file show
+snaplock log modify
+snaplock log show
+snapmirror abort
+snapmirror break
+snapmirror cache rebuild-relationship
+snapmirror cache refresh-all
+snapmirror cache start-service-jobs
+snapmirror check
+snapmirror create
+snapmirror delete
+snapmirror failover show
+snapmirror failover start
+snapmirror initialize
+snapmirror initialize-ls-set
+snapmirror list-destinations
+snapmirror list-unprotected
+snapmirror mediator action-log show
+snapmirror mediator add
+snapmirror mediator log show
+snapmirror mediator modify
+snapmirror mediator primary-bias history show
+snapmirror mediator primary-bias show
+snapmirror mediator remove
+snapmirror mediator set-timeout
+snapmirror mediator show
+snapmirror mediator tba-history show
+snapmirror modify
+snapmirror policy add-rule
+snapmirror policy create
+snapmirror policy delete
+snapmirror policy modify
+snapmirror policy modify-rule
+snapmirror policy remove-rule
+snapmirror policy show
+snapmirror promote
+snapmirror protect
+snapmirror quiesce
+snapmirror release
+snapmirror restore
+snapmirror resume
+snapmirror resync
+snapmirror set-preferred-cluster
+snapmirror show
+snapmirror show-capabilities
+snapmirror show-history
+snapmirror snapshot-owner create
+snapmirror snapshot-owner delete
+snapmirror snapshot-owner show
+snapmirror update
+snapmirror update-ls-set
+statistics aggregate show
+statistics catalog counter show
+statistics catalog instance show
+statistics catalog object show
+statistics lif show
+statistics lun show
+statistics qtree show
+statistics samples delete
+statistics samples show
+statistics settings modify
+statistics settings show
+statistics show
+statistics show-periodic
+statistics start
+statistics stop
+statistics system show
+statistics top client show
+statistics top file show
+statistics volume show
+statistics vserver show
+statistics-v1 nfs show-mount
+statistics-v1 nfs show-nlm
+statistics-v1 nfs show-portmap
+statistics-v1 nfs show-statusmon
+statistics-v1 nfs show-v3
+statistics-v1 nfs show-v4
+statistics-v1 nfs show-v41
+statistics-v1 protocol-request-size show
+storage aggregate clusterspace show
+storage aggregate object-store config dblade show
+storage aggregate object-store config provider-list
+storage aggregate object-store config show
+storage aggregate object-store show
+storage aggregate object-store show-space
+storage aggregate show
+storage aggregate show-cumulated-efficiency
+storage aggregate show-efficiency
+storage aggregate show-space
+storage aggregate show-spare-disks
+storage aggregate show-status
+storage disk show
+storage encryption disk show
+storage failover show
+storage pool show
+storage pool show-aggregate
+storage pool show-available-capacity
+storage shelf show
+storage-service show
+system capability clusterset show
+system controller flash-cache show
+system health alert show
+system health status show
+system license delete
+system license entitlement-risk show
+system license show
+system node autosupport history show
+system node autosupport invoke
+system node autosupport invoke-performance-archive
+system node autosupport show
+system node external-cache modify
+system node external-cache show
+system node show
+system node virtual-machine instance show-settings
+system ontapi changes show
+system service-processor show
+system services firewall policy show
+system timeout modify
+system timeout show
+timezone timezone
+version version
+volume activity-tracking attributes free
+volume activity-tracking attributes initialization
+volume activity-tracking attributes mark-for-scan
+volume activity-tracking attributes show
+volume activity-tracking off
+volume activity-tracking on
+volume activity-tracking reset
+volume activity-tracking show
+volume analytics cluster-config modify
+volume analytics cluster-config reset
+volume analytics cluster-config show
+volume analytics initialization pause
+volume analytics initialization resume
+volume analytics initialization show
+volume analytics off
+volume analytics on
+volume analytics show
+volume autosize
+volume check metadata show
+volume check metadata show-history
+volume clone create
+volume clone quiesce-lun show
+volume clone quiesce-lun start
+volume clone quiesce-lun stop
+volume clone sharing-by-split show
+volume clone sharing-by-split undo show
+volume clone sharing-by-split undo start
+volume clone sharing-by-split undo start-all
+volume clone sharing-by-split undo stop
+volume clone show
+volume clone split show
+volume clone split start
+volume clone split stop
+volume conversion create-destination-snapshot
+volume conversion delete-qos-workload
+volume conversion history show
+volume conversion recover
+volume conversion start
+volume conversion validation show
+volume create
+volume delete
+volume destroy
+volume efficiency check
+volume efficiency inactive-data-compression modify
+volume efficiency inactive-data-compression show
+volume efficiency inactive-data-compression start
+volume efficiency inactive-data-compression stop
+volume efficiency inactive-data-reallocation modify
+volume efficiency inactive-data-reallocation show
+volume efficiency modify
+volume efficiency off
+volume efficiency on
+volume efficiency policy create
+volume efficiency policy delete
+volume efficiency policy modify
+volume efficiency policy show
+volume efficiency promote
+volume efficiency show
+volume efficiency start
+volume efficiency stat
+volume efficiency stop
+volume efficiency undo
+volume encryption conversion pause
+volume encryption conversion resume
+volume encryption conversion show
+volume encryption conversion start
+volume encryption populate-svm-uuid
+volume encryption rekey pause
+volume encryption rekey resume
+volume encryption rekey show
+volume encryption rekey start
+volume encryption retry-online start
+volume encryption secure-purge abort
+volume encryption secure-purge show
+volume encryption secure-purge show-version
+volume encryption secure-purge start
+volume expand
+volume explore
+volume file async-delete cancel
+volume file async-delete client disable
+volume file async-delete client enable
+volume file async-delete client show
+volume file async-delete show
+volume file async-delete start
+volume file clone autodelete
+volume file clone create
+volume file clone deletion add-extension
+volume file clone deletion modify
+volume file clone deletion remove-extension
+volume file clone deletion show
+volume file clone show-autodelete
+volume file clone show-autodelete-list
+volume file clone split enable
+volume file clone split load modify
+volume file clone split load show
+volume file clone split progress show
+volume file clone split status
+volume file clone token create
+volume file clone token delete
+volume file clone token modify
+volume file clone token show
+volume file compact-data
+volume file copy destroy
+volume file copy modify
+volume file copy show
+volume file copy start
+volume file fingerprint show
+volume file fingerprint start
+volume file modify
+volume file move destroy
+volume file move modify
+volume file move show
+volume file move start
+volume file privileged-delete
+volume file reservation
+volume file retention set
+volume file retention show
+volume file show-disk-usage
+volume file show-filehandle
+volume file show-inode
+volume flexcache config modify
+volume flexcache config show
+volume flexcache config-refresh
+volume flexcache connection-status show
+volume flexcache connection-status show-disconnected
+volume flexcache create
+volume flexcache delete
+volume flexcache origin cleanup-cache-relationship
+volume flexcache origin config modify
+volume flexcache origin config show
+volume flexcache origin show-caches
+volume flexcache origin svmdr-origin-refresh
+volume flexcache origin-rbac show
+volume flexcache prepopulate start
+volume flexcache show
+volume flexcache status modify
+volume flexcache status show
+volume flexcache sync-properties
+volume flexgroup config modify
+volume flexgroup config show
+volume flexgroup prepare-to-downgrade
+volume flexgroup qtree-disable
+volume flexgroup qtree-enable
+volume flexgroup refresh
+volume flexgroup show
+volume language
+volume make-vsroot
+volume managed-feature rest show
+volume modify
+volume mount
+volume move abort
+volume move clear
+volume move modify
+volume move show
+volume move start
+volume move suspend-cutover
+volume move target-aggr show
+volume move trigger-cutover
+volume offline
+volume online
+volume qtree create
+volume qtree delete
+volume qtree modify
+volume qtree oplocks
+volume qtree rename
+volume qtree security
+volume qtree show
+volume quota debug get-peer-quota-descriptor
+volume quota debug pending-state-change show
+volume quota debug pending-state-change sync
+volume quota debug read
+volume quota debug tally
+volume quota debug ticket count
+volume quota debug ticket show
+volume quota debug ticket view
+volume quota modify
+volume quota off
+volume quota on
+volume quota policy copy
+volume quota policy create
+volume quota policy delete
+volume quota policy rename
+volume quota policy rule count show
+volume quota policy rule create
+volume quota policy rule delete
+volume quota policy rule modify
+volume quota policy rule show
+volume quota policy show
+volume quota report
+volume quota resize
+volume quota show
+volume quota status
+volume reallocation measure
+volume reallocation off
+volume reallocation on
+volume reallocation quiesce
+volume reallocation restart
+volume reallocation schedule
+volume reallocation show
+volume reallocation start
+volume reallocation stop
+volume rebalance file-move abort
+volume rebalance file-move modify
+volume rebalance file-move show
+volume rebalance file-move start
+volume rebalance file-move statistics reset
+volume rebalance file-move statistics show
+volume rebalance modify
+volume rebalance show
+volume rebalance start
+volume rebalance stop
+volume recovery-queue modify
+volume recovery-queue purge
+volume recovery-queue purge-all
+volume recovery-queue recover
+volume recovery-queue recover-all
+volume recovery-queue show
+volume rehost
+volume remove-junction
+volume rename
+volume show
+volume show-footprint
+volume show-space
+volume size
+volume snaplock modify
+volume snaplock set-privileged-delete
+volume snaplock show
+volume snapshot autodelete modify
+volume snapshot autodelete show
+volume snapshot compute-reclaimable
+volume snapshot create
+volume snapshot delete
+volume snapshot event-config show
+volume snapshot fix-snaplock-state
+volume snapshot modify
+volume snapshot modify-snaplock-expiry-time
+volume snapshot partial-restore-file
+volume snapshot policy add-schedule
+volume snapshot policy create
+volume snapshot policy delete
+volume snapshot policy modify
+volume snapshot policy modify-schedule
+volume snapshot policy remove-schedule
+volume snapshot policy reset-prefix
+volume snapshot policy show
+volume snapshot promote
+volume snapshot remove-owner
+volume snapshot rename
+volume snapshot restore
+volume snapshot restore-file
+volume snapshot show
+volume snapshot show-delta
+volume snapshot snapdb reset
+volume snapshot snapdb show
+volume unmount
+vserver active-directory create
+vserver active-directory delete
+vserver active-directory modify
+vserver active-directory password-change
+vserver active-directory password-reset
+vserver active-directory show
+vserver add-protocols
+vserver audit audit-log-redirect create
+vserver audit audit-log-redirect delete
+vserver audit audit-log-redirect modify
+vserver audit audit-log-redirect show
+vserver audit create
+vserver audit delete
+vserver audit disable
+vserver audit enable
+vserver audit modify
+vserver audit repair
+vserver audit rotate-log
+vserver audit show
+vserver check lif-multitenancy run
+vserver check lif-multitenancy show
+vserver check lif-multitenancy show-results
+vserver cifs access
+vserver cifs add-netbios-aliases
+vserver cifs audit
+vserver cifs branchcache create
+vserver cifs branchcache delete
+vserver cifs branchcache hash-create
+vserver cifs branchcache hash-flush
+vserver cifs branchcache log modify
+vserver cifs branchcache log show
+vserver cifs branchcache modify
+vserver cifs branchcache show
+vserver cifs cache name-to-sid delete
+vserver cifs cache name-to-sid delete-all
+vserver cifs cache name-to-sid show
+vserver cifs cache settings modify
+vserver cifs cache settings show
+vserver cifs cache show-count
+vserver cifs cache sid-to-name delete
+vserver cifs cache sid-to-name delete-all
+vserver cifs cache sid-to-name show
+vserver cifs character-mapping create
+vserver cifs character-mapping delete
+vserver cifs character-mapping modify
+vserver cifs character-mapping show
+vserver cifs check
+vserver cifs connection show
+vserver cifs create
+vserver cifs delete
+vserver cifs domain discovered-servers discovery-mode modify
+vserver cifs domain discovered-servers discovery-mode show
+vserver cifs domain discovered-servers reset-servers
+vserver cifs domain discovered-servers show
+vserver cifs domain name-mapping-search add
+vserver cifs domain name-mapping-search modify
+vserver cifs domain name-mapping-search remove
+vserver cifs domain name-mapping-search show
+vserver cifs domain password change
+vserver cifs domain password reset
+vserver cifs domain password schedule modify
+vserver cifs domain password schedule show
+vserver cifs domain preferred-dc add
+vserver cifs domain preferred-dc check
+vserver cifs domain preferred-dc remove
+vserver cifs domain preferred-dc show
+vserver cifs domain trusts rediscover
+vserver cifs domain trusts show
+vserver cifs flush-component-cache
+vserver cifs group-policy central-access-policy show-applied
+vserver cifs group-policy central-access-policy show-defined
+vserver cifs group-policy central-access-rule show-applied
+vserver cifs group-policy central-access-rule show-defined
+vserver cifs group-policy modify
+vserver cifs group-policy restricted-group show-applied
+vserver cifs group-policy restricted-group show-defined
+vserver cifs group-policy show
+vserver cifs group-policy show-applied
+vserver cifs group-policy show-defined
+vserver cifs group-policy update
+vserver cifs home-directory modify
+vserver cifs home-directory search-path add
+vserver cifs home-directory search-path remove
+vserver cifs home-directory search-path reorder
+vserver cifs home-directory search-path show
+vserver cifs home-directory show
+vserver cifs home-directory show-user
+vserver cifs modify
+vserver cifs nbtstat
+vserver cifs options modify
+vserver cifs options show
+vserver cifs remove-netbios-aliases
+vserver cifs repair-modify
+vserver cifs security modify
+vserver cifs security show
+vserver cifs session close
+vserver cifs session file close
+vserver cifs session file remove
+vserver cifs session file show
+vserver cifs session remove
+vserver cifs session show
+vserver cifs shadowcopy abort
+vserver cifs shadowcopy show
+vserver cifs shadowcopy show-sets
+vserver cifs shadowcopy show-shares
+vserver cifs shadowcopy show-volumes
+vserver cifs share access-control create
+vserver cifs share access-control delete
+vserver cifs share access-control modify
+vserver cifs share access-control show
+vserver cifs share create
+vserver cifs share delete
+vserver cifs share modify
+vserver cifs share properties add
+vserver cifs share properties remove
+vserver cifs share properties show
+vserver cifs share show
+vserver cifs shares
+vserver cifs show
+vserver cifs start
+vserver cifs stop
+vserver cifs superuser create
+vserver cifs superuser delete
+vserver cifs superuser show
+vserver cifs symlink create
+vserver cifs symlink delete
+vserver cifs symlink modify
+vserver cifs symlink show
+vserver cifs users-and-groups import get-status
+vserver cifs users-and-groups import load-from-uri
+vserver cifs users-and-groups local-group add-members
+vserver cifs users-and-groups local-group create
+vserver cifs users-and-groups local-group delete
+vserver cifs users-and-groups local-group modify
+vserver cifs users-and-groups local-group remove-members
+vserver cifs users-and-groups local-group rename
+vserver cifs users-and-groups local-group show
+vserver cifs users-and-groups local-group show-members
+vserver cifs users-and-groups local-group show-sid
+vserver cifs users-and-groups local-user create
+vserver cifs users-and-groups local-user delete
+vserver cifs users-and-groups local-user modify
+vserver cifs users-and-groups local-user rename
+vserver cifs users-and-groups local-user set-password
+vserver cifs users-and-groups local-user show
+vserver cifs users-and-groups local-user show-membership
+vserver cifs users-and-groups local-user show-sid
+vserver cifs users-and-groups privilege add-privilege
+vserver cifs users-and-groups privilege remove-privilege
+vserver cifs users-and-groups privilege reset-privilege
+vserver cifs users-and-groups privilege show
+vserver cifs users-and-groups remove-stale-records
+vserver cifs users-and-groups show-domain-sid
+vserver cifs users-and-groups update-names
+vserver config-replication pause
+vserver config-replication resume
+vserver config-replication show
+vserver consistency-group attach
+vserver consistency-group clone create
+vserver consistency-group create
+vserver consistency-group delete
+vserver consistency-group demote
+vserver consistency-group detach
+vserver consistency-group lun show
+vserver consistency-group metrics show
+vserver consistency-group modify
+vserver consistency-group namespace show
+vserver consistency-group promote
+vserver consistency-group show
+vserver consistency-group snapshot commit
+vserver consistency-group snapshot create
+vserver consistency-group snapshot delete
+vserver consistency-group snapshot restore
+vserver consistency-group snapshot show
+vserver consistency-group snapshot start
+vserver consistency-group volume add
+vserver consistency-group volume create
+vserver consistency-group volume reassign
+vserver consistency-group volume remove
+vserver consistency-group volume show
+vserver context
+vserver copy-offload delete-tokens
+vserver copy-offload modify
+vserver copy-offload show
+vserver create
+vserver create-sync-destination
+vserver export-policy access-cache config modify
+vserver export-policy access-cache config reset-to-defaults
+vserver export-policy access-cache config show
+vserver export-policy access-cache config show-nblade
+vserver export-policy access-cache flush
+vserver export-policy access-cache show
+vserver export-policy access-cache show-negative
+vserver export-policy access-cache show-rules
+vserver export-policy cache flush
+vserver export-policy check-access
+vserver export-policy config-checker rule delete
+vserver export-policy config-checker rule show
+vserver export-policy config-checker show
+vserver export-policy config-checker start
+vserver export-policy config-checker stop
+vserver export-policy copy
+vserver export-policy create
+vserver export-policy delete
+vserver export-policy netgroup cache show
+vserver export-policy netgroup check-membership
+vserver export-policy netgroup queue show
+vserver export-policy rename
+vserver export-policy rule add-clientmatches
+vserver export-policy rule create
+vserver export-policy rule delete
+vserver export-policy rule limit modify
+vserver export-policy rule limit show
+vserver export-policy rule modify
+vserver export-policy rule remove-clientmatches
+vserver export-policy rule setindex
+vserver export-policy rule show
+vserver export-policy security-table show
+vserver export-policy show
+vserver fcp initiator show
+vserver fcp interface show
+vserver fcp nameserver show
+vserver fcp nodename
+vserver fcp ping-igroup show
+vserver fcp ping-initiator show
+vserver fcp portname show
+vserver fcp show
+vserver fcp status
+vserver fcp tdz show
+vserver fcp topology show
+vserver fcp wwn blacklist show
+vserver fcp wwpn-alias show
+vserver fpolicy disable
+vserver fpolicy enable
+vserver fpolicy engine-connect
+vserver fpolicy engine-disconnect
+vserver fpolicy log modify
+vserver fpolicy log setlevel
+vserver fpolicy log show
+vserver fpolicy log trace modify
+vserver fpolicy log trace show
+vserver fpolicy persistent-store create
+vserver fpolicy persistent-store delete
+vserver fpolicy persistent-store modify
+vserver fpolicy persistent-store show
+vserver fpolicy policy create
+vserver fpolicy policy delete
+vserver fpolicy policy event create
+vserver fpolicy policy event delete
+vserver fpolicy policy event modify
+vserver fpolicy policy event show
+vserver fpolicy policy external-engine create
+vserver fpolicy policy external-engine delete
+vserver fpolicy policy external-engine modify
+vserver fpolicy policy external-engine show
+vserver fpolicy policy modify
+vserver fpolicy policy scope create
+vserver fpolicy policy scope delete
+vserver fpolicy policy scope modify
+vserver fpolicy policy scope show
+vserver fpolicy policy show
+vserver fpolicy show
+vserver fpolicy show-enabled
+vserver fpolicy show-engine
+vserver fpolicy show-passthrough-read-connection
+vserver http-proxy create
+vserver http-proxy delete
+vserver http-proxy modify
+vserver http-proxy show
+vserver iscsi alias
+vserver iscsi command show
+vserver iscsi connection show
+vserver iscsi connection shutdown
+vserver iscsi create
+vserver iscsi delete
+vserver iscsi initiator show
+vserver iscsi interface accesslist add
+vserver iscsi interface accesslist remove
+vserver iscsi interface accesslist show
+vserver iscsi interface disable
+vserver iscsi interface enable
+vserver iscsi interface modify
+vserver iscsi interface show
+vserver iscsi isns create
+vserver iscsi isns delete
+vserver iscsi isns modify
+vserver iscsi isns show
+vserver iscsi isns start
+vserver iscsi isns stop
+vserver iscsi isns update
+vserver iscsi modify
+vserver iscsi nodename
+vserver iscsi security add-initator-address-ranges
+vserver iscsi security create
+vserver iscsi security default
+vserver iscsi security delete
+vserver iscsi security modify
+vserver iscsi security modify-encryption-at-rest
+vserver iscsi security remove-initator-address-ranges
+vserver iscsi security show
+vserver iscsi session parameter show
+vserver iscsi session show
+vserver iscsi session shutdown
+vserver iscsi show
+vserver iscsi start
+vserver iscsi stats
+vserver iscsi status
+vserver iscsi stop
+vserver iscsi tpgroup add
+vserver iscsi tpgroup create
+vserver iscsi tpgroup delete
+vserver iscsi tpgroup delete-all
+vserver iscsi tpgroup remove
+vserver iscsi tpgroup show
+vserver locks break
+vserver locks nfsv4 show
+vserver locks show
+vserver locks show-mirrored-open-count
+vserver modify
+vserver name-mapping create
+vserver name-mapping delete
+vserver name-mapping insert
+vserver name-mapping modify
+vserver name-mapping refresh-hostname-ip
+vserver name-mapping show
+vserver name-mapping swap
+vserver nfs cache-config modify
+vserver nfs cache-config show
+vserver nfs client information show
+vserver nfs connected-clients show
+vserver nfs create
+vserver nfs credentials count
+vserver nfs credentials flush
+vserver nfs credentials show
+vserver nfs delete
+vserver nfs kerberos interface attrs create
+vserver nfs kerberos interface attrs delete
+vserver nfs kerberos interface attrs modify
+vserver nfs kerberos interface attrs show
+vserver nfs kerberos interface disable
+vserver nfs kerberos interface enable
+vserver nfs kerberos interface modify
+vserver nfs kerberos interface show
+vserver nfs kerberos keyblocks create
+vserver nfs kerberos keyblocks delete
+vserver nfs kerberos keyblocks modify
+vserver nfs kerberos keyblocks show
+vserver nfs kerberos realm create
+vserver nfs kerberos realm delete
+vserver nfs kerberos realm modify
+vserver nfs kerberos realm show
+vserver nfs modify
+vserver nfs off
+vserver nfs on
+vserver nfs pnfs devices cache flush
+vserver nfs pnfs devices cache show
+vserver nfs pnfs devices create
+vserver nfs pnfs devices delete
+vserver nfs pnfs devices invalidate
+vserver nfs pnfs devices mappings show
+vserver nfs pnfs devices show
+vserver nfs pnfs lif-mapping-cache flush
+vserver nfs pnfs lif-mapping-cache show
+vserver nfs show
+vserver nfs start
+vserver nfs status
+vserver nfs stop
+vserver nfs storepool blocked-client flush
+vserver nfs storepool blocked-client show
+vserver nfs storepool config modify
+vserver nfs storepool config show
+vserver nfs storepool show
+vserver nfs tls interface disable
+vserver nfs tls interface enable
+vserver nfs tls interface modify
+vserver nfs tls interface show
+vserver nvme create
+vserver nvme delete
+vserver nvme feature show
+vserver nvme grace-period show
+vserver nvme modify
+vserver nvme namespace convert-from-lun
+vserver nvme namespace create
+vserver nvme namespace create-from-file
+vserver nvme namespace delete
+vserver nvme namespace modify
+vserver nvme namespace show
+vserver nvme show
+vserver nvme show-discovery-controller
+vserver nvme show-host-priority
+vserver nvme show-interface
+vserver nvme subsystem controller show
+vserver nvme subsystem create
+vserver nvme subsystem delete
+vserver nvme subsystem host add
+vserver nvme subsystem host add-proximal-vserver
+vserver nvme subsystem host remove
+vserver nvme subsystem host remove-proximal-vserver
+vserver nvme subsystem host show
+vserver nvme subsystem host unconfigure-tls-for-revert
+vserver nvme subsystem map add
+vserver nvme subsystem map remove
+vserver nvme subsystem map remove-stale
+vserver nvme subsystem map show
+vserver nvme subsystem map show-stale
+vserver nvme subsystem modify
+vserver nvme subsystem show
+vserver object-store-server audit create
+vserver object-store-server audit delete
+vserver object-store-server audit disable
+vserver object-store-server audit enable
+vserver object-store-server audit event-selector create
+vserver object-store-server audit event-selector delete
+vserver object-store-server audit event-selector modify
+vserver object-store-server audit event-selector show
+vserver object-store-server audit modify
+vserver object-store-server audit repair
+vserver object-store-server audit rotate-log
+vserver object-store-server audit show
+vserver object-store-server bucket check-rbac
+vserver object-store-server bucket cleanup-delete-op
+vserver object-store-server bucket cleanup-snapshot-restore
+vserver object-store-server bucket clear-snapshot-metadata
+vserver object-store-server bucket clear-validity-cache
+vserver object-store-server bucket cors-rule create
+vserver object-store-server bucket cors-rule delete
+vserver object-store-server bucket cors-rule show
+vserver object-store-server bucket create
+vserver object-store-server bucket delete
+vserver object-store-server bucket evict-remote-cached-objects
+vserver object-store-server bucket lifecycle-management-rule create
+vserver object-store-server bucket lifecycle-management-rule delete
+vserver object-store-server bucket lifecycle-management-rule delete-stale-rules
+vserver object-store-server bucket lifecycle-management-rule modify
+vserver object-store-server bucket lifecycle-management-rule show
+vserver object-store-server bucket modify
+vserver object-store-server bucket policy statement create
+vserver object-store-server bucket policy statement delete
+vserver object-store-server bucket policy statement modify
+vserver object-store-server bucket policy statement show
+vserver object-store-server bucket policy-statement-condition create
+vserver object-store-server bucket policy-statement-condition delete
+vserver object-store-server bucket policy-statement-condition modify
+vserver object-store-server bucket policy-statement-condition show
+vserver object-store-server bucket show
+vserver object-store-server bucket snapshot create
+vserver object-store-server bucket snapshot delete
+vserver object-store-server bucket snapshot restore show
+vserver object-store-server bucket snapshot restore start
+vserver object-store-server bucket snapshot show
+vserver object-store-server cache flush
+vserver object-store-server cache settings modify
+vserver object-store-server cache settings show
+vserver object-store-server cache show
+vserver object-store-server check-protocol-rbac
+vserver object-store-server create
+vserver object-store-server delete
+vserver object-store-server group create
+vserver object-store-server group delete
+vserver object-store-server group modify
+vserver object-store-server group show
+vserver object-store-server lost-object-recovery abort
+vserver object-store-server lost-object-recovery show
+vserver object-store-server lost-object-recovery start
+vserver object-store-server modify
+vserver object-store-server policy create
+vserver object-store-server policy delete
+vserver object-store-server policy modify
+vserver object-store-server policy show
+vserver object-store-server policy statement create
+vserver object-store-server policy statement delete
+vserver object-store-server policy statement modify
+vserver object-store-server policy statement show
+vserver object-store-server show
+vserver object-store-server show-flexcache-bucket
+vserver object-store-server user create
+vserver object-store-server user delete
+vserver object-store-server user delete-keys
+vserver object-store-server user modify
+vserver object-store-server user regenerate-keys
+vserver object-store-server user show
+vserver options
+vserver peer accept
+vserver peer create
+vserver peer delete
+vserver peer modify
+vserver peer modify-local-name
+vserver peer permission create
+vserver peer permission delete
+vserver peer permission modify
+vserver peer permission remote-show
+vserver peer permission show
+vserver peer reject
+vserver peer repair-peer-name
+vserver peer repeer
+vserver peer resume
+vserver peer show
+vserver peer show-all
+vserver peer suspend
+vserver peer transition create
+vserver peer transition delete
+vserver peer transition modify
+vserver peer transition show
+vserver protect checkvge
+vserver protect precheck
+vserver protect precheck-dp-support
+vserver protect precheck-network
+vserver remove-protocols
+vserver restamp-msid
+vserver security file-directory apply
+vserver security file-directory job show
+vserver security file-directory ntfs create
+vserver security file-directory ntfs dacl add
+vserver security file-directory ntfs dacl modify
+vserver security file-directory ntfs dacl remove
+vserver security file-directory ntfs dacl show
+vserver security file-directory ntfs delete
+vserver security file-directory ntfs modify
+vserver security file-directory ntfs sacl add
+vserver security file-directory ntfs sacl modify
+vserver security file-directory ntfs sacl remove
+vserver security file-directory ntfs sacl show
+vserver security file-directory ntfs show
+vserver security file-directory policy create
+vserver security file-directory policy delete
+vserver security file-directory policy show
+vserver security file-directory policy task add
+vserver security file-directory policy task modify
+vserver security file-directory policy task remove
+vserver security file-directory policy task show
+vserver security file-directory remove-slag
+vserver security file-directory show
+vserver security file-directory show-effective-permissions
+vserver security trace filter create
+vserver security trace filter delete
+vserver security trace filter modify
+vserver security trace filter show
+vserver security trace trace-result delete
+vserver security trace trace-result show
+vserver services access-check authentication get-claim-name
+vserver services access-check authentication get-dc-info
+vserver services access-check authentication login-cifs
+vserver services access-check authentication ontap-admin-ldap-fastbind
+vserver services access-check authentication ontap-admin-login-cifs
+vserver services access-check authentication show-creds
+vserver services access-check authentication show-ontap-admin-unix-creds
+vserver services access-check authentication show-unix-ext-creds
+vserver services access-check authentication sid-to-uid
+vserver services access-check authentication sid-to-unix-name
+vserver services access-check authentication translate
+vserver services access-check authentication uid-to-sid
+vserver services access-check dns forward-lookup
+vserver services access-check dns srv-lookup
+vserver services access-check name-mapping show
+vserver services access-check server-discovery reset
+vserver services access-check server-discovery show-host
+vserver services access-check server-discovery show-site
+vserver services access-check server-discovery test
+vserver services name-service cache group-membership delete
+vserver services name-service cache group-membership delete-all
+vserver services name-service cache group-membership settings modify
+vserver services name-service cache group-membership settings show
+vserver services name-service cache group-membership show
+vserver services name-service cache hosts forward-lookup delete
+vserver services name-service cache hosts forward-lookup delete-all
+vserver services name-service cache hosts forward-lookup show
+vserver services name-service cache hosts reverse-lookup delete
+vserver services name-service cache hosts reverse-lookup delete-all
+vserver services name-service cache hosts reverse-lookup show
+vserver services name-service cache hosts settings modify
+vserver services name-service cache hosts settings show
+vserver services name-service cache netgroups ip-to-netgroup delete
+vserver services name-service cache netgroups ip-to-netgroup delete-all
+vserver services name-service cache netgroups ip-to-netgroup show
+vserver services name-service cache netgroups members delete
+vserver services name-service cache netgroups members delete-all
+vserver services name-service cache netgroups members show
+vserver services name-service cache netgroups settings modify
+vserver services name-service cache netgroups settings show
+vserver services name-service cache settings modify
+vserver services name-service cache settings show
+vserver services name-service cache show-count
+vserver services name-service cache unix-group group-by-gid delete
+vserver services name-service cache unix-group group-by-gid delete-all
+vserver services name-service cache unix-group group-by-gid show
+vserver services name-service cache unix-group group-by-name delete
+vserver services name-service cache unix-group group-by-name delete-all
+vserver services name-service cache unix-group group-by-name show
+vserver services name-service cache unix-group settings modify
+vserver services name-service cache unix-group settings show
+vserver services name-service cache unix-user settings modify
+vserver services name-service cache unix-user settings show
+vserver services name-service cache unix-user user-by-id delete
+vserver services name-service cache unix-user user-by-id delete-all
+vserver services name-service cache unix-user user-by-id show
+vserver services name-service cache unix-user user-by-name delete
+vserver services name-service cache unix-user user-by-name delete-all
+vserver services name-service cache unix-user user-by-name show
+vserver services name-service dns check
+vserver services name-service dns create
+vserver services name-service dns delete
+vserver services name-service dns dynamic-update modify
+vserver services name-service dns dynamic-update record add
+vserver services name-service dns dynamic-update record delete
+vserver services name-service dns dynamic-update show
+vserver services name-service dns hosts create
+vserver services name-service dns hosts delete
+vserver services name-service dns hosts modify
+vserver services name-service dns hosts show
+vserver services name-service dns modify
+vserver services name-service dns show
+vserver services name-service file-version show
+vserver services name-service getxxbyyy getaddrinfo
+vserver services name-service getxxbyyy getgrbygid
+vserver services name-service getxxbyyy getgrbyname
+vserver services name-service getxxbyyy getgrlist
+vserver services name-service getxxbyyy gethostbyaddr
+vserver services name-service getxxbyyy gethostbyname
+vserver services name-service getxxbyyy getnameinfo
+vserver services name-service getxxbyyy getpwbyname
+vserver services name-service getxxbyyy getpwbyuid
+vserver services name-service getxxbyyy netgrpcheck
+vserver services name-service ldap check
+vserver services name-service ldap check-ipv6
+vserver services name-service ldap client create
+vserver services name-service ldap client delete
+vserver services name-service ldap client modify
+vserver services name-service ldap client modify-bind-password
+vserver services name-service ldap client schema copy
+vserver services name-service ldap client schema delete
+vserver services name-service ldap client schema modify
+vserver services name-service ldap client schema show
+vserver services name-service ldap client show
+vserver services name-service ldap create
+vserver services name-service ldap delete
+vserver services name-service ldap modify
+vserver services name-service ldap show
+vserver services name-service netgroup file delete
+vserver services name-service netgroup file show
+vserver services name-service netgroup load
+vserver services name-service netgroup status
+vserver services name-service nis-domain create
+vserver services name-service nis-domain delete
+vserver services name-service nis-domain group-database build
+vserver services name-service nis-domain group-database config modify
+vserver services name-service nis-domain group-database config show
+vserver services name-service nis-domain group-database show
+vserver services name-service nis-domain group-database status
+vserver services name-service nis-domain modify
+vserver services name-service nis-domain netgroup-database build
+vserver services name-service nis-domain netgroup-database config modify
+vserver services name-service nis-domain netgroup-database config show
+vserver services name-service nis-domain netgroup-database remove
+vserver services name-service nis-domain netgroup-database show
+vserver services name-service nis-domain netgroup-database show-status
+vserver services name-service nis-domain show
+vserver services name-service nis-domain show-bound
+vserver services name-service nis-domain show-bound-debug
+vserver services name-service nis-domain trace dump
+vserver services name-service ns-switch create
+vserver services name-service ns-switch delete
+vserver services name-service ns-switch modify
+vserver services name-service ns-switch show
+vserver services name-service queue-status show
+vserver services name-service repair-configs
+vserver services name-service unix-group adduser
+vserver services name-service unix-group addusers
+vserver services name-service unix-group create
+vserver services name-service unix-group delete
+vserver services name-service unix-group deluser
+vserver services name-service unix-group file show
+vserver services name-service unix-group file status
+vserver services name-service unix-group file-only modify
+vserver services name-service unix-group file-only show
+vserver services name-service unix-group load-from-uri
+vserver services name-service unix-group max-limit modify
+vserver services name-service unix-group max-limit show
+vserver services name-service unix-group modify
+vserver services name-service unix-group show
+vserver services name-service unix-user create
+vserver services name-service unix-user delete
+vserver services name-service unix-user file show
+vserver services name-service unix-user file status
+vserver services name-service unix-user file-only modify
+vserver services name-service unix-user file-only show
+vserver services name-service unix-user load-from-uri
+vserver services name-service unix-user max-limit modify
+vserver services name-service unix-user max-limit show
+vserver services name-service unix-user modify
+vserver services name-service unix-user show
+vserver services name-service ypbind restart
+vserver services name-service ypbind start
+vserver services name-service ypbind status
+vserver services name-service ypbind stop
+vserver services ndmp extensions modify
+vserver services ndmp extensions show
+vserver services ndmp generate-password
+vserver services ndmp kill-all
+vserver services ndmp killsession
+vserver services ndmp log start
+vserver services ndmp log stop
+vserver services ndmp maxversion
+vserver services ndmp modify
+vserver services ndmp off
+vserver services ndmp on
+vserver services ndmp restartable-backup delete
+vserver services ndmp restartable-backup show
+vserver services ndmp show
+vserver services ndmp status
+vserver services web access show
+vserver services web modify
+vserver services web show
+vserver show
+vserver show-aggregates
+vserver show-protocols
+vserver smtape break
+vserver snapdiff-rpc-server create
+vserver snapdiff-rpc-server delete
+vserver snapdiff-rpc-server modify
+vserver snapdiff-rpc-server off
+vserver snapdiff-rpc-server on
+vserver snapdiff-rpc-server show
+vserver start
+vserver stop
+vserver storage-limit show
+vserver unlock
+vserver vscan connection-status show
+vserver vscan connection-status show-all
+vserver vscan connection-status show-connected
+vserver vscan connection-status show-extended-stats
+vserver vscan connection-status show-not-connected
+vserver vscan default-fileop-profile modify
+vserver vscan default-fileop-profile show
+vserver vscan disable
+vserver vscan enable
+vserver vscan on-access-policy create
+vserver vscan on-access-policy delete
+vserver vscan on-access-policy disable
+vserver vscan on-access-policy enable
+vserver vscan on-access-policy file-ext-to-exclude add
+vserver vscan on-access-policy file-ext-to-exclude remove
+vserver vscan on-access-policy file-ext-to-exclude show
+vserver vscan on-access-policy file-ext-to-include add
+vserver vscan on-access-policy file-ext-to-include remove
+vserver vscan on-access-policy file-ext-to-include show
+vserver vscan on-access-policy modify
+vserver vscan on-access-policy paths-to-exclude add
+vserver vscan on-access-policy paths-to-exclude remove
+vserver vscan on-access-policy paths-to-exclude show
+vserver vscan on-access-policy show
+vserver vscan on-demand-task create
+vserver vscan on-demand-task delete
+vserver vscan on-demand-task modify
+vserver vscan on-demand-task report delete
+vserver vscan on-demand-task report show
+vserver vscan on-demand-task run
+vserver vscan on-demand-task schedule
+vserver vscan on-demand-task show
+vserver vscan on-demand-task unschedule
+vserver vscan reset
+vserver vscan scanner-pool apply-policy
+vserver vscan scanner-pool create
+vserver vscan scanner-pool delete
+vserver vscan scanner-pool modify
+vserver vscan scanner-pool privileged-users add
+vserver vscan scanner-pool privileged-users remove
+vserver vscan scanner-pool privileged-users show
+vserver vscan scanner-pool resolve-hostnames
+vserver vscan scanner-pool servers add
+vserver vscan scanner-pool servers remove
+vserver vscan scanner-pool servers show
+vserver vscan scanner-pool show
+vserver vscan scanner-pool show-active
+vserver vscan show
+vserver vscan show-events
+vserver vsmd create-directory
+vserver vsmd delete-directory
+vserver vsmd validate-directory
