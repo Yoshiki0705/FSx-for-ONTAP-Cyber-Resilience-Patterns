@@ -94,6 +94,7 @@ flowchart TB
 | 可観測性 | `solutions/observability/` | セキュリティメトリクス & CloudWatch ダッシュボード |
 | SIEM 統合 | `solutions/siem/` | Security Hub, Splunk/QRadar/CEF コネクター |
 | コンプライアンス | `solutions/compliance/` | SOC2/ISO27001 証跡収集 |
+| ONTAP カタログのスナップショット | `solutions/ontap-catalog-snapshot/` | ONTAP の版ごとに、管理者が使える CLI コマンドと REST API を記録し、差分を残す Lambda（[エージェント向けプロンプト](../agent-prompts/ontap-catalog-snapshot.md)）|
 | 共有ライブラリ | `solutions/shared/` | ONTAP REST API クライアント |
 
 </details>

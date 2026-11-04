@@ -17,7 +17,7 @@ setup: ## Install development dependencies (creates .venv if not present)
 # Validation
 # -------------------------------------------------------------------
 lint: ## Run cfn-lint on all templates
-	cfn-lint templates/*.yaml || test $$? -le 12
+	cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
 
 guard: ## Run cfn-guard on all templates
 	@for tmpl in templates/*.yaml; do \
@@ -38,7 +38,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # Testing
 # -------------------------------------------------------------------
 test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak gates)
-	cfn-lint templates/*.yaml || test $$? -le 12
+	cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
 	pytest tests/ shared/tests/ -v --tb=short
 
 # A claim that a vendor cannot do something, used as a design premise, with nobody

@@ -63,6 +63,8 @@ deploy. A reader must make an explicit retention decision before enabling any su
 
 ## Operate and recover
 
+- [ONTAP Catalog Snapshot Lambda](solutions/ontap-catalog-snapshot/README.md): A SAM template and a single-file Python handler that record, per ONTAP version, the CLI commands and REST endpoints the ONTAP administrator can use, with a diff against the previous run. GET only, stops at the first refused credential, no retries. Unit-tested; not yet run on a real file system.
+- [Prompts for Implementing the ONTAP Catalog Snapshot with an AI Agent](docs/agent-prompts/ontap-catalog-snapshot.md): Two ready-to-paste prompts (implement from a specification, or adopt the sample in your own environment), JA and EN, with constraints that avoid locking the administrator account and stop conditions before any deploy.
 - [Quick Start: Deployment Guide](docs/quickstart-deployment.md): Deploying the patterns into a new environment.
 - [Deployment Guide: Existing FSx for ONTAP Environment](docs/deployment-guide-existing-fsxn.md): Adding these patterns to an existing FSx for ONTAP file system.
 - [Deployment Guide (EN)](docs/en/deployment-guide.md): English deployment walkthrough.
