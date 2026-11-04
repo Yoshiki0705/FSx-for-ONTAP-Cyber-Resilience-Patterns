@@ -94,6 +94,7 @@ flowchart TB
 | Observability | `solutions/observability/` | Security metrics & CloudWatch dashboard |
 | SIEM Integration | `solutions/siem/` | Security Hub, Splunk/QRadar/CEF connectors |
 | Compliance Evidence | `solutions/compliance/` | SOC2/ISO27001 evidence collection |
+| ONTAP Catalog Snapshot | `solutions/ontap-catalog-snapshot/` | Lambda that records, per ONTAP version, the CLI commands and REST APIs the administrator can use, with a diff ([agent prompts](docs/agent-prompts/ontap-catalog-snapshot.md)) |
 | Shared Library | `solutions/shared/` | ONTAP REST API client library |
 
 **Templates** (`templates/`): `main.yaml` (nested stack orchestrator), `network.yaml`, `storage.yaml`, `event-driven.yaml`, `scanning.yaml`, `scanning-ha.yaml`, `observability.yaml`, `cost-scheduler.yaml`, `dr-replication.yaml`, `siem-integration.yaml`, `hub-aggregation.yaml`, `spoke-monitoring.yaml`
