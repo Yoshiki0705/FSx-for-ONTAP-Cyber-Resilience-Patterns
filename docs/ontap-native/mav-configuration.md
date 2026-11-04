@@ -8,6 +8,10 @@ Multi-Admin Verification (MAV) は、破壊的な管理操作に対して複数�
 MAV requires approval from multiple administrators before executing destructive management operations.
 This prevents damage even if a single admin's credentials are compromised.
 
+> **FSx for ONTAP での適用可否は確立していません [E-025]。** 以下のコマンドは ONTAP 一般のもので、`fsxadmin` で有効化できた記録はありません。計画では利用できない前提で置き、使う場合は先に `security login role show -role fsxadmin -access !none` で MAV のコマンドが `fsxadmin` から見えるかを確かめてください。
+>
+> Whether this applies to FSx for ONTAP is not established [E-025]. The commands below are for ONTAP in general and no run has enabled MAV with `fsxadmin`. Plan as if unavailable, and check with `security login role show -role fsxadmin -access !none` before relying on it.
+
 ## 前提条件
 
 - FSx for ONTAP 9.11.1 以降
