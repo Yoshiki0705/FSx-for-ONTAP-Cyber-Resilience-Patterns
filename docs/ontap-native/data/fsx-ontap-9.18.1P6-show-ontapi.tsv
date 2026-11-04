@@ -1,0 +1,1050 @@
+# Source: ONTAP 9.18.1P6 on Amazon FSx for NetApp ONTAP (ap-northeast-1), read 2026-11-04 as fsxadmin.
+# Equivalent of: security login role show-ontapi -fields ontapi,command. This is the legacy ONTAPI (ZAPI) to CLI mapping, not a list of every command.
+# fsxadmin_access, conditional and matched_entry are computed here from the roles file (longest matching cmddirname wins, else DEFAULT), not read from the cluster.
+# conditional=yes means the matched entry carries a query, so its access applies only to the rows that query selects; see the roles file.
+ontapi	command	fsxadmin_access	conditional	matched_entry
+cluster-identity-get	cluster identity show	readonly		cluster identity show
+cluster-log-forward-create	cluster log-forwarding create	all	yes	cluster log-forwarding
+cluster-log-forward-destroy	cluster log-forwarding delete	all	yes	cluster log-forwarding
+cluster-log-forward-modify	cluster log-forwarding modify	all	yes	cluster log-forwarding
+cluster-log-forward-get	cluster log-forwarding show	all	yes	cluster log-forwarding
+cluster-log-forward-get-iter	cluster log-forwarding show	all	yes	cluster log-forwarding
+cluster-peer-connections-get	cluster peer connection show	all		cluster peer
+cluster-peer-connections-get-iter	cluster peer connection show	all		cluster peer
+cluster-peer-create	cluster peer create	all		cluster peer
+cluster-peer-delete	cluster peer delete	all		cluster peer
+cluster-peer-health-info-get	cluster peer health show	all		cluster peer
+cluster-peer-health-info-get-iter	cluster peer health show	all		cluster peer
+cluster-peer-modify	cluster peer modify	all		cluster peer
+cluster-peer-modify-local-name	cluster peer modify-local-name	all		cluster peer
+cluster-peer-authn-offer-cancel	cluster peer offer cancel	all		cluster peer
+cluster-peer-authn-offer-modify	cluster peer offer modify	all		cluster peer
+cluster-peer-authn-offer-get	cluster peer offer show	all		cluster peer
+cluster-peer-authn-offer-get-iter	cluster peer offer show	all		cluster peer
+cluster-peer-ping-iter	cluster peer ping	all		cluster peer
+cluster-peer-policy-modify	cluster peer policy modify	all		cluster peer
+cluster-peer-policy-get	cluster peer policy show	all		cluster peer
+cluster-peer-get	cluster peer show	all		cluster peer
+cluster-peer-get-iter	cluster peer show	all		cluster peer
+cluster-node-get	cluster show	readonly		cluster show
+cluster-node-get-iter	cluster show	readonly		cluster show
+dashboard-alarm-get	cluster show	readonly		cluster show
+dashboard-alarm-get-iter	cluster show	readonly		cluster show
+dashboard-alarm-get-total-records	cluster show	readonly		cluster show
+dashboard-alarm-threshold-get	cluster show	readonly		cluster show
+dashboard-alarm-threshold-get-iter	cluster show	readonly		cluster show
+dashboard-alarm-threshold-get-total-records	cluster show	readonly		cluster show
+flash-get-thresholds	cluster show	readonly		cluster show
+flash-thresholds-get-iter	cluster show	readonly		cluster show
+ntp-server-get	cluster time-service ntp server show	readonly		cluster time-service ntp server show
+ntp-server-get-iter	cluster time-service ntp server show	readonly		cluster time-service ntp server show
+ems-event-catalog-get-iter	event catalog show	readonly		event catalog show
+ems-config-modify	event config modify	all		event config
+ems-config-set-proxy-password	event config set-proxy-password	all		event config
+ems-config-get	event config show	all		event config
+ems-event-filter-copy	event filter copy	none	yes	event filter copy
+ems-event-filter-create	event filter create	none	yes	event filter create
+ems-event-filter-destroy-iter	event filter delete	none	yes	event filter delete
+ems-event-filter-rename	event filter rename	none	yes	event filter rename
+ems-event-filter-rule-add	event filter rule add	all		event filter
+ems-event-filter-rule-delete	event filter rule delete	all		event filter
+ems-event-filter-rule-reorder	event filter rule reorder	all		event filter
+ems-event-filter-get-iter	event filter show	none	yes	event filter show
+ems-event-filter-test	event filter test	all		event filter
+ems-autosupport-log	event generate-autosupport-log	all		event generate-autosupport-log
+ems-message-get	event log show	readonly		event log show
+ems-message-get-iter	event log show	readonly		event log show
+ems-event-notification-create	event notification create	all	yes	event notification
+ems-event-notification-destroy-iter	event notification delete	all	yes	event notification
+ems-event-notification-destination-create	event notification destination create	all	yes	event notification destination
+ems-event-notification-destination-destroy-iter	event notification destination delete	all	yes	event notification destination
+ems-event-notification-destination-modify-iter	event notification destination modify	all	yes	event notification destination
+ems-event-notification-destination-get-iter	event notification destination show	all	yes	event notification destination
+ems-event-notification-history-get-iter	event notification history show	all		event notification history
+ems-event-notification-modify-iter	event notification modify	all	yes	event notification
+ems-event-notification-get-iter	event notification show	all	yes	event notification
+job-history-get	job history show	all	yes	job history
+job-history-get-iter	job history show	all	yes	job history
+job-pause	job pause	all	yes	job pause
+job-pause-iter	job pause	all	yes	job pause
+job-resume	job resume	all	yes	job resume
+job-resume-iter	job resume	all	yes	job resume
+job-schedule-cron-create	job schedule cron create	all		job schedule
+job-schedule-cron-destroy	job schedule cron delete	all		job schedule
+job-schedule-cron-destroy-iter	job schedule cron delete	all		job schedule
+job-schedule-cron-modify	job schedule cron modify	all		job schedule
+job-schedule-cron-get	job schedule cron show	all		job schedule
+job-schedule-cron-get-iter	job schedule cron show	all		job schedule
+job-schedule-interval-create	job schedule interval create	all		job schedule
+job-schedule-interval-destroy	job schedule interval delete	all		job schedule
+job-schedule-interval-destroy-iter	job schedule interval delete	all		job schedule
+job-schedule-interval-modify	job schedule interval modify	all		job schedule
+job-schedule-interval-get	job schedule interval show	all		job schedule
+job-schedule-interval-get-iter	job schedule interval show	all		job schedule
+job-schedule-get	job schedule show	all		job schedule
+job-schedule-get-iter	job schedule show	all		job schedule
+job-get	job show	all	yes	job show
+job-get-iter	job show	all	yes	job show
+job-by-node-get	job show-bynode	all	yes	job show-bynode
+job-by-node-get-iter	job show-bynode	all	yes	job show-bynode
+job-completed-get	job show-completed	all	yes	job show-completed
+job-completed-get-iter	job show-completed	all	yes	job show-completed
+job-stop	job stop	all	yes	job stop
+job-stop-iter	job stop	all	yes	job stop
+lun-get-comment	lun comment	all		lun
+lun-set-comment	lun comment	all		lun
+lun-copy-modify	lun copy modify	all		lun
+lun-copy-pause	lun copy pause	all		lun
+lun-copy-resume	lun copy resume	all		lun
+lun-copy-start	lun copy start	all		lun
+lun-create-by-size	lun create	all		lun
+lun-create-from-file	lun create	all		lun
+lun-generate-serial	lun create	all		lun
+lun-destroy	lun delete	all		lun
+igroup-add	lun igroup add	all		lun
+igroup-bind-portset	lun igroup bind	all		lun
+igroup-create	lun igroup create	all		lun
+igroup-destroy	lun igroup delete	all		lun
+igroup-remove	lun igroup remove	all		lun
+igroup-rename	lun igroup rename	all		lun
+igroup-set-attribute	lun igroup set	all		lun
+igroup-get-iter	lun igroup show	all		lun
+igroup-lookup-lun	lun igroup show	all		lun
+igroup-os-type-list	lun igroup show	all		lun
+igroup-unbind-portset	lun igroup unbind	all		lun
+lun-map-add-reporting-nodes	lun mapping add-reporting-nodes	all		lun
+lun-map	lun mapping create	all		lun
+lun-unmap	lun mapping delete	all		lun
+lun-map-remove-reporting-nodes	lun mapping remove-reporting-nodes	all		lun
+lun-map-get-iter	lun mapping show	all		lun
+lun-map-list-info	lun mapping show	all		lun
+lun-get-maxsize	lun maxsize	all		lun
+lun-alignment-reset-statistics	lun modify	all		lun
+lun-read-raw	lun modify	all		lun
+lun-set-attribute	lun modify	all		lun
+lun-set-qos-policy-group	lun modify	all		lun
+lun-set-space-alloc	lun modify	all		lun
+lun-set-space-reservation-info	lun modify	all		lun
+lun-unset-attribute	lun modify	all		lun
+lun-unset-device-id	lun modify	all		lun
+lun-write-raw	lun modify	all		lun
+lun-move-modify	lun move modify	all		lun
+lun-move-pause	lun move pause	all		lun
+lun-move-resume	lun move resume	all		lun
+lun-move-start	lun move start	all		lun
+lun-move	lun move-in-volume	all		lun
+lun-offline	lun offline	all		lun
+lun-online	lun online	all		lun
+portset-add	lun portset add	all		lun
+portset-create	lun portset create	all		lun
+portset-destroy	lun portset delete	all		lun
+portset-remove	lun portset remove	all		lun
+portset-get-iter	lun portset show	all		lun
+lun-resize	lun resize	all		lun
+lun-get-serial-number	lun serial	all		lun
+lun-set-serial-number	lun serial	all		lun
+lun-set-device-id	lun set dev_id	all		lun
+lun-get-attribute	lun show	all		lun
+lun-get-inquiry-info	lun show	all		lun
+lun-get-iter	lun show	all		lun
+lun-get-minsize	lun show	all		lun
+lun-get-occupied-size	lun show	all		lun
+lun-get-space-reservation-info	lun show	all		lun
+lun-get-vdisk-attributes	lun show	all		lun
+lun-has-scsi-reservations	lun show	all		lun
+lun-initiator-logged-in	lun show	all		lun
+lun-lba-hole-range-query	lun show	all		lun
+lun-lba-is-hole	lun show	all		lun
+lun-os-type-list	lun show	all		lun
+lun-port-has-scsi-reservations	lun show	all		lun
+metrocluster-check-aggregate-get-iter	metrocluster check aggregate show	readonly		metrocluster
+metrocluster-check-cluster-get-iter	metrocluster check cluster show	readonly		metrocluster
+metrocluster-check-config-replication-get	metrocluster check config-replication show	readonly		metrocluster
+metrocluster-check-aggregate-eligibility-get	metrocluster check config-replication show-aggregate-eligibility	readonly		metrocluster
+metrocluster-check-aggregate-eligibility-get-iter	metrocluster check config-replication show-aggregate-eligibility	readonly		metrocluster
+metrocluster-check-connection-get-iter	metrocluster check connection show	readonly		metrocluster
+metrocluster-check-node-get-iter	metrocluster check node show	readonly		metrocluster
+metrocluster-check-get-iter	metrocluster check show	readonly		metrocluster
+metrocluster-check-volume-get-iter	metrocluster check volume show	readonly		metrocluster
+metrocluster-connection-get-iter	metrocluster configuration-settings connection show	readonly		metrocluster
+metrocluster-dr-group-get-iter	metrocluster configuration-settings dr-group show	readonly		metrocluster
+metrocluster-interface-get-iter	metrocluster configuration-settings interface show	readonly		metrocluster
+metrocluster-configuration-settings-get-iter	metrocluster configuration-settings show-status	readonly		metrocluster
+metrocluster-interconnect-adapter-get-iter	metrocluster interconnect adapter show	readonly		metrocluster
+metrocluster-interconnect-mirror-multipath-get-iter	metrocluster interconnect mirror multipath show	readonly		metrocluster
+metrocluster-interconnect-mirror-get-iter	metrocluster interconnect mirror show	readonly		metrocluster
+metrocluster-node-get-iter	metrocluster node show	readonly		metrocluster
+metrocluster-operation-get-iter	metrocluster operation history show	readonly		metrocluster
+metrocluster-get	metrocluster show	readonly		metrocluster
+metrocluster-is-configured	metrocluster show	readonly		metrocluster
+metrocluster-vserver-get-iter	metrocluster vserver show	readonly		metrocluster
+fc-config-list-info	network fcp adapter show	readonly	yes	network fcp adapter show
+fcp-adapter-get-iter	network fcp adapter show	readonly	yes	network fcp adapter show
+net-failover-group-get	network interface failover-groups show	readonly	yes	network interface failover-groups show
+net-failover-group-get-iter	network interface failover-groups show	readonly	yes	network interface failover-groups show
+net-interface-service-policy-entry-get	network interface service-policy show	readonly	yes	network interface service-policy
+net-interface-service-policy-entry-get-iter	network interface service-policy show	readonly	yes	network interface service-policy
+net-interface-service-policy-get	network interface service-policy show	readonly	yes	network interface service-policy
+net-interface-service-policy-get-iter	network interface service-policy show	readonly	yes	network interface service-policy
+net-interface-get	network interface show	readonly	yes	network interface show
+net-interface-get-iter	network interface show	readonly	yes	network interface show
+net-san-lif-placement-get	network interface show	readonly	yes	network interface show
+net-ipspaces-get	network ipspace show	readonly	yes	network ipspace show
+net-ipspaces-get-iter	network ipspace show	readonly	yes	network ipspace show
+net-cluster-ping	network ping	readonly	yes	network ping
+net-cluster-ping6	network ping6	all	yes	network ping6
+net-port-broadcast-domain-create	network port broadcast-domain create	all	yes	network port broadcast-domain create
+net-port-broadcast-domain-destroy	network port broadcast-domain delete	all	yes	network port broadcast-domain delete
+net-port-broadcast-domain-modify	network port broadcast-domain modify	all	yes	network port broadcast-domain modify
+net-port-broadcast-domain-get	network port broadcast-domain show	all	yes	network port broadcast-domain show
+net-port-broadcast-domain-get-iter	network port broadcast-domain show	all	yes	network port broadcast-domain show
+net-subnets-for-broadcast-domain-get	network port broadcast-domain show	all	yes	network port broadcast-domain show
+net-subnets-for-broadcast-domain-get-iter	network port broadcast-domain show	all	yes	network port broadcast-domain show
+net-port-get	network port show	readonly	yes	network port show
+net-port-get-iter	network port show	readonly	yes	network port show
+net-routes-create	network route create	all	yes	network route
+net-routes-destroy	network route delete	all	yes	network route
+net-routes-get	network route show	all	yes	network route
+net-routes-get-iter	network route show	all	yes	network route
+net-routes-lifs-get	network route show-lifs	readonly	yes	network route show-lifs
+net-routes-lifs-get-iter	network route show-lifs	readonly	yes	network route show-lifs
+net-subnet-get	network subnet show	readonly	yes	network subnet show
+net-subnet-get-iter	network subnet show	readonly	yes	network subnet show
+net-traceroute6	network traceroute6	all	yes	network traceroute6
+qos-adaptive-policy-group-create	qos adaptive-policy-group create	all		qos
+qos-adaptive-policy-group-delete	qos adaptive-policy-group delete	all		qos
+qos-adaptive-policy-group-delete-iter	qos adaptive-policy-group delete	all		qos
+qos-adaptive-policy-group-modify	qos adaptive-policy-group modify	all		qos
+qos-adaptive-policy-group-modify-iter	qos adaptive-policy-group modify	all		qos
+qos-adaptive-policy-group-rename	qos adaptive-policy-group rename	all		qos
+qos-adaptive-policy-group-get	qos adaptive-policy-group show	all		qos
+qos-adaptive-policy-group-get-iter	qos adaptive-policy-group show	all		qos
+qos-policy-group-create	qos policy-group create	all		qos
+qos-policy-group-delete	qos policy-group delete	all		qos
+qos-policy-group-delete-iter	qos policy-group delete	all		qos
+qos-policy-group-modify	qos policy-group modify	all		qos
+qos-policy-group-modify-iter	qos policy-group modify	all		qos
+qos-policy-group-rename	qos policy-group rename	all		qos
+qos-policy-group-get	qos policy-group show	all		qos
+qos-policy-group-get-iter	qos policy-group show	all		qos
+cache-policy-modify	qos settings cache modify	all		qos
+cache-policy-modify-iter	qos settings cache modify	all		qos
+cache-policy-get	qos settings cache show	all		qos
+cache-policy-get-iter	qos settings cache show	all		qos
+qos-workload-delete	qos workload delete	all		qos
+qos-workload-delete-iter	qos workload delete	all		qos
+qos-workload-modify	qos workload modify	all		qos
+qos-workload-modify-iter	qos workload modify	all		qos
+qos-workload-get	qos workload show	all		qos
+qos-workload-get-iter	qos workload show	all		qos
+audit-log-get	security audit log show	readonly		security audit
+audit-log-get-iter	security audit log show	readonly		security audit
+audit-log-config-get	security audit show	readonly		security audit
+security-certificate-revoke	security certificate ca-issued revoke	all	yes	security certificate
+security-certificate-ca-issued-get	security certificate ca-issued show	all	yes	security certificate
+security-certificate-ca-issued-get-iter	security certificate ca-issued show	all	yes	security certificate
+security-certificate-create	security certificate create	all		security certificate create
+security-certificate-delete	security certificate delete	all		security certificate delete
+security-certificate-delete-iter	security certificate delete	all		security certificate delete
+security-certificate-generate-csr	security certificate generate-csr	all		security certificate generate-csr
+security-certificate-install	security certificate install	all		security certificate install
+security-certificate-rename	security certificate rename	all	yes	security certificate
+security-certificate-get	security certificate show	all		security certificate show
+security-certificate-get-iter	security certificate show	all		security certificate show
+security-certificate-sign	security certificate sign	all	yes	security certificate
+security-key-manager-external-add-servers	security key-manager external add-servers	all	yes	security key-manager external
+security-key-manager-external-enable	security key-manager external enable	all	yes	security key-manager external
+security-key-manager-external-modify	security key-manager external modify	all	yes	security key-manager external
+security-key-manager-external-modify-server	security key-manager external modify-server	all	yes	security key-manager external
+security-key-manager-external-remove-servers	security key-manager external remove-servers	all	yes	security key-manager external
+external-restore-get-iter	security key-manager external restore	all	yes	security key-manager external
+security-key-manager-external-get	security key-manager external show	all	yes	security key-manager external
+security-key-manager-external-get-iter	security key-manager external show	all	yes	security key-manager external
+external-status-get-iter	security key-manager external show-status	all	yes	security key-manager external
+key-query-get-iter	security key-manager key query	all	yes	security key-manager key query
+security-key-manager-key-store-get-iter	security key-manager show-key-store	readonly	yes	security key-manager show-key-store
+vserver-login-banner-modify	security login banner modify	all	yes	security login
+vserver-login-banner-modify-iter	security login banner modify	all	yes	security login
+vserver-login-banner-get	security login banner show	all	yes	security login
+vserver-login-banner-get-iter	security login banner show	all	yes	security login
+security-login-create	security login create	all	yes	security login create
+security-login-delete	security login delete	all	yes	security login delete
+security-login-delete-iter	security login delete	all	yes	security login delete
+security-login-expire-password	security login expire-password	all	yes	security login expire-password
+security-login-expire-password-iter	security login expire-password	all	yes	security login expire-password
+security-login-lock	security login lock	all	yes	security login
+security-login-modify	security login modify	all	yes	security login modify
+security-login-modify-iter	security login modify	all	yes	security login modify
+vserver-motd-modify	security login motd modify	all	yes	security login
+vserver-motd-modify-iter	security login motd modify	all	yes	security login
+vserver-motd-get	security login motd show	all	yes	security login
+vserver-motd-get-iter	security login motd show	all	yes	security login
+security-login-modify-password	security login password	all	yes	security login password
+security-login-role-config-modify	security login role config modify	none	yes	security login role config modify
+security-login-role-config-modify-iter	security login role config modify	none	yes	security login role config modify
+security-login-role-config-get	security login role config show	none	yes	security login role config show
+security-login-role-config-get-iter	security login role config show	none	yes	security login role config show
+security-login-role-create	security login role create	all	yes	security login role create
+security-login-role-delete	security login role delete	all	yes	security login role delete
+security-login-role-delete-iter	security login role delete	all	yes	security login role delete
+security-login-role-modify	security login role modify	all	yes	security login role modify
+security-login-role-modify-iter	security login role modify	all	yes	security login role modify
+security-login-role-get	security login role show	all	yes	security login role show
+security-login-role-get-iter	security login role show	all	yes	security login role show
+system-api-get-elements	security login role show-ontapi	readonly		security login role show-ontapi
+system-api-list	security login role show-ontapi	readonly		security login role show-ontapi
+system-api-list-types	security login role show-ontapi	readonly		security login role show-ontapi
+security-login-get	security login show	all	yes	security login show
+security-login-get-iter	security login show	all	yes	security login show
+security-login-unlock	security login unlock	all	yes	security login
+security-login-whoami	security login whoami	readonly		security login whoami
+security-session-kill-cli-iter	security session kill-cli	all	yes	security session kill-cli
+security-session-limit-get-iter	security session limit show	readonly		security session limit show
+security-session-running-stats-get-iter	security session show	readonly	yes	security session show
+security-ssh-add	security ssh add	all	yes	security ssh add
+security-ssh-reset	security ssh modify	all	yes	security ssh modify
+security-ssh-remove	security ssh remove	all	yes	security ssh remove
+security-ssh-get-iter	security ssh show	all	yes	security ssh show
+security-ssl-modify	security ssl modify	all	yes	security ssl
+security-ssl-get	security ssl show	all	yes	security ssl
+security-ssl-get-iter	security ssl show	all	yes	security ssl
+snaplock-set-node-compliance-clock	snaplock compliance-clock initialize	all		snaplock compliance-clock
+snaplock-get-node-compliance-clock	snaplock compliance-clock show	all		snaplock compliance-clock
+snaplock-event-retention-abort	snaplock event-retention abort	all	yes	snaplock event-retention
+snaplock-event-retention-apply-start	snaplock event-retention apply	all	yes	snaplock event-retention
+snaplock-event-retention-policy-create	snaplock event-retention policy create	all	yes	snaplock event-retention
+snaplock-event-retention-policy-destroy	snaplock event-retention policy delete	all	yes	snaplock event-retention
+snaplock-event-retention-policy-modify	snaplock event-retention policy modify	all	yes	snaplock event-retention
+snaplock-event-retention-policy-get-iter	snaplock event-retention policy show	all	yes	snaplock event-retention
+snaplock-event-retention-get-iter	snaplock event-retention show	all	yes	snaplock event-retention
+snaplock-legal-hold-abort	snaplock legal-hold abort	all	yes	snaplock legal-hold
+snaplock-legal-hold-begin-start	snaplock legal-hold begin	all	yes	snaplock legal-hold
+snaplock-legal-hold-dump-files-start	snaplock legal-hold dump-files	all	yes	snaplock legal-hold
+snaplock-legal-hold-dump-litigations-start	snaplock legal-hold dump-litigations	all	yes	snaplock legal-hold
+snaplock-legal-hold-end-start	snaplock legal-hold end	all	yes	snaplock legal-hold
+snaplock-legal-hold-get-iter	snaplock legal-hold show	all	yes	snaplock legal-hold
+snaplock-create-vserver-log	snaplock log create	all	yes	snaplock log
+snaplock-destroy-vserver-log	snaplock log delete	all	yes	snaplock log
+snaplock-archive-vserver-log	snaplock log file archive	all	yes	snaplock log
+snaplock-get-vserver-active-log-files-iter	snaplock log file show	all	yes	snaplock log
+snaplock-modify-vserver-log	snaplock log modify	all	yes	snaplock log
+snaplock-get-vserver-log-iter	snaplock log show	all	yes	snaplock log
+snapmirror-abort	snapmirror abort	all		snapmirror abort
+snapmirror-abort-async	snapmirror abort	all		snapmirror abort
+snapmirror-abort-iter	snapmirror abort	all		snapmirror abort
+snapmirror-break	snapmirror break	all		snapmirror break
+snapmirror-break-async	snapmirror break	all		snapmirror break
+snapmirror-break-iter	snapmirror break	all		snapmirror break
+snapmirror-create	snapmirror create	all	yes	snapmirror create
+snapmirror-destroy	snapmirror delete	all		snapmirror delete
+snapmirror-destroy-async	snapmirror delete	all		snapmirror delete
+snapmirror-destroy-iter	snapmirror delete	all		snapmirror delete
+snapmirror-initialize	snapmirror initialize	all		snapmirror initialize
+snapmirror-initialize-iter	snapmirror initialize	all		snapmirror initialize
+snapmirror-initialize-ls-set	snapmirror initialize-ls-set	all		snapmirror initialize-ls-set
+snapmirror-get-destination	snapmirror list-destinations	all		snapmirror list-destinations
+snapmirror-get-destination-iter	snapmirror list-destinations	all		snapmirror list-destinations
+snapmirror-modify	snapmirror modify	all		snapmirror modify
+snapmirror-modify-iter	snapmirror modify	all		snapmirror modify
+snapmirror-policy-add-rule	snapmirror policy add-rule	all	yes	snapmirror policy
+snapmirror-policy-create	snapmirror policy create	all	yes	snapmirror policy
+snapmirror-policy-delete	snapmirror policy delete	all	yes	snapmirror policy
+snapmirror-policy-modify	snapmirror policy modify	all	yes	snapmirror policy
+snapmirror-policy-modify-rule	snapmirror policy modify-rule	all	yes	snapmirror policy
+snapmirror-policy-remove-rule	snapmirror policy remove-rule	all	yes	snapmirror policy
+snapmirror-policy-get	snapmirror policy show	all	yes	snapmirror policy
+snapmirror-policy-get-iter	snapmirror policy show	all	yes	snapmirror policy
+snapmirror-promote	snapmirror promote	all		snapmirror promote
+snapmirror-promote-iter	snapmirror promote	all		snapmirror promote
+snapmirror-protect	snapmirror protect	all		snapmirror protect
+snapmirror-quiesce	snapmirror quiesce	all		snapmirror quiesce
+snapmirror-quiesce-iter	snapmirror quiesce	all		snapmirror quiesce
+snapmirror-release	snapmirror release	all		snapmirror release
+snapmirror-release-iter	snapmirror release	all		snapmirror release
+snapmirror-restore	snapmirror restore	all		snapmirror restore
+snapmirror-resume	snapmirror resume	all		snapmirror resume
+snapmirror-resume-iter	snapmirror resume	all		snapmirror resume
+snapmirror-resync	snapmirror resync	all		snapmirror resync
+snapmirror-resync-iter	snapmirror resync	all		snapmirror resync
+snapmirror-get	snapmirror show	all	yes	snapmirror show
+snapmirror-get-iter	snapmirror show	all	yes	snapmirror show
+snapmirror-get-total-records	snapmirror show	all	yes	snapmirror show
+snapmirror-history-get	snapmirror show-history	all		snapmirror show-history
+snapmirror-history-get-iter	snapmirror show-history	all		snapmirror show-history
+snapmirror-snapshot-owner-create	snapmirror snapshot-owner create	all		snapmirror snapshot-owner
+snapmirror-snapshot-owner-destroy	snapmirror snapshot-owner delete	all		snapmirror snapshot-owner
+snapmirror-snapshot-owner-get	snapmirror snapshot-owner show	all		snapmirror snapshot-owner
+snapmirror-snapshot-owner-get-snapshots	snapmirror snapshot-owner show	all		snapmirror snapshot-owner
+snapmirror-update	snapmirror update	all		snapmirror update
+snapmirror-update-iter	snapmirror update	all		snapmirror update
+snapmirror-update-ls-set	snapmirror update-ls-set	all		snapmirror update-ls-set
+aggr-object-store-config-provider-list	storage aggregate object-store config provider-list	readonly	yes	storage aggregate object-store config
+aggr-object-store-config-get	storage aggregate object-store config show	readonly	yes	storage aggregate object-store config
+aggr-object-store-config-get-iter	storage aggregate object-store config show	readonly	yes	storage aggregate object-store config
+aggr-object-store-get-iter	storage aggregate object-store show-space	readonly	yes	storage aggregate object-store show-space
+aggr-get-filer-info	storage aggregate show	readonly	yes	storage aggregate show
+aggr-get-iter	storage aggregate show	readonly	yes	storage aggregate show
+aggr-options-list-info	storage aggregate show	readonly	yes	storage aggregate show
+aggr-verify-list-info	storage aggregate show	readonly	yes	storage aggregate show
+aggr-efficiency-cumulated-get	storage aggregate show-cumulated-efficiency	readonly	yes	storage aggregate show-cumulated-efficiency
+aggr-efficiency-get-iter	storage aggregate show-efficiency	readonly	yes	storage aggregate show-efficiency
+aggr-space-get-iter	storage aggregate show-space	readonly	yes	storage aggregate show-space
+aggr-spare-get-iter	storage aggregate show-spare-disks	readonly	yes	storage aggregate show-spare-disks
+aggr-status-get-iter	storage aggregate show-status	readonly	yes	storage aggregate show-status
+disk-sanown-filer-list-info	storage disk show	readonly	yes	storage disk show
+disk-sanown-list-info	storage disk show	readonly	yes	storage disk show
+fc-config-adapter-disable	storage disk show	readonly	yes	storage disk show
+fc-config-adapter-enable	storage disk show	readonly	yes	storage disk show
+fc-config-set-adapter-fc-type	storage disk show	readonly	yes	storage disk show
+fcport-get-link-state	storage disk show	readonly	yes	storage disk show
+storage-adapter-enable-adapter	storage disk show	readonly	yes	storage disk show
+storage-adapter-get-adapter-info	storage disk show	readonly	yes	storage disk show
+storage-adapter-get-adapter-list	storage disk show	readonly	yes	storage disk show
+storage-disk-get-iter	storage disk show	readonly	yes	storage disk show
+storage-shelf-bay-list-info	storage disk show	readonly	yes	storage disk show
+storage-shelf-environment-list-info	storage disk show	readonly	yes	storage disk show
+storage-shelf-get-shelf-info	storage disk show	readonly	yes	storage disk show
+storage-shelf-list-info	storage disk show	readonly	yes	storage disk show
+disk-encrypt-get	storage encryption disk show	readonly		storage encryption disk show
+disk-encrypt-get-iter	storage encryption disk show	readonly		storage encryption disk show
+cf-get-iter	storage failover show	readonly	yes	storage failover show
+cf-get-partner	storage failover show	readonly	yes	storage failover show
+cf-status	storage failover show	readonly	yes	storage failover show
+storage-pool-get-iter	storage pool show	readonly	yes	storage pool show
+storage-pool-aggregate-get-iter	storage pool show-aggregate	readonly	yes	storage pool show-aggregate
+storage-pool-available-capacity-get-iter	storage pool show-available-capacity	readonly	yes	storage pool show-available-capacity
+storage-shelf-info-get	storage shelf show	readonly	yes	storage shelf show
+storage-shelf-info-get-iter	storage shelf show	readonly	yes	storage shelf show
+flash-device-get-iter	system controller flash-cache show	readonly	yes	system controller flash-cache show
+flash-device-list-info	system controller flash-cache show	readonly	yes	system controller flash-cache show
+diagnosis-alert-get	system health alert show	readonly		system health alert show
+diagnosis-alert-get-iter	system health alert show	readonly		system health alert show
+diagnosis-status-get	system health status show	readonly		system health status show
+license-v2-delete	system license delete	all		system license delete
+license-v2-entitlement-risk-get-iter	system license entitlement-risk show	readonly	yes	system license entitlement-risk show
+license-v2-capacity-get-iter	system license show	all		system license show
+license-v2-cleanup-list-info	system license show	all		system license show
+license-v2-list-info	system license show	all		system license show
+license-v2-subscription-get-iter	system license show	all		system license show
+autosupport-history-get	system node autosupport history show	all		system node autosupport history show
+autosupport-history-get-iter	system node autosupport history show	all		system node autosupport history show
+autosupport-history-get-total-records	system node autosupport history show	all		system node autosupport history show
+autosupport-invoke	system node autosupport invoke	all	yes	system node autosupport invoke
+autosupport-invoke-iter	system node autosupport invoke	all	yes	system node autosupport invoke
+autosupport-invoke-performance-archive	system node autosupport invoke-performance-archive	all	yes	system node autosupport invoke-performance-archive
+autosupport-invoke-performance-archive-iter	system node autosupport invoke-performance-archive	all	yes	system node autosupport invoke-performance-archive
+autosupport-config-get	system node autosupport show	readonly	yes	system node autosupport show
+autosupport-config-get-iter	system node autosupport show	readonly	yes	system node autosupport show
+autosupport-config-get-total-records	system node autosupport show	readonly	yes	system node autosupport show
+system-get-vendor-info	system node autosupport show	readonly	yes	system node autosupport show
+external-cache-modify	system node external-cache modify	all		system node external-cache modify
+external-cache-get	system node external-cache show	all		system node external-cache show
+system-get-info	system node show	readonly		system node show
+system-get-node-info-iter	system node show	readonly		system node show
+system-node-get	system node show	readonly		system node show
+system-node-get-iter	system node show	readonly		system node show
+service-processor-get	system service-processor show	readonly	yes	system service-processor show
+service-processor-get-iter	system service-processor show	readonly	yes	system service-processor show
+net-firewall-policy-get	system services firewall policy show	readonly	yes	system services firewall policy
+net-firewall-policy-get-iter	system services firewall policy show	readonly	yes	system services firewall policy
+clock-get-timezone	timezone	all		timezone
+system-get-ontapi-version	version	readonly		version
+system-get-version	version	readonly		version
+volume-clone-create	volume clone create	all	yes	volume clone
+volume-clone-create-async	volume clone create	all	yes	volume clone
+volume-clone-get	volume clone show	all	yes	volume clone
+volume-clone-get-iter	volume clone show	all	yes	volume clone
+volume-clone-split-estimate	volume clone show	all	yes	volume clone
+volume-clone-split-status	volume clone show	all	yes	volume clone
+volume-clone-split-start	volume clone split start	all	yes	volume clone
+volume-clone-split-stop	volume clone split stop	all	yes	volume clone
+volume-create	volume create	all	yes	volume create
+volume-create-async	volume create	all	yes	volume create
+volume-destroy	volume destroy	all	yes	volume destroy
+volume-destroy-async	volume destroy	all	yes	volume destroy
+sis-set-config	volume efficiency modify	all	yes	volume efficiency modify
+sis-set-config-async	volume efficiency modify	all	yes	volume efficiency modify
+sis-disable	volume efficiency off	all	yes	volume efficiency off
+sis-disable-async	volume efficiency off	all	yes	volume efficiency off
+sis-enable	volume efficiency on	all	yes	volume efficiency on
+sis-enable-async	volume efficiency on	all	yes	volume efficiency on
+sis-policy-create	volume efficiency policy create	all	yes	volume efficiency policy
+sis-policy-delete	volume efficiency policy delete	all	yes	volume efficiency policy
+sis-policy-modify	volume efficiency policy modify	all	yes	volume efficiency policy
+sis-policy-get	volume efficiency policy show	all	yes	volume efficiency policy
+sis-policy-get-iter	volume efficiency policy show	all	yes	volume efficiency policy
+sis-get	volume efficiency show	all	yes	volume efficiency show
+sis-get-iter	volume efficiency show	all	yes	volume efficiency show
+sis-status	volume efficiency show	all	yes	volume efficiency show
+sis-start	volume efficiency start	all	yes	volume efficiency start
+sis-start-async	volume efficiency start	all	yes	volume efficiency start
+sis-stop	volume efficiency stop	all	yes	volume efficiency stop
+sis-stop-async	volume efficiency stop	all	yes	volume efficiency stop
+volume-encryption-conversion-pause	volume encryption conversion pause	all	yes	volume encryption
+volume-encryption-conversion-resume	volume encryption conversion resume	all	yes	volume encryption
+volume-encryption-conversion-get-iter	volume encryption conversion show	all	yes	volume encryption
+volume-encryption-conversion-start	volume encryption conversion start	all	yes	volume encryption
+volume-encryption-rekey-pause	volume encryption rekey pause	all	yes	volume encryption
+volume-encryption-rekey-resume	volume encryption rekey resume	all	yes	volume encryption
+volume-encryption-rekey-get-iter	volume encryption rekey show	all	yes	volume encryption
+volume-encryption-rekey-start	volume encryption rekey start	all	yes	volume encryption
+volume-expand-async	volume expand	all	yes	volume expand
+clone-autodelete	volume file clone autodelete	all	yes	volume file
+clone-create	volume file clone create	all	yes	volume file
+clone-deletion-add-extension	volume file clone deletion add-extension	all	yes	volume file
+clone-deletion-minimum-size	volume file clone deletion modify	all	yes	volume file
+clone-deletion-remove-extension	volume file clone deletion remove-extension	all	yes	volume file
+clone-deletion-get-iter	volume file clone deletion show	all	yes	volume file
+clone-autodelete-status	volume file clone show-autodelete	all	yes	volume file
+clone-split-load-get-iter	volume file clone split load show	all		volume file clone split load
+file-compact-data	volume file compact-data	all	yes	volume file
+file-fingerprint-get-iter	volume file fingerprint show	all	yes	volume file
+file-fingerprint-start	volume file fingerprint start	all	yes	volume file
+file-assign-qos	volume file modify	all	yes	volume file
+snaplock-file-privileged-delete	volume file privileged-delete	all	yes	volume file
+file-set-space-reservation-info	volume file reservation	all	yes	volume file
+snaplock-get-file-retention	volume file retention show	all	yes	volume file
+file-create-directory	volume file show-disk-usage	all	yes	volume file
+file-create-symlink	volume file show-disk-usage	all	yes	volume file
+file-delete-directory	volume file show-disk-usage	all	yes	volume file
+file-delete-file	volume file show-disk-usage	all	yes	volume file
+file-get-file-info	volume file show-disk-usage	all	yes	volume file
+file-hole-range-query-iter	volume file show-disk-usage	all	yes	volume file
+file-list-directory-iter	volume file show-disk-usage	all	yes	volume file
+file-punch-hole-iter	volume file show-disk-usage	all	yes	volume file
+file-read-file	volume file show-disk-usage	all	yes	volume file
+file-read-symlink	volume file show-disk-usage	all	yes	volume file
+file-rename-file	volume file show-disk-usage	all	yes	volume file
+file-truncate-file	volume file show-disk-usage	all	yes	volume file
+file-usage-get	volume file show-disk-usage	all	yes	volume file
+file-usage-result-get	volume file show-disk-usage	all	yes	volume file
+file-usage-start	volume file show-disk-usage	all	yes	volume file
+file-write-file	volume file show-disk-usage	all	yes	volume file
+file-inode-info-get-iter	volume file show-inode	all	yes	volume file
+flexcache-create-async	volume flexcache create	all		volume flexcache
+flexcache-destroy-async	volume flexcache delete	all		volume flexcache
+flexcache-connected-cache-get-iter	volume flexcache origin show-caches	all		volume flexcache
+flexcache-default-size-get	volume flexcache show	all		volume flexcache
+flexcache-get-iter	volume flexcache show	all		volume flexcache
+snapshot-autodelete-set-option	volume modify	all	yes	volume modify
+snapshot-set-reserve	volume modify	all	yes	volume modify
+volume-autosize-set	volume modify	all	yes	volume modify
+volume-autosize-set-async	volume modify	all	yes	volume modify
+volume-modify-iter	volume modify	all	yes	volume modify
+volume-modify-iter-async	volume modify	all	yes	volume modify
+volume-set-option	volume modify	all	yes	volume modify
+volume-set-total-files	volume modify	all	yes	volume modify
+wafl-sync	volume modify	all	yes	volume modify
+volume-mount	volume mount	all		volume mount
+volume-move-trigger-abort	volume move abort	all	yes	volume move
+volume-move-get-iter	volume move show	all	yes	volume move
+volume-move-start	volume move start	all	yes	volume move
+volume-move-target-aggr-get-iter	volume move target-aggr show	all	yes	volume move
+volume-move-trigger-cutover	volume move trigger-cutover	all	yes	volume move
+volume-offline	volume offline	all	yes	volume offline
+volume-offline-async	volume offline	all	yes	volume offline
+volume-online	volume online	all	yes	volume online
+volume-online-async	volume online	all	yes	volume online
+qtree-create	volume qtree create	all		volume qtree
+qtree-delete	volume qtree delete	all		volume qtree
+qtree-delete-async	volume qtree delete	all		volume qtree
+qtree-modify	volume qtree modify	all		volume qtree
+qtree-rename	volume qtree rename	all		volume qtree
+qtree-list-iter	volume qtree show	all		volume qtree
+quota-off	volume quota off	all		volume quota
+quota-on	volume quota on	all		volume quota
+quota-policy-copy	volume quota policy copy	all		volume quota
+quota-policy-create	volume quota policy create	all		volume quota
+quota-policy-delete	volume quota policy delete	all		volume quota
+quota-policy-delete-iter	volume quota policy delete	all		volume quota
+quota-policy-rename	volume quota policy rename	all		volume quota
+quota-policy-rule-count-get	volume quota policy rule count show	all		volume quota
+quota-policy-rule-count-get-iter	volume quota policy rule count show	all		volume quota
+quota-add-entry	volume quota policy rule create	all		volume quota
+quota-delete-entry	volume quota policy rule delete	all		volume quota
+quota-modify-entry	volume quota policy rule modify	all		volume quota
+quota-set-entry	volume quota policy rule modify	all		volume quota
+quota-get-entry	volume quota policy rule show	all		volume quota
+quota-list-entries-iter	volume quota policy rule show	all		volume quota
+quota-policy-get-iter	volume quota policy show	all		volume quota
+quota-report-iter	volume quota report	all		volume quota
+quota-resize	volume quota resize	all		volume quota
+quota-status	volume quota show	all		volume quota
+quota-status-iter	volume quota show	all		volume quota
+volume-rehost	volume rehost	all	yes	volume rehost
+volume-rename	volume rename	all		volume rename
+volume-rename-async	volume rename	all		volume rename
+feature-status-list-info	volume show	all	yes	volume show
+file-get-space-reservation-info	volume show	all	yes	volume show
+snapmirror-infinite-volume-validate-dp-layout	volume show	all	yes	volume show
+snapshot-autodelete-list-info	volume show	all	yes	volume show
+snapshot-get-reserve	volume show	all	yes	volume show
+snapshot-reserve-list-info	volume show	all	yes	volume show
+snapshot-volume-info	volume show	all	yes	volume show
+volume-autosize-get	volume show	all	yes	volume show
+volume-container	volume show	all	yes	volume show
+volume-flexgroup-capacity-tier-footprint-get-iter	volume show	all	yes	volume show
+volume-flexgroup-get-create-limits	volume show	all	yes	volume show
+volume-flexgroup-get-expand-limits	volume show	all	yes	volume show
+volume-flexgroup-get-resize-limits	volume show	all	yes	volume show
+volume-get-iter	volume show	all	yes	volume show
+volume-get-language	volume show	all	yes	volume show
+volume-get-limits	volume show	all	yes	volume show
+volume-get-root-name	volume show	all	yes	volume show
+volume-get-volume-path	volume show	all	yes	volume show
+volume-options-list-info	volume show	all	yes	volume show
+volume-tiering-policies-list	volume show	all	yes	volume show
+wafl-get-sync-status	volume show	all	yes	volume show
+volume-footprint-get-iter	volume show-footprint	all	yes	volume show-footprint
+volume-space-get-iter	volume show-space	all	yes	volume show-space
+volume-size	volume size	all	yes	volume size
+volume-size-async	volume size	all	yes	volume size
+volume-set-snaplock-attrs	volume snaplock modify	all	yes	volume snaplock
+snaplock-volume-set-privileged-delete	volume snaplock set-privileged-delete	all	yes	volume snaplock
+volume-get-snaplock-attrs	volume snaplock show	all	yes	volume snaplock
+snapshot-reclaimable-info	volume snapshot compute-reclaimable	all	yes	volume snapshot
+cg-commit	volume snapshot create	all	yes	volume snapshot
+cg-start	volume snapshot create	all	yes	volume snapshot
+snapshot-create	volume snapshot create	all	yes	volume snapshot
+snapshot-create-async	volume snapshot create	all	yes	volume snapshot
+snapshot-delete	volume snapshot delete	all	yes	volume snapshot
+snapshot-delete-async	volume snapshot delete	all	yes	volume snapshot
+snapshot-modify-iter	volume snapshot modify	all	yes	volume snapshot
+snapshot-modify-snaplock-expiry-time	volume snapshot modify-snaplock-expiry-time	all	yes	volume snapshot
+snapshot-partial-restore-file	volume snapshot partial-restore-file	all	yes	volume snapshot
+snapshot-partial-restore-file-list-info	volume snapshot partial-restore-file	all	yes	volume snapshot
+snapshot-policy-add-schedule	volume snapshot policy add-schedule	all		volume snapshot policy
+snapshot-policy-create	volume snapshot policy create	all		volume snapshot policy
+snapshot-policy-delete	volume snapshot policy delete	all		volume snapshot policy
+snapshot-policy-modify	volume snapshot policy modify	all		volume snapshot policy
+snapshot-policy-modify-schedule	volume snapshot policy modify-schedule	all		volume snapshot policy
+snapshot-policy-remove-schedule	volume snapshot policy remove-schedule	all		volume snapshot policy
+snapshot-get-schedule	volume snapshot policy show	all		volume snapshot policy
+snapshot-policy-get	volume snapshot policy show	all		volume snapshot policy
+snapshot-policy-get-iter	volume snapshot policy show	all		volume snapshot policy
+snapshot-rename	volume snapshot rename	all	yes	volume snapshot
+snapshot-restore-volume	volume snapshot restore	all	yes	volume snapshot
+snapshot-restore-volume-async	volume snapshot restore	all	yes	volume snapshot
+snapshot-restore-file	volume snapshot restore-file	all	yes	volume snapshot
+snapshot-restore-file-info	volume snapshot restore-file	all	yes	volume snapshot
+snapshot-delta-info	volume snapshot show	all	yes	volume snapshot
+snapshot-get-iter	volume snapshot show	all	yes	volume snapshot
+snapshot-list-info	volume snapshot show	all	yes	volume snapshot
+snapshot-multicreate	volume snapshot show	all	yes	volume snapshot
+snapshot-multicreate-validate	volume snapshot show	all	yes	volume snapshot
+snapshot-multidelete	volume snapshot show	all	yes	volume snapshot
+snapshot-multirename	volume snapshot show	all	yes	volume snapshot
+volume-unmount	volume unmount	all		volume unmount
+active-directory-account-create	vserver active-directory create	all	yes	vserver active-directory
+active-directory-account-delete	vserver active-directory delete	all	yes	vserver active-directory
+active-directory-account-modify	vserver active-directory modify	all	yes	vserver active-directory
+active-directory-account-password-change	vserver active-directory password-change	all	yes	vserver active-directory
+active-directory-account-password-reset	vserver active-directory password-reset	all	yes	vserver active-directory
+active-directory-account-get-iter	vserver active-directory show	all	yes	vserver active-directory
+vserver-add-protocols	vserver add-protocols	all	yes	vserver add-protocols
+fileservice-audit-config-create	vserver audit create	all	yes	vserver audit
+fileservice-audit-remove	vserver audit delete	all	yes	vserver audit
+fileservice-audit-disable	vserver audit disable	all	yes	vserver audit
+fileservice-audit-enable	vserver audit enable	all	yes	vserver audit
+fileservice-audit-config-modify	vserver audit modify	all	yes	vserver audit
+fileservice-audit-rotate-log	vserver audit rotate-log	all	yes	vserver audit
+fileservice-audit-config-get	vserver audit show	all	yes	vserver audit
+fileservice-audit-config-get-iter	vserver audit show	all	yes	vserver audit
+fileservice-audit-config-get-total-records	vserver audit show	all	yes	vserver audit
+cifs-server-add-netbios-aliases	vserver cifs add-netbios-aliases	all	yes	vserver cifs
+cifs-branchcache-create	vserver cifs branchcache create	all	yes	vserver cifs
+cifs-branchcache-remove	vserver cifs branchcache delete	all	yes	vserver cifs
+cifs-branchcache-hash	vserver cifs branchcache hash-create	all	yes	vserver cifs
+cifs-branchcache-flush	vserver cifs branchcache hash-flush	all	yes	vserver cifs
+cifs-branchcache-modify	vserver cifs branchcache modify	all	yes	vserver cifs
+cifs-branchcache-get	vserver cifs branchcache show	all	yes	vserver cifs
+cifs-branchcache-get-iter	vserver cifs branchcache show	all	yes	vserver cifs
+cifs-character-mapping-create	vserver cifs character-mapping create	all	yes	vserver cifs
+cifs-character-mapping-destroy	vserver cifs character-mapping delete	all	yes	vserver cifs
+cifs-character-mapping-modify	vserver cifs character-mapping modify	all	yes	vserver cifs
+volume-charmap-set	vserver cifs character-mapping modify	all	yes	vserver cifs
+cifs-character-mapping-get-iter	vserver cifs character-mapping show	all	yes	vserver cifs
+volume-charmap-get	vserver cifs character-mapping show	all	yes	vserver cifs
+cifs-check-server-get-iter	vserver cifs check	all	yes	vserver cifs
+cifs-connection-get-iter	vserver cifs connection show	all	yes	vserver cifs
+cifs-server-create	vserver cifs create	all	yes	vserver cifs
+cifs-server-delete	vserver cifs delete	all	yes	vserver cifs
+cifs-domain-discovered-servers-reset	vserver cifs domain discovered-servers reset-servers	all	yes	vserver cifs
+cifs-domain-discovered-servers-get-iter	vserver cifs domain discovered-servers show	all	yes	vserver cifs
+cifs-domain-name-mapping-search-add	vserver cifs domain name-mapping-search add	all	yes	vserver cifs
+cifs-domain-name-mapping-search-modify	vserver cifs domain name-mapping-search modify	all	yes	vserver cifs
+cifs-domain-name-mapping-search-remove	vserver cifs domain name-mapping-search remove	all	yes	vserver cifs
+cifs-domain-name-mapping-search-get-iter	vserver cifs domain name-mapping-search show	all	yes	vserver cifs
+cifs-password-change	vserver cifs domain password change	all	yes	vserver cifs
+cifs-password-reset	vserver cifs domain password reset	all	yes	vserver cifs
+cifs-domain-password-schedule-modify	vserver cifs domain password schedule modify	all	yes	vserver cifs
+cifs-domain-password-schedule-get-iter	vserver cifs domain password schedule show	all	yes	vserver cifs
+cifs-domain-preferred-dc-add	vserver cifs domain preferred-dc add	all	yes	vserver cifs
+cifs-preferred-dc-check-get-iter	vserver cifs domain preferred-dc check	all	yes	vserver cifs
+cifs-domain-preferred-dc-remove	vserver cifs domain preferred-dc remove	all	yes	vserver cifs
+cifs-domain-preferred-dc-get-iter	vserver cifs domain preferred-dc show	all	yes	vserver cifs
+cifs-domain-trusts-rediscover	vserver cifs domain trusts rediscover	all	yes	vserver cifs
+cifs-domain-trusts-get-iter	vserver cifs domain trusts show	all	yes	vserver cifs
+gpo-modify	vserver cifs group-policy modify	all	yes	vserver cifs
+gpo-restricted-group-applied-info-get-iter	vserver cifs group-policy restricted-group show-applied	all	yes	vserver cifs
+gpo-restricted-group-defined-info-get-iter	vserver cifs group-policy restricted-group show-defined	all	yes	vserver cifs
+gpo-get-iter	vserver cifs group-policy show	all	yes	vserver cifs
+gpo-applied-info-get-iter	vserver cifs group-policy show-applied	all	yes	vserver cifs
+gpo-gpresult-info-get-iter	vserver cifs group-policy show-defined	all	yes	vserver cifs
+gpo-update	vserver cifs group-policy update	all	yes	vserver cifs
+cifs-home-directory-modify	vserver cifs home-directory modify	all	yes	vserver cifs
+cifs-home-directory-search-path-add	vserver cifs home-directory search-path add	all	yes	vserver cifs
+cifs-home-directory-search-path-delete	vserver cifs home-directory search-path remove	all	yes	vserver cifs
+cifs-home-directory-search-path-remove	vserver cifs home-directory search-path remove	all	yes	vserver cifs
+cifs-home-directory-search-path-reorder	vserver cifs home-directory search-path reorder	all	yes	vserver cifs
+cifs-home-directory-search-path-get-iter	vserver cifs home-directory search-path show	all	yes	vserver cifs
+cifs-home-directory-get-iter	vserver cifs home-directory show	all	yes	vserver cifs
+cifs-user-home-directory-path-get	vserver cifs home-directory show-user	all	yes	vserver cifs
+cifs-user-home-directory-path-get-iter	vserver cifs home-directory show-user	all	yes	vserver cifs
+cifs-server-modify	vserver cifs modify	all	yes	vserver cifs
+cifs-nbtstat-get-iter	vserver cifs nbtstat	all	yes	vserver cifs
+cifs-options-modify	vserver cifs options modify	all	yes	vserver cifs
+cifs-options-get-iter	vserver cifs options show	all	yes	vserver cifs
+cifs-server-remove-netbios-aliases	vserver cifs remove-netbios-aliases	all	yes	vserver cifs
+cifs-security-modify	vserver cifs security modify	all	yes	vserver cifs
+cifs-security-get-iter	vserver cifs security show	all	yes	vserver cifs
+cifs-session-file-close	vserver cifs session file remove	all	yes	vserver cifs
+cifs-session-file-get-iter	vserver cifs session file show	all	yes	vserver cifs
+cifs-session-close	vserver cifs session remove	all	yes	vserver cifs
+cifs-session-get-iter	vserver cifs session show	all	yes	vserver cifs
+cifs-share-access-control-create	vserver cifs share access-control create	all	yes	vserver cifs
+cifs-share-access-control-delete	vserver cifs share access-control delete	all	yes	vserver cifs
+cifs-share-access-control-modify	vserver cifs share access-control modify	all	yes	vserver cifs
+cifs-share-access-control-get-iter	vserver cifs share access-control show	all	yes	vserver cifs
+cifs-share-create	vserver cifs share create	all	yes	vserver cifs
+cifs-share-delete	vserver cifs share delete	all	yes	vserver cifs
+cifs-share-modify	vserver cifs share modify	all	yes	vserver cifs
+cifs-share-get-iter	vserver cifs share show	all	yes	vserver cifs
+cifs-server-get-iter	vserver cifs show	all	yes	vserver cifs
+cifs-server-start	vserver cifs start	all	yes	vserver cifs
+cifs-server-stop	vserver cifs stop	all	yes	vserver cifs
+cifs-symlink-create	vserver cifs symlink create	all	yes	vserver cifs
+cifs-symlink-delete	vserver cifs symlink delete	all	yes	vserver cifs
+cifs-symlink-modify	vserver cifs symlink modify	all	yes	vserver cifs
+cifs-symlink-get-iter	vserver cifs symlink show	all	yes	vserver cifs
+cifs-local-group-members-add-members	vserver cifs users-and-groups local-group add-members	all	yes	vserver cifs
+cifs-local-group-create	vserver cifs users-and-groups local-group create	all	yes	vserver cifs
+cifs-local-group-delete	vserver cifs users-and-groups local-group delete	all	yes	vserver cifs
+cifs-local-group-modify	vserver cifs users-and-groups local-group modify	all	yes	vserver cifs
+cifs-local-group-members-remove-members	vserver cifs users-and-groups local-group remove-members	all	yes	vserver cifs
+cifs-local-group-rename	vserver cifs users-and-groups local-group rename	all	yes	vserver cifs
+cifs-local-group-get-iter	vserver cifs users-and-groups local-group show	all	yes	vserver cifs
+cifs-local-group-members-get-iter	vserver cifs users-and-groups local-group show-members	all	yes	vserver cifs
+cifs-users-and-group-local-group-members-get-iter	vserver cifs users-and-groups local-group show-members	all	yes	vserver cifs
+cifs-local-user-create	vserver cifs users-and-groups local-user create	all	yes	vserver cifs
+cifs-local-user-delete	vserver cifs users-and-groups local-user delete	all	yes	vserver cifs
+cifs-local-user-modify	vserver cifs users-and-groups local-user modify	all	yes	vserver cifs
+cifs-local-user-rename	vserver cifs users-and-groups local-user rename	all	yes	vserver cifs
+cifs-local-user-set-password	vserver cifs users-and-groups local-user set-password	all	yes	vserver cifs
+cifs-local-user-get-iter	vserver cifs users-and-groups local-user show	all	yes	vserver cifs
+cifs-local-user-membership-get-iter	vserver cifs users-and-groups local-user show-membership	all	yes	vserver cifs
+cifs-users-and-group-local-user-membership-get-iter	vserver cifs users-and-groups local-user show-membership	all	yes	vserver cifs
+cifs-privilege-add-privilege	vserver cifs users-and-groups privilege add-privilege	all	yes	vserver cifs
+cifs-privilege-remove-privilege	vserver cifs users-and-groups privilege remove-privilege	all	yes	vserver cifs
+cifs-privilege-reset-privilege	vserver cifs users-and-groups privilege reset-privilege	all	yes	vserver cifs
+cifs-privilege-get-iter	vserver cifs users-and-groups privilege show	all	yes	vserver cifs
+vserver-create	vserver create	all	yes	vserver create
+vserver-create-async	vserver create	all	yes	vserver create
+exports-access-cache-config-modify	vserver export-policy access-cache config modify	all	yes	vserver export-policy
+exports-access-cache-config-get	vserver export-policy access-cache config show	all	yes	vserver export-policy
+exports-access-cache-config-get-iter	vserver export-policy access-cache config show	all	yes	vserver export-policy
+export-check-access-get-iter	vserver export-policy check-access	all	yes	vserver export-policy
+export-policy-create	vserver export-policy create	all	yes	vserver export-policy
+export-policy-destroy	vserver export-policy delete	all	yes	vserver export-policy
+export-policy-rename	vserver export-policy rename	all	yes	vserver export-policy
+export-rule-add-clientmatches	vserver export-policy rule add-clientmatches	all	yes	vserver export-policy
+export-rule-create	vserver export-policy rule create	all	yes	vserver export-policy
+export-rule-get-create-defaults	vserver export-policy rule create	all	yes	vserver export-policy
+nfs-exportfs-append-rules	vserver export-policy rule create	all	yes	vserver export-policy
+nfs-exportfs-append-rules-2	vserver export-policy rule create	all	yes	vserver export-policy
+export-rule-destroy	vserver export-policy rule delete	all	yes	vserver export-policy
+nfs-exportfs-delete-rules	vserver export-policy rule delete	all	yes	vserver export-policy
+export-rule-modify	vserver export-policy rule modify	all	yes	vserver export-policy
+nfs-exportfs-modify-rule	vserver export-policy rule modify	all	yes	vserver export-policy
+nfs-exportfs-modify-rule-2	vserver export-policy rule modify	all	yes	vserver export-policy
+export-rule-remove-clientmatches	vserver export-policy rule remove-clientmatches	all	yes	vserver export-policy
+export-rule-set-index	vserver export-policy rule setindex	all	yes	vserver export-policy
+export-rule-get	vserver export-policy rule show	all	yes	vserver export-policy
+export-rule-get-iter	vserver export-policy rule show	all	yes	vserver export-policy
+nfs-exportfs-check-permission	vserver export-policy rule show	all	yes	vserver export-policy
+nfs-exportfs-list-rules	vserver export-policy rule show	all	yes	vserver export-policy
+nfs-exportfs-list-rules-2	vserver export-policy rule show	all	yes	vserver export-policy
+nfs-get-supported-sec-flavors	vserver export-policy security-table show	all	yes	vserver export-policy
+export-policy-get	vserver export-policy show	all	yes	vserver export-policy
+export-policy-get-iter	vserver export-policy show	all	yes	vserver export-policy
+fcp-initiator-get-iter	vserver fcp initiator show	readonly		vserver fcp
+fcp-interface-get-iter	vserver fcp interface show	readonly		vserver fcp
+fcp-nameserver-get-iter	vserver fcp nameserver show	readonly		vserver fcp
+fcp-node-get-name	vserver fcp nodename	readonly		vserver fcp
+fcp-ping-igroup-view-get-iter	vserver fcp ping-igroup show	readonly		vserver fcp
+fcp-ping-initiator-get-iter	vserver fcp ping-initiator show	readonly		vserver fcp
+fcp-port-name-get-iter	vserver fcp portname show	readonly		vserver fcp
+fcp-service-get-iter	vserver fcp show	readonly		vserver fcp
+fcp-service-status	vserver fcp status	readonly		vserver fcp
+fcp-topology-get-iter	vserver fcp topology show	readonly		vserver fcp
+fcp-wwpnalias-get-iter	vserver fcp wwpn-alias show	readonly		vserver fcp
+fpolicy-disable-policy	vserver fpolicy disable	all	yes	vserver fpolicy
+fpolicy-enable-policy	vserver fpolicy enable	all	yes	vserver fpolicy
+fpolicy-server-connect	vserver fpolicy engine-connect	all	yes	vserver fpolicy
+fpolicy-server-disconnect	vserver fpolicy engine-disconnect	all	yes	vserver fpolicy
+fpolicy-policy-create	vserver fpolicy policy create	all	yes	vserver fpolicy
+fpolicy-policy-delete	vserver fpolicy policy delete	all	yes	vserver fpolicy
+fpolicy-policy-event-create	vserver fpolicy policy event create	all	yes	vserver fpolicy
+fpolicy-policy-event-delete	vserver fpolicy policy event delete	all	yes	vserver fpolicy
+fpolicy-policy-event-modify	vserver fpolicy policy event modify	all	yes	vserver fpolicy
+fpolicy-policy-event-get-iter	vserver fpolicy policy event show	all	yes	vserver fpolicy
+fpolicy-policy-external-engine-create	vserver fpolicy policy external-engine create	all	yes	vserver fpolicy
+fpolicy-policy-external-engine-delete	vserver fpolicy policy external-engine delete	all	yes	vserver fpolicy
+fpolicy-policy-external-engine-modify	vserver fpolicy policy external-engine modify	all	yes	vserver fpolicy
+fpolicy-policy-external-engine-get-iter	vserver fpolicy policy external-engine show	all	yes	vserver fpolicy
+fpolicy-policy-modify	vserver fpolicy policy modify	all	yes	vserver fpolicy
+fpolicy-policy-scope-create	vserver fpolicy policy scope create	all	yes	vserver fpolicy
+fpolicy-policy-scope-delete	vserver fpolicy policy scope delete	all	yes	vserver fpolicy
+fpolicy-policy-scope-modify	vserver fpolicy policy scope modify	all	yes	vserver fpolicy
+fpolicy-policy-scope-get-iter	vserver fpolicy policy scope show	all	yes	vserver fpolicy
+fpolicy-policy-get-iter	vserver fpolicy policy show	all	yes	vserver fpolicy
+fpolicy-policy-status-get-iter	vserver fpolicy show	all	yes	vserver fpolicy
+fpolicy-server-status-get-iter	vserver fpolicy show-engine	all	yes	vserver fpolicy
+fpolicy-passthrough-read-connection-get-iter	vserver fpolicy show-passthrough-read-connection	all	yes	vserver fpolicy
+vserver-http-proxy-create	vserver http-proxy create	all	yes	vserver http-proxy
+vserver-http-proxy-delete	vserver http-proxy delete	all	yes	vserver http-proxy
+vserver-http-proxy-modify	vserver http-proxy modify	all	yes	vserver http-proxy
+vserver-http-proxy-get	vserver http-proxy show	all	yes	vserver http-proxy
+vserver-http-proxy-get-iter	vserver http-proxy show	all	yes	vserver http-proxy
+iscsi-target-alias-get-alias	vserver iscsi alias	all	yes	vserver iscsi
+iscsi-target-alias-set-alias	vserver iscsi alias	all	yes	vserver iscsi
+iscsi-connection-get-iter	vserver iscsi connection show	all	yes	vserver iscsi
+iscsi-service-create	vserver iscsi create	all	yes	vserver iscsi
+iscsi-service-destroy	vserver iscsi delete	all	yes	vserver iscsi
+iscsi-initiator-get-iter	vserver iscsi initiator show	all	yes	vserver iscsi
+iscsi-interface-accesslist-add	vserver iscsi interface accesslist add	all	yes	vserver iscsi
+iscsi-interface-accesslist-remove	vserver iscsi interface accesslist remove	all	yes	vserver iscsi
+iscsi-interface-accesslist-get-iter	vserver iscsi interface accesslist show	all	yes	vserver iscsi
+iscsi-interface-disable	vserver iscsi interface disable	all	yes	vserver iscsi
+iscsi-interface-enable	vserver iscsi interface enable	all	yes	vserver iscsi
+iscsi-interface-modify	vserver iscsi interface modify	all	yes	vserver iscsi
+iscsi-interface-get-iter	vserver iscsi interface show	all	yes	vserver iscsi
+iscsi-isns-create	vserver iscsi isns create	all	yes	vserver iscsi
+iscsi-isns-destroy	vserver iscsi isns delete	all	yes	vserver iscsi
+iscsi-isns-config	vserver iscsi isns modify	all	yes	vserver iscsi
+iscsi-isns-get-info	vserver iscsi isns show	all	yes	vserver iscsi
+iscsi-isns-get-iter	vserver iscsi isns show	all	yes	vserver iscsi
+iscsi-isns-start	vserver iscsi isns start	all	yes	vserver iscsi
+iscsi-isns-stop	vserver iscsi isns stop	all	yes	vserver iscsi
+iscsi-isns-update	vserver iscsi isns update	all	yes	vserver iscsi
+iscsi-service-modify	vserver iscsi modify	all	yes	vserver iscsi
+iscsi-target-alias-clear-alias	vserver iscsi modify	all	yes	vserver iscsi
+iscsi-node-get-name	vserver iscsi nodename	all	yes	vserver iscsi
+iscsi-node-set-name	vserver iscsi nodename	all	yes	vserver iscsi
+iscsi-auth-add-initiator-address-ranges	vserver iscsi security add-initator-address-ranges	all	yes	vserver iscsi
+iscsi-initiator-add-auth	vserver iscsi security create	all	yes	vserver iscsi
+iscsi-initiator-set-default-auth	vserver iscsi security default	all	yes	vserver iscsi
+iscsi-initiator-delete-auth	vserver iscsi security delete	all	yes	vserver iscsi
+iscsi-initiator-modify-chap-params	vserver iscsi security modify	all	yes	vserver iscsi
+iscsi-auth-remove-initiator-address-ranges	vserver iscsi security remove-initator-address-ranges	all	yes	vserver iscsi
+iscsi-initiator-auth-get-iter	vserver iscsi security show	all	yes	vserver iscsi
+iscsi-initiator-get-auth	vserver iscsi security show	all	yes	vserver iscsi
+iscsi-session-get-iter	vserver iscsi session show	all	yes	vserver iscsi
+iscsi-auth-generate-chap-password	vserver iscsi show	all	yes	vserver iscsi
+iscsi-initiator-get-default-auth	vserver iscsi show	all	yes	vserver iscsi
+iscsi-service-get-iter	vserver iscsi show	all	yes	vserver iscsi
+iscsi-service-start	vserver iscsi start	all	yes	vserver iscsi
+iscsi-service-status	vserver iscsi status	all	yes	vserver iscsi
+iscsi-service-stop	vserver iscsi stop	all	yes	vserver iscsi
+lock-get-iter	vserver locks show	all	yes	vserver locks
+vserver-modify	vserver modify	all	yes	vserver modify
+vserver-modify-iter	vserver modify	all	yes	vserver modify
+name-mapping-create	vserver name-mapping create	all	yes	vserver name-mapping create
+name-mapping-delete	vserver name-mapping delete	all	yes	vserver name-mapping delete
+name-mapping-insert	vserver name-mapping insert	all	yes	vserver name-mapping insert
+name-mapping-modify	vserver name-mapping modify	all	yes	vserver name-mapping modify
+name-mapping-get-iter	vserver name-mapping show	all	yes	vserver name-mapping show
+name-mapping-swap	vserver name-mapping swap	all	yes	vserver name-mapping
+nfs-service-create	vserver nfs create	all	yes	vserver nfs
+nfs-service-get-create-defaults	vserver nfs create	all	yes	vserver nfs
+nfs-service-destroy	vserver nfs delete	all	yes	vserver nfs
+kerberos-config-modify	vserver nfs kerberos interface modify	all	yes	vserver nfs
+kerberos-config-get	vserver nfs kerberos interface show	all	yes	vserver nfs
+kerberos-config-get-iter	vserver nfs kerberos interface show	all	yes	vserver nfs
+kerberos-realm-create	vserver nfs kerberos realm create	all	yes	vserver nfs
+kerberos-realm-delete	vserver nfs kerberos realm delete	all	yes	vserver nfs
+kerberos-realm-modify	vserver nfs kerberos realm modify	all	yes	vserver nfs
+kerberos-realm-get-iter	vserver nfs kerberos realm show	all	yes	vserver nfs
+nfs-service-modify	vserver nfs modify	all	yes	vserver nfs
+nfs-disable	vserver nfs off	all	yes	vserver nfs
+nfs-enable	vserver nfs on	all	yes	vserver nfs
+nfs-service-get	vserver nfs show	all	yes	vserver nfs
+nfs-service-get-iter	vserver nfs show	all	yes	vserver nfs
+nfs-status	vserver nfs status	all	yes	vserver nfs
+nvme-create	vserver nvme create	all		vserver nvme
+nvme-delete	vserver nvme delete	all		vserver nvme
+nvme-modify	vserver nvme modify	all		vserver nvme
+nvme-namespace-create	vserver nvme namespace create	all		vserver nvme
+nvme-namespace-delete	vserver nvme namespace delete	all		vserver nvme
+nvme-namespace-modify	vserver nvme namespace modify	all		vserver nvme
+nvme-namespace-get-iter	vserver nvme namespace show	all		vserver nvme
+nvme-namespace-os-type-list	vserver nvme namespace show	all		vserver nvme
+nvme-get-iter	vserver nvme show	all		vserver nvme
+nvme-interface-get-iter	vserver nvme show-interface	all		vserver nvme
+nvme-subsystem-controller-get-iter	vserver nvme subsystem controller show	all		vserver nvme
+nvme-subsystem-create	vserver nvme subsystem create	all		vserver nvme
+nvme-subsystem-delete	vserver nvme subsystem delete	all		vserver nvme
+nvme-subsystem-host-add	vserver nvme subsystem host add	all		vserver nvme
+nvme-subsystem-host-remove	vserver nvme subsystem host remove	all		vserver nvme
+nvme-subsystem-host-get-iter	vserver nvme subsystem host show	all		vserver nvme
+nvme-subsystem-map-add	vserver nvme subsystem map add	all		vserver nvme
+nvme-subsystem-map-remove	vserver nvme subsystem map remove	all		vserver nvme
+nvme-subsystem-map-get-iter	vserver nvme subsystem map show	all		vserver nvme
+nvme-subsystem-modify	vserver nvme subsystem modify	all		vserver nvme
+nvme-subsystem-get-iter	vserver nvme subsystem show	all		vserver nvme
+nvme-subsystem-os-type-list	vserver nvme subsystem show	all		vserver nvme
+options-get	vserver options	all	yes	vserver options
+options-get-iter	vserver options	all	yes	vserver options
+options-list-info	vserver options	all	yes	vserver options
+options-modify-iter	vserver options	all	yes	vserver options
+options-set	vserver options	all	yes	vserver options
+vserver-peer-accept	vserver peer accept	all	yes	vserver peer
+vserver-peer-create	vserver peer create	all	yes	vserver peer
+vserver-peer-delete	vserver peer delete	all	yes	vserver peer
+vserver-peer-modify	vserver peer modify	all	yes	vserver peer
+vserver-peer-modify-local-name	vserver peer modify-local-name	all	yes	vserver peer modify-local-name
+vserver-peer-permission-create	vserver peer permission create	all	yes	vserver peer
+vserver-peer-permission-delete	vserver peer permission delete	all	yes	vserver peer
+vserver-peer-permission-modify	vserver peer permission modify	all	yes	vserver peer
+vserver-peer-permission-get	vserver peer permission show	all	yes	vserver peer
+vserver-peer-permission-get-iter	vserver peer permission show	all	yes	vserver peer
+vserver-peer-reject	vserver peer reject	all	yes	vserver peer
+vserver-peer-resume	vserver peer resume	all	yes	vserver peer
+vserver-peer-get	vserver peer show	all	yes	vserver peer
+vserver-peer-get-iter	vserver peer show	all	yes	vserver peer
+vserver-peer-suspend	vserver peer suspend	all	yes	vserver peer
+vserver-peer-transition-create	vserver peer transition create	all	yes	vserver peer transition
+vserver-peer-transition-destroy	vserver peer transition delete	all	yes	vserver peer transition
+vserver-peer-transition-destroy-iter	vserver peer transition delete	all	yes	vserver peer transition
+vserver-peer-transition-modify	vserver peer transition modify	all	yes	vserver peer transition
+vserver-peer-transition-get	vserver peer transition show	all	yes	vserver peer transition
+vserver-peer-transition-get-iter	vserver peer transition show	all	yes	vserver peer transition
+vserver-remove-protocols	vserver remove-protocols	all	yes	vserver remove-protocols
+file-directory-security-set	vserver security file-directory apply	all	yes	vserver security
+file-directory-security-ntfs-create	vserver security file-directory ntfs create	all	yes	vserver security
+file-directory-security-ntfs-dacl-add	vserver security file-directory ntfs dacl add	all	yes	vserver security
+file-directory-security-ntfs-dacl-modify	vserver security file-directory ntfs dacl modify	all	yes	vserver security
+file-directory-security-ntfs-dacl-remove	vserver security file-directory ntfs dacl remove	all	yes	vserver security
+file-directory-security-ntfs-dacl-get-iter	vserver security file-directory ntfs dacl show	all	yes	vserver security
+file-directory-security-ntfs-delete	vserver security file-directory ntfs delete	all	yes	vserver security
+file-directory-security-ntfs-modify	vserver security file-directory ntfs modify	all	yes	vserver security
+file-directory-security-ntfs-sacl-add	vserver security file-directory ntfs sacl add	all	yes	vserver security
+file-directory-security-ntfs-sacl-modify	vserver security file-directory ntfs sacl modify	all	yes	vserver security
+file-directory-security-ntfs-sacl-remove	vserver security file-directory ntfs sacl remove	all	yes	vserver security
+file-directory-security-ntfs-sacl-get-iter	vserver security file-directory ntfs sacl show	all	yes	vserver security
+file-directory-security-ntfs-get-iter	vserver security file-directory ntfs show	all	yes	vserver security
+file-directory-security-policy-create	vserver security file-directory policy create	all	yes	vserver security
+file-directory-security-policy-delete	vserver security file-directory policy delete	all	yes	vserver security
+file-directory-security-policy-get-iter	vserver security file-directory policy show	all	yes	vserver security
+file-directory-security-policy-task-add	vserver security file-directory policy task add	all	yes	vserver security
+file-directory-security-policy-task-modify	vserver security file-directory policy task modify	all	yes	vserver security
+file-directory-security-policy-task-remove	vserver security file-directory policy task remove	all	yes	vserver security
+file-directory-security-policy-task-get-iter	vserver security file-directory policy task show	all	yes	vserver security
+file-directory-security-remove-slag	vserver security file-directory remove-slag	all	yes	vserver security
+file-directory-security-get	vserver security file-directory show	all	yes	vserver security
+file-directory-effective-permissions-get	vserver security file-directory show-effective-permissions	all	yes	vserver security
+security-trace-filter-create	vserver security trace filter create	all	yes	vserver security
+security-trace-filter-delete	vserver security trace filter delete	all	yes	vserver security
+security-trace-filter-modify	vserver security trace filter modify	all	yes	vserver security
+security-trace-filter-get-iter	vserver security trace filter show	all	yes	vserver security
+security-trace-result-delete	vserver security trace trace-result delete	all	yes	vserver security
+security-trace-result-show	vserver security trace trace-result show	all	yes	vserver security
+net-dns-check-get-iter	vserver services name-service dns check	all	yes	vserver services
+net-dns-create	vserver services name-service dns create	all	yes	vserver services
+net-ddns-modify	vserver services name-service dns dynamic-update modify	all	yes	vserver services
+net-ddns-get	vserver services name-service dns dynamic-update show	all	yes	vserver services
+net-ddns-get-iter	vserver services name-service dns dynamic-update show	all	yes	vserver services
+net-hosts-create	vserver services name-service dns hosts create	all	yes	vserver services
+net-hosts-destroy	vserver services name-service dns hosts delete	all	yes	vserver services
+net-hosts-modify	vserver services name-service dns hosts modify	all	yes	vserver services
+net-hosts-get	vserver services name-service dns hosts show	all	yes	vserver services
+net-hosts-get-iter	vserver services name-service dns hosts show	all	yes	vserver services
+net-dns-modify	vserver services name-service dns modify	all	yes	vserver services
+net-dns-get	vserver services name-service dns show	all	yes	vserver services
+net-dns-get-iter	vserver services name-service dns show	all	yes	vserver services
+ldap-check-get-iter	vserver services name-service ldap check	all	yes	vserver services
+ldap-client-create	vserver services name-service ldap client create	all	yes	vserver services
+ldap-client-delete	vserver services name-service ldap client delete	all	yes	vserver services
+ldap-client-modify	vserver services name-service ldap client modify	all	yes	vserver services
+ldap-client-schema-delete	vserver services name-service ldap client schema delete	all	yes	vserver services name-service ldap client schema delete
+ldap-client-schema-modify	vserver services name-service ldap client schema modify	all	yes	vserver services name-service ldap client schema modify
+ldap-client-schema-get-iter	vserver services name-service ldap client schema show	all	yes	vserver services name-service ldap client schema show
+ldap-client-get-iter	vserver services name-service ldap client show	all	yes	vserver services
+ldap-config-create	vserver services name-service ldap create	all	yes	vserver services
+ldap-config-delete	vserver services name-service ldap delete	all	yes	vserver services
+ldap-config-modify	vserver services name-service ldap modify	all	yes	vserver services
+ldap-config-get-iter	vserver services name-service ldap show	all	yes	vserver services
+netgroups-file-delete	vserver services name-service netgroup file delete	all	yes	vserver services
+nis-create	vserver services name-service nis-domain create	all	yes	vserver services
+nis-destroy	vserver services name-service nis-domain delete	all	yes	vserver services
+nis-modify	vserver services name-service nis-domain modify	all	yes	vserver services
+nis-get	vserver services name-service nis-domain show	all	yes	vserver services
+nis-get-iter	vserver services name-service nis-domain show	all	yes	vserver services
+name-service-nis-show-bound	vserver services name-service nis-domain show-bound	all	yes	vserver services
+name-service-nis-show-bound-iter	vserver services name-service nis-domain show-bound	all	yes	vserver services
+nameservice-nsswitch-create	vserver services name-service ns-switch create	all	yes	vserver services
+nameservice-nsswitch-destroy	vserver services name-service ns-switch delete	all	yes	vserver services
+nameservice-nsswitch-modify	vserver services name-service ns-switch modify	all	yes	vserver services
+nameservice-nsswitch-get	vserver services name-service ns-switch show	all	yes	vserver services
+nameservice-nsswitch-get-iter	vserver services name-service ns-switch show	all	yes	vserver services
+name-mapping-unix-group-add-user	vserver services name-service unix-group adduser	all	yes	vserver services
+name-mapping-unix-group-create	vserver services name-service unix-group create	all	yes	vserver services
+name-mapping-unix-group-destroy	vserver services name-service unix-group delete	all	yes	vserver services
+name-mapping-unix-group-delete-user	vserver services name-service unix-group deluser	all	yes	vserver services
+name-mapping-unix-group-modify	vserver services name-service unix-group modify	all	yes	vserver services
+name-mapping-unix-group-get	vserver services name-service unix-group show	all	yes	vserver services
+name-mapping-unix-group-get-iter	vserver services name-service unix-group show	all	yes	vserver services
+name-mapping-unix-user-create	vserver services name-service unix-user create	all	yes	vserver services
+name-mapping-unix-user-destroy	vserver services name-service unix-user delete	all	yes	vserver services
+name-mapping-unix-user-modify	vserver services name-service unix-user modify	all	yes	vserver services
+name-mapping-unix-user-get	vserver services name-service unix-user show	all	yes	vserver services
+name-mapping-unix-user-get-iter	vserver services name-service unix-user show	all	yes	vserver services
+ndmp-password-generate	vserver services ndmp generate-password	all		vserver services ndmp
+ndmp-vserver-session-kill-all	vserver services ndmp kill-all	all		vserver services ndmp
+ndmp-vserver-session-kill	vserver services ndmp killsession	all		vserver services ndmp
+ndmp-vserver-attributes-modify	vserver services ndmp modify	all		vserver services ndmp
+ndmp-vserver-service-disable	vserver services ndmp off	all		vserver services ndmp
+ndmp-vserver-service-enable	vserver services ndmp on	all		vserver services ndmp
+ndmp-vserver-attributes-get-iter	vserver services ndmp show	all		vserver services ndmp
+ndmp-vserver-session-info-get-iter	vserver services ndmp status	all		vserver services ndmp
+vserver-data-policy-export	vserver show	all	yes	vserver show
+vserver-data-policy-import	vserver show	all	yes	vserver show
+vserver-data-policy-validation-get-error	vserver show	all	yes	vserver show
+vserver-get	vserver show	all	yes	vserver show
+vserver-get-iter	vserver show	all	yes	vserver show
+vserver-show-aggr-get-iter	vserver show-aggregates	readonly	yes	vserver show-aggregates
+vserver-start	vserver start	all	yes	vserver start
+vserver-stop	vserver stop	all	yes	vserver stop
+vscan-connection-status-all-get-iter	vserver vscan connection-status show-all	all	yes	vserver vscan
+vscan-status-modify	vserver vscan enable	all	yes	vserver vscan
+vscan-on-access-policy-create	vserver vscan on-access-policy create	all	yes	vserver vscan
+vscan-on-access-policy-delete	vserver vscan on-access-policy delete	all	yes	vserver vscan
+vscan-on-access-policy-status-modify	vserver vscan on-access-policy enable	all	yes	vserver vscan
+vscan-on-access-policy-modify	vserver vscan on-access-policy modify	all	yes	vserver vscan
+vscan-on-access-policy-get-iter	vserver vscan on-access-policy show	all	yes	vserver vscan
+vscan-on-demand-task-create	vserver vscan on-demand-task create	all	yes	vserver vscan
+vscan-on-demand-task-delete	vserver vscan on-demand-task delete	all	yes	vserver vscan
+vscan-on-demand-task-modify	vserver vscan on-demand-task modify	all	yes	vserver vscan
+vscan-on-demand-report-delete	vserver vscan on-demand-task report delete	all	yes	vserver vscan
+vscan-on-demand-report-get-iter	vserver vscan on-demand-task report show	all	yes	vserver vscan
+vscan-on-demand-task-run	vserver vscan on-demand-task run	all	yes	vserver vscan
+vscan-on-demand-task-get-iter	vserver vscan on-demand-task show	all	yes	vserver vscan
+vscan-reset	vserver vscan reset	all	yes	vserver vscan
+vscan-scanner-pool-apply-policy	vserver vscan scanner-pool apply-policy	all	yes	vserver vscan
+vscan-scanner-pool-create	vserver vscan scanner-pool create	all	yes	vserver vscan
+vscan-scanner-pool-delete	vserver vscan scanner-pool delete	all	yes	vserver vscan
+vscan-scanner-pool-modify	vserver vscan scanner-pool modify	all	yes	vserver vscan
+vscan-resolve-hostnames	vserver vscan scanner-pool resolve-hostnames	all	yes	vserver vscan
+vscan-scanner-pool-get-iter	vserver vscan scanner-pool show	all	yes	vserver vscan
+vscan-active-scanner-pool-get-iter	vserver vscan scanner-pool show-active	all	yes	vserver vscan
+vscan-status-get-iter	vserver vscan show	all	yes	vserver vscan
