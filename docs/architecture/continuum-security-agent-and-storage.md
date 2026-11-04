@@ -122,9 +122,9 @@ Continuum starts in learn mode and moves to enforce mode as trust grows. The pos
 - アカウントやファイルシステムごとの侵害まで含めるなら 4。比較は [AWS Backup 論理エアギャップボールト](../data-protection/aws-backup-logically-air-gapped-vault.md) と [層の比較](../comparison-security-layers.md)。
 - Stages 1 and 2 suffice while a faulty fix cannot reach data. Choose 3 if administrator credential theft is in scope; the lock period is irreversible. Choose 4 if whole-account or file-system compromise is in scope.
 
-**承認ゲートについて / On approval gates**: ONTAP の複数管理者承認（MAV）を、この決定木の承認手段には含めません。FSx for ONTAP の `fsxadmin` で有効化できるかは確認できておらず [E-025]、オンプレミス ONTAP では文書化された機能です。承認が必要な操作は、Step Functions の承認ワークフロー（[ランサムウェア復旧手順書](../runbooks/ransomware-recovery.md)）と AWS Backup のマルチパーティ承認で組みます。
+**承認ゲートについて / On approval gates**: ONTAP の複数管理者承認（MAV）を、この決定木の承認手段には含めません。FSx for ONTAP 9.18.1P6 の `fsxadmin` では有効化が拒否されており（1 回の観測）[E-025]、オンプレミス ONTAP では文書化された機能です。承認が必要な操作は、Step Functions の承認ワークフロー（[ランサムウェア復旧手順書](../runbooks/ransomware-recovery.md)）と AWS Backup のマルチパーティ承認で組みます。
 
-MAV is left out of this tree as an approval mechanism: whether `fsxadmin` can enable it on FSx for ONTAP is not established [E-025], while it is documented for on-premises ONTAP. Build approvals with the Step Functions workflow and AWS Backup multi-party approval instead.
+MAV is left out of this tree as an approval mechanism: `fsxadmin` was refused when enabling it on FSx for ONTAP 9.18.1P6, in one observation [E-025], while it is documented for on-premises ONTAP. Build approvals with the Step Functions workflow and AWS Backup multi-party approval instead.
 
 ---
 
@@ -137,7 +137,7 @@ The reasoning of trees 1 and 3 carries over to on-premises ONTAP and ONTAP-based
 | 項目 / Item | FSx for ONTAP | オンプレミス ONTAP / On-premises ONTAP | Cloud Volumes ONTAP | Google Cloud NetApp Volumes | Azure NetApp Files |
 |---|---|---|---|---|---|
 | スナップショットから書き込み可能な複製 / Writable copy from a snapshot | FlexClone（本リポジトリの手順書で使用）/ FlexClone | FlexClone | 未確認 / not checked | 文書化あり。新しいボリュームを作る。Flex Unified の thin clone は元のボリュームとスナップショットを削除できなくする / Documented; a new volume; Flex Unified thin clones block deleting the source volume and snapshot | 文書化あり。「Restore to new volume」。作成中は一部のレプリケーションが停止する / Documented; some replication suspended while restoring |
-| 複数管理者承認（MAV）/ Multi-admin verification | 未確立 [E-025] / not established | 文書化あり（9.11.1 以降、TR-4569）/ Documented from 9.11.1 | サポート対象外（9.15.1 のリリースノート）[E-024] / Not supported (9.15.1 release notes) | 未確認 / not checked | 未確認 / not checked |
+| 複数管理者承認（MAV）/ Multi-admin verification | `fsxadmin` では拒否（9.18.1P6、1 回の観測）[E-025] / refused to fsxadmin (9.18.1P6, one observation) | 文書化あり（9.11.1 以降、TR-4569）/ Documented from 9.11.1 | サポート対象外（9.15.1 のリリースノート）[E-024] / Not supported (9.15.1 release notes) | 未確認 / not checked | 未確認 / not checked |
 | 実機での確認 / Run on real environment | 東京リージョンで ARP 等を実測済み。クローン隔離は未実施 / ARP etc. measured in Tokyo; clone isolation not run | なし / none | なし / none | なし。文書の読み取りのみ / none; documentation only | なし。文書の読み取りのみ / none; documentation only |
 
 「未確認」は、その機能がないという意味ではなく、この文書では文書を読んでいないという意味です。GCNV と ANF については、実機の記録が存在しないため、文書化の水準を超える記述をしません。
@@ -159,7 +159,7 @@ The reasoning of trees 1 and 3 carries over to on-premises ONTAP and ONTAP-based
 
 - Continuum が FSx for ONTAP の設定をコンテキストとして取り込むか。取り込む場合の範囲も不明 [E-026]
 - クローンに ARP の状態が引き継がれるか
-- `fsxadmin` で MAV を有効化できるか [E-025]。読み取りの確認コマンドは台帳にあります
+- `fsxadmin` 以外のロールや AWS 側の管理経路で MAV を有効化できるか、他の ONTAP 版で変わるか [E-025]
 - Security Agent の侵入テストを FSx for ONTAP のクローンを使うアプリに実行した結果
 - Google Cloud NetApp Volumes と Azure NetApp Files の ARP、スナップショットのロック、MAV の有無
 

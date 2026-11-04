@@ -8,9 +8,9 @@ Multi-Admin Verification (MAV) は、破壊的な管理操作に対して複数�
 MAV requires approval from multiple administrators before executing destructive management operations.
 This prevents damage even if a single admin's credentials are compromised.
 
-> **FSx for ONTAP での適用可否は確立していません [E-025]。** 以下のコマンドは ONTAP 一般のもので、`fsxadmin` で有効化できた記録はありません。計画では利用できない前提で置き、使う場合は先に `security login role show -role fsxadmin -access !none` で MAV のコマンドが `fsxadmin` から見えるかを確かめてください。
+> **FSx for ONTAP 9.18.1P6 では、`fsxadmin` による MAV の有効化と承認グループの作成が HTTP 403 で拒否されました（1 環境、1 回の観測）[E-025]。** 以下のコマンドは ONTAP 一般のものです。`fsxadmin` のロール定義に MAV のエントリはなく、CLI の一覧にも載りません。他のロール、AWS 側の管理経路、他の版は確認していません。使う前に `security login role show-user-capability` で、自分の環境の `fsxadmin` から MAV のコマンドが見えるかを確かめてください。結果と読み方は [ONTAP コマンドと REST API のスナップショット](ontap-command-api-snapshot.md) にあります。
 >
-> Whether this applies to FSx for ONTAP is not established [E-025]. The commands below are for ONTAP in general and no run has enabled MAV with `fsxadmin`. Plan as if unavailable, and check with `security login role show -role fsxadmin -access !none` before relying on it.
+> On FSx for ONTAP 9.18.1P6, enabling MAV and creating an approval group as `fsxadmin` were refused with HTTP 403 (one environment, one observation) [E-025]. The commands below are for ONTAP in general. The `fsxadmin` role has no entry for MAV and the CLI capability list does not show it. Other roles, AWS-side management routes and other versions were not checked. Before relying on it, check with `security login role show-user-capability` whether MAV commands are visible to `fsxadmin` in your own environment. Results and how to read them are in the ONTAP command and REST API snapshot.
 
 ## 前提条件
 
