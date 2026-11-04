@@ -880,6 +880,51 @@
         "docs/architecture/continuum-security-agent-and-storage.md"
       ],
       "note": "Absence from a feature description is not a statement of absence. Treated as unknown, and the document says so."
+    },
+    {
+      "id": "E-027",
+      "claim": "AWS Security Agent on-demand penetration testing (now Continuum for Penetration Testing) reached general availability in March 2026 and added 6 regions in September 2026. AWS Continuum for code vulnerabilities reached general availability on 2026-10-22, in US East (N. Virginia) and US West (Oregon). Continuum for code scanning, threat modeling and design security review remain in preview; no GA announcement for them was found in What's New or the AWS blog as of 2026-11-04.",
+      "subject": "AWS Continuum / AWS Security Agent feature-level availability",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://aws.amazon.com/about-aws/whats-new/2026/03/aws-security-agent-ondemand-penetration/",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Announces GA of on-demand penetration testing."
+        },
+        {
+          "url": "https://aws.amazon.com/about-aws/whats-new/2026/09/aws-continuum-penetration/",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Six additional regions for Continuum for Penetration Testing."
+        },
+        {
+          "url": "https://aws.amazon.com/about-aws/whats-new/2026/10/aws-continuum-for-code-vulnerabilities-is-now-generally-available/",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Announces GA of Continuum for code vulnerabilities on 2026-10-22; points to the AWS Region table for availability and does not name a region in the post itself."
+        },
+        {
+          "url": "https://aws.amazon.com/jp/blogs/news/aws-continuum-for-code-vulnerabilities-is-now-generally-available/",
+          "retrieved": "2026-11-04",
+          "read": "selective",
+          "note": "Japanese translation of the same GA announcement."
+        }
+      ],
+      "observation": null,
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Current availability per feature and region. Checked against What's New directly; availability changes, so re-check before adopting."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/architecture/continuum-security-agent-and-storage.md"
+      ],
+      "note": "Supersedes this document's earlier statement that Continuum for code vulnerabilities was in limited preview, which was accurate only as of the 2026-06-17 announcement. Corrected 2026-11-04. The specific regions for code vulnerabilities (US East N. Virginia, US West Oregon) were reported by a third party (dev.to) and a sibling repository's independent check, not read verbatim in the AWS post itself; treat the region list as needing a check against the AWS Region table before relying on it."
     }
   ]
 }
