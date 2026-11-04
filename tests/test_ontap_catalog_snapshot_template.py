@@ -119,6 +119,22 @@ def test_the_handler_directory_holds_only_the_handler() -> None:
     assert names == {"handler.py"}
 
 
+def test_the_template_has_no_cfn_lint_findings_at_all() -> None:
+    """CI runs cfn-lint with no tolerance, while `make lint` accepts exit codes up to 12 for the older templates.
+
+    A warning here passes `make test` and still fails the pull request, so this test asks for exit code 0.
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    exe = shutil.which("cfn-lint") or str(Path(sys.executable).parent / "cfn-lint")
+    if not Path(exe).exists():
+        pytest.skip("cfn-lint is not installed")
+    done = subprocess.run([exe, str(TEMPLATE)], capture_output=True, text=True, cwd=ROOT)  # noqa: S603
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
 def test_every_sam_template_under_solutions_is_covered_by_the_lint_gates() -> None:
     """Makefile and CI must lint solutions/*/template.yaml, or a new template passes unchecked."""
     found = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "solutions").glob("*/template.yaml"))

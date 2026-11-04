@@ -206,17 +206,19 @@ Resources:
               Action:
                 - s3:PutObject
                 - s3:GetObject
-              Resource: !Sub
-                - 'arn:${AWS::Partition}:s3:::${Bucket}/${OutputPrefix}/*'
-                - Bucket: !If [CreateBucket, !Ref OutputBucket, !Ref ExistingOutputBucketName]
+              Resource: !If
+                - CreateBucket
+                - !Sub '${OutputBucket.Arn}/${OutputPrefix}/*'
+                - !Sub 'arn:${AWS::Partition}:s3:::${ExistingOutputBucketName}/${OutputPrefix}/*'
             # Without ListBucket, S3 answers a missing key with AccessDenied, and a first run cannot
             # be told from a real permission problem. Scoped to the output prefix.
             - Sid: ListOutputPrefix
               Effect: Allow
               Action: s3:ListBucket
-              Resource: !Sub
-                - 'arn:${AWS::Partition}:s3:::${Bucket}'
-                - Bucket: !If [CreateBucket, !Ref OutputBucket, !Ref ExistingOutputBucketName]
+              Resource: !If
+                - CreateBucket
+                - !GetAtt OutputBucket.Arn
+                - !Sub 'arn:${AWS::Partition}:s3:::${ExistingOutputBucketName}'
               Condition:
                 StringLike:
                   's3:prefix': !Sub '${OutputPrefix}/*'
