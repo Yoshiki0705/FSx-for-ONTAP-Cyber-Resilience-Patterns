@@ -9,6 +9,7 @@
 3. [`docs/agent/evidence-ledger.json`](docs/agent/evidence-ledger.json) and `make check-evidence`: register any "the vendor cannot / does not cover" claim in the ledger and cite it inline as `[E-nnn]`, in the same table cell as the claim. If you edit a line listed in `scripts/evidence_claims_baseline.json`, delete its fingerprint by hand; do not run `--update-baseline`.
 4. Public documents do not name incidents, companies or providers. Describe trends the way the "Threat Types Considered" section of the framework mapping does.
 5. Before calling work done, run `make test` (check-evidence, ai-style, check-sensitive, cfn-lint, pytest). CI runs `.github/workflows/ci.yml` and `gitleaks.yml`.
+6. [`docs/agent/decision-record-playbook.md`](docs/agent/decision-record-playbook.md): for multi-step tasks (new pattern, verification, IaC change) — where decision records go (`.private/tasks/`, gitignored), the evidence tier vocabulary (reuse the ledger's four: documented / verified / hypothesis / open), when to call an auditor, measuring variance before claiming an effect, and the recurring-task checklists.
 
 ## Project Overview
 
@@ -153,7 +154,16 @@ This project compares multiple security technologies. Always:
 - 判定基準の本体は Hub の 1 ファイル: https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/agent/writing-quality.md
 - このリポジトリの検出器は `tools/ai_style_rules.py`（Hub からのバイト単位コピー）。`make ai-style` は fail-tier の所見（D1/D2/D5/D14）で gate し、`make test` の前提として走る。warning は件数の表示のみ。
 
-### Before committing docs
+### Benchmark / evidence（性能・コスト数値のばらつき）
+
+- 1 回の測定値で変更の効果や優劣を主張しない。変更の効果を言う前に、変更していない構成の
+  ランごとのばらつきを先に測り、変更の差がそのばらつきの範囲内ならノイズとして扱う（そう書くか、
+  ばらつきを超えるまで反復数を増やす）。1 回ずつしか測っていない「A は B より速い」も同じ。
+- 性能・コスト数値には測定環境（ONTAP 版 / リージョン / 構成 / 測定日）を併記する。例: README の
+  「ARP 検知から 2 分未満でブロック」は `ONTAP 9.17.1P7D1 で測定` を添えている。`benchmarks/` の
+  結果も同様に環境併記する。
+- sample run（特定の 1 回の測定）と production estimate（スケール仮定からの見積り）を区別して
+  ラベルする。見積りを measured 値のように書かない。
 
 ```bash
 gitleaks detect --config .gitleaks.toml --no-git --source .
