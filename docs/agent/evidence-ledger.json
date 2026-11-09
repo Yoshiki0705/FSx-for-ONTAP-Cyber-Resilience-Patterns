@@ -973,6 +973,234 @@
         "docs/ontap-native/ontap-command-api-snapshot.md"
       ],
       "note": "Observed once on one version. solutions/shared/ontap_client.py (enable_arp, get_arp_status) and docs/ontap-native/arp-configuration.md use the absent path; their tests replace HTTP, so they do not catch it. Not fixed in this change."
+    },
+    {
+      "id": "E-029",
+      "claim": "GCNV ONTAP-mode does not allow a direct connection to the ONTAP management LIF, so SSH and System Manager cannot be used; management is only through the gcloud CLI proxy or the Google proxy API for ONTAP REST.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode management path",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "States no direct connections to the ONTAP management LIF; lists the CLI proxy and REST API as the two methods."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ],
+      "note": "Access-path constraint, not a design premise here; recorded so the GCNV note's claim is attributed."
+    },
+    {
+      "id": "E-030",
+      "claim": "GCNV ONTAP-mode volumes cannot be created, viewed, updated, or deleted through the Google Cloud console or the ordinary gcloud CLI volume commands.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode volume operations",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/configure-and-use/volumes/cache-ontap-volumes/overview",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "FlexCache overview states ONTAP-mode volumes cannot be created/viewed/updated/deleted via console or gcloud CLI."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-031",
+      "claim": "On GCNV ONTAP-mode, both the CLI proxy and the REST API filter out disallowed ONTAP actions; sending a disallowed command or parameter returns an error.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode allowed actions",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Allowed ONTAP actions section: the system filters the CLI command to block disallowed actions; some API payloads are filtered too."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-032",
+      "claim": "The GCNV CLI proxy does not support the interactive cluster peer create command; it must be run through the ONTAP REST API instead.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode cluster peering",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Allowed-command table, Cluster family: the CLI proxy doesn't support interactive cluster peer create; use the REST API."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-033",
+      "claim": "On GCNV ONTAP-mode, SnapLock event-retention and legal-hold can be managed only through the ONTAP REST API, not the CLI proxy; snaplock compliance-clock, snaplock log, and volume snaplock modify are available through the CLI proxy.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode SnapLock commands",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Allowed-command table, SnapLock family: event-retention and legal-hold are REST-only; compliance-clock and log are full access."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-034",
+      "claim": "On GCNV ONTAP-mode, the security anti-ransomware volume command has full access through the CLI proxy, and anti-ransomware parameters can also be set when creating a volume.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode anti-ransomware",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Allowed-command table, Security family: security anti-ransomware volume full access; parameters settable at volume creation."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-035",
+      "claim": "On GCNV ONTAP-mode, QoS commands are read-only through the CLI proxy, so a throughput ceiling or burst cannot be set there.",
+      "subject": "Google Cloud NetApp Volumes ONTAP-mode QoS",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.cloud.google.com/netapp/volumes/docs/ontap/manage-ontap",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Allowed-command table, QoS family: all QoS commands read-only; settings view-only."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Published Google Cloud documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ]
+    },
+    {
+      "id": "E-036",
+      "claim": "A SnapLock Compliance volume cannot be destroyed until its retention period has elapsed, and it can never be renamed; this holds even with administrator privilege. Deletion of a Compliance volume or its aggregate succeeds only once all WORM records and files with retention periods have expired and been removed.",
+      "subject": "ONTAP SnapLock Compliance volume deletion",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/create-snaplock-volume-task.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "Create and mount ONTAP SnapLock volumes: 'You cannot destroy a Compliance volume until the retention period has elapsed. You can never rename a Compliance volume.'"
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "NetApp public documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ],
+      "note": "General ONTAP SnapLock property; applies on both GCNV ONTAP-mode and FSx for ONTAP."
+    },
+    {
+      "id": "E-037",
+      "claim": "A WORM file's retention period can be extended but can never be shortened after the file is committed; SnapLock retention and snapshot lock expiry are set at creation/commit and cannot be shortened afterward.",
+      "subject": "ONTAP SnapLock retention period immutability",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://library.netapp.com/ecmdocs/ECMP1196889/html/GUID-BC4F9287-3702-4172-B15D-FB71B1AA30B4.html",
+          "retrieved": "2026-11-04",
+          "read": "full",
+          "note": "What retention period is: 'You can extend the retention period of an existing WORM file to infinite, however, you cannot shorten the retention period.'"
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "NetApp public documentation already answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+      ],
+      "note": "General ONTAP SnapLock property; applies on both GCNV ONTAP-mode and FSx for ONTAP."
     }
   ]
 }

@@ -22,6 +22,10 @@ FSx for ONTAP's cyber resilience features (Autonomous Ransomware Protection, FPo
 > **Scope note**: このドキュメントは「どの経路でその操作に到達できるか」を扱う。各機能そのものの挙動・不可逆性・設計上の注意は、[ARP 設定ガイド](ontap-native/arp-configuration.md)、[SnapLock 設定](ontap-native/snaplock-configuration.md)、[Tamperproof Snapshot](ontap-native/tamperproof-snapshot.md)、[MAV 設定](ontap-native/mav-configuration.md)、[フレームワークマッピング](en/cyber-resilience-framework-mapping.md) を参照。ここではそれらを重複させない。
 >
 > This document covers how to reach an operation, not how each feature behaves. For feature behavior, irreversibility, and design caveats, see the per-feature references linked above; they are not duplicated here.
+>
+> 同じ ONTAP ネイティブ機能を **Google Cloud NetApp Volumes (GCNV) の ONTAP モード**で呼び出す経路と、その経路に固有の制約は [GCNV ONTAP モードでの WORM / ランサム対策機能の呼び出し](ontap-native/gcnv-ontap-mode-security-features.md) にある。本書は FSx for ONTAP 側の管理面を扱う。
+>
+> For reaching the same ONTAP-native features on **Google Cloud NetApp Volumes (GCNV) ONTAP-mode**, and the constraints specific to that path, see [Reaching WORM and ransomware controls on GCNV ONTAP-mode](ontap-native/gcnv-ontap-mode-security-features.md). This document covers the FSx for ONTAP management planes.
 
 ---
 
