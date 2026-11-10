@@ -170,3 +170,13 @@ clean: ## Remove generated files
 	find . -type d -name '.pytest_cache' -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.pyc' -delete 2>/dev/null || true
 	rm -rf .mypy_cache/ htmlcov/ .coverage
+
+# -------------------------------------------------------------------
+# Cross-repo agent harness
+# -------------------------------------------------------------------
+.PHONY: cross-repo-agent
+
+cross-repo-agent: test ## Run quality gates and emit cross-repo notifications for Kiro Bot
+	@mkdir -p docs/agent/notifications
+	@python3 ~/.kiro/hooks/scripts/cross_repo_agent.py run 2>/dev/null || true
+	@echo "cross-repo-agent: gates passed. Notifications written to docs/agent/notifications/ if any."
