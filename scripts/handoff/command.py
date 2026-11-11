@@ -23,6 +23,12 @@ produces (``home``, ``handoff_dir``, the temporary paths and the parent environm
 of an item. :func:`build_publish_plan` does not refuse per item; it leaves the item out
 and says why (:class:`PublishExclusion`).
 
+Held prompts. The runner builds a ``kiro-cli`` run with :func:`build_kiro_invocation`, which
+takes the :class:`handoff.prompt.RenderedPrompt` that :func:`handoff.prompt.render` returned
+and refuses one with a hold reason, so a body with a scan finding or over the size limit
+never becomes an argv (Requirement 28.23, Property 26). :func:`build_kiro_argv` takes the
+prompt as a string and checks its form only.
+
 Files. :func:`handoff_files` gives the paths of an item's Handoff_Prompt and Handoff_Report
 and of the status file, all strictly below this repository's ``.private/handoff/``
 (Requirement 28.22). It builds the paths only; ``runner.py`` writes the files there.
@@ -45,6 +51,7 @@ from typing import Any, Final, Literal, TypeAlias, TypeVar
 from handoff.config import MODES, QUERY_TOOL_CEILING, HandoffConfig, is_within, normalize_path, overlaps
 from handoff.evaluate import GUARDS_ACTIVE, UNCONFIRMED
 from handoff.manifest import APPROVAL_RECORD_DIR, MAX_ID_LENGTH, SYNC_POINTS, Item, Manifest, TrustAll
+from handoff.prompt import RenderedPrompt
 from handoff.state import SUCCEEDED, TIMESTAMP_FORMAT, StatusDoc, check_status, format_timestamp
 
 #: The remote of every target repository.
@@ -115,6 +122,7 @@ IssueCode: TypeAlias = Literal[
     "selftest",
     "agent",
     "prompt",
+    "prompt_held",
     "base_sha",
     "approval",
 ]
@@ -156,7 +164,8 @@ class CommandIssue:
             (``timeout_seconds``, ``max_concurrency``, ``kiro_cli``), a field of the item
             (``mode``, ``repo``, ``item_id``, ``sync_point``, ``trust_tools``,
             ``trust_all``), a derived path (``worktree``), or another input (``selftest``,
-            ``agent``, ``prompt``, ``base_sha``, ``approval``).
+            ``agent``, ``prompt``, ``base_sha``, ``approval``). ``prompt_held`` names a
+            prompt that :func:`handoff.prompt.render` held (:func:`build_kiro_invocation`).
         detail: An explanation for the maintainer. It can hold local paths, so it belongs
             in local output and in ``.private/``, not in a tracked file.
     """
@@ -553,7 +562,9 @@ def build_kiro_argv(
     Args:
         config: The configuration.
         item: The item to run.
-        prompt: The rendered and scanned Handoff_Prompt.
+        prompt: The body of the rendered and scanned Handoff_Prompt. Only its form is
+            checked here; :func:`build_kiro_invocation`, which the runner calls, refuses a
+            held prompt before its body reaches this function.
         home: The absolute home directory, to expand ``~`` in ``kiro_cli``.
         selftest_result: ``result`` of the latest selftest in ``status.json``
             (:data:`handoff.evaluate.GUARDS_ACTIVE` or
@@ -609,6 +620,82 @@ def build_kiro_argv(
     agent_options = () if agent is None else (AGENT_OPTION, agent)
     argv = (_present(program), *KIRO_CHAT, *agent_options, *trust, prompt)
     return KiroInvocation(Command(argv, worktree), _present(timeout_seconds), agent)
+
+
+def build_kiro_invocation(
+    config: HandoffConfig,
+    item: Item,
+    rendered: RenderedPrompt,
+    *,
+    home: str,
+    selftest_result: str | None,
+    approved_agents: Collection[str],
+) -> KiroInvocation:
+    """Build the ``kiro-cli`` run of an item from its drawn Handoff_Prompt, unless the prompt is held.
+
+    The runner builds every ``kiro-cli`` run with this function (task 2.3). It takes what
+    :func:`handoff.prompt.render` returned rather than a string, so the hold reasons stay
+    with the body. A body in which :func:`handoff.scan.check` found something, or that is
+    longer than :data:`handoff.prompt.MAX_BODY_BYTES`, is held
+    (:attr:`handoff.prompt.RenderedPrompt.needs_human`), and no argv is built from it
+    (Requirement 28.23, Property 26). The runner moves such an item to ``needs-human`` with
+    :attr:`handoff.prompt.RenderedPrompt.history_reason`. A prompt that is not held gives
+    the run that :func:`build_kiro_argv` builds from its body.
+
+    The findings are the ones that ``render`` made with the caller's deny terms. This
+    function has no deny terms and does not scan again, so it trusts the findings of the
+    :class:`handoff.prompt.RenderedPrompt` it is given.
+
+    Args:
+        config: The configuration.
+        item: The item to run.
+        rendered: The item's prompt, as :func:`handoff.prompt.render` returned it.
+        home: As for :func:`build_kiro_argv`.
+        selftest_result: As for :func:`build_kiro_argv`.
+        approved_agents: As for :func:`build_kiro_argv`.
+
+    Returns:
+        The invocation of :func:`build_kiro_argv`, whose last argv element is
+        ``rendered.body``.
+
+    Raises:
+        TypeError: ``rendered`` is not a :class:`handoff.prompt.RenderedPrompt`, or as for
+            :func:`build_kiro_argv`.
+        ValueError: As for :func:`build_kiro_argv`.
+        CommandError: With every problem found, and no argv, in this order: the prompt was
+            drawn for another item (``prompt``: its item ID, repository or mode is not the
+            item's); the prompt is held (``prompt_held``); and every problem that
+            :func:`build_kiro_argv` finds.
+    """
+    _require(config, HandoffConfig, "config")
+    _require(item, Item, "item")
+    _require(rendered, RenderedPrompt, "rendered")
+    issues: list[CommandIssue] = []
+    if (rendered.item_id, rendered.repo, rendered.mode) != (item.id, item.repo, item.mode):
+        issues.append(
+            CommandIssue(
+                "prompt",
+                f"was drawn for {_show(rendered.item_id)} ({_show(rendered.repo)}, {_show(rendered.mode)}), "
+                f"not for {_show(item.id)} ({_show(item.repo)}, {_show(item.mode)})",
+            )
+        )
+    if rendered.needs_human:
+        issues.append(
+            CommandIssue(
+                "prompt_held",
+                f"is held for {rendered.history_reason}: the item goes to needs-human with that reason "
+                "and is not passed on (Requirement 28.23)",
+            )
+        )
+    try:
+        invocation = build_kiro_argv(
+            config, item, rendered.body, home=home, selftest_result=selftest_result, approved_agents=approved_agents
+        )
+    except CommandError as error:
+        raise CommandError([*issues, *error.issues]) from None
+    if issues:
+        raise CommandError(issues)
+    return invocation
 
 
 def build_publish_plan(
