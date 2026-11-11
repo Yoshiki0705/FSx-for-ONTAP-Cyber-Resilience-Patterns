@@ -1,9 +1,10 @@
-"""Build the git, ``kiro-cli`` and ``gh`` commands of the Handoff_Harness, and the child environment.
+"""Build the git, ``kiro-cli`` and ``gh`` commands of the Handoff_Harness, the child environment, and file paths.
 
 Part of the pure core described in ``scripts/handoff/__init__.py``: this module starts no
 process, reads no file and does not read ``os.environ``. It returns argv tuples, working
-directories and environment dictionaries, and ``runner.py`` runs them. Design section 20
-and Requirements 23.4, 28.5, 28.6, 28.7, 28.14, 28.15 and 28.17 define what may be built.
+directories, environment dictionaries and file paths, and ``runner.py`` runs the commands
+and writes the files. Design sections 17 and 20 and Requirements 23.4, 28.5, 28.6, 28.7,
+28.14, 28.15, 28.17 and 28.22 define what may be built.
 
 Form of a command. Every command is a :class:`Command`, an argv and a working directory,
 for ``subprocess.run(command.argv, cwd=command.cwd, shell=False)``. Each argv element is
@@ -22,6 +23,10 @@ produces (``home``, ``handoff_dir``, the temporary paths and the parent environm
 of an item. :func:`build_publish_plan` does not refuse per item; it leaves the item out
 and says why (:class:`PublishExclusion`).
 
+Files. :func:`handoff_files` gives the paths of an item's Handoff_Prompt and Handoff_Report
+and of the status file, all strictly below this repository's ``.private/handoff/``
+(Requirement 28.22). It builds the paths only; ``runner.py`` writes the files there.
+
 Configurations and items are checked again where a command depends on them, because
 :class:`handoff.config.HandoffConfig` and :class:`handoff.manifest.Item` can be built
 without :func:`handoff.config.parse_config` and :func:`handoff.manifest.parse_manifest`.
@@ -39,7 +44,7 @@ from typing import Any, Final, Literal, TypeAlias, TypeVar
 
 from handoff.config import MODES, QUERY_TOOL_CEILING, HandoffConfig, is_within, normalize_path, overlaps
 from handoff.evaluate import GUARDS_ACTIVE, UNCONFIRMED
-from handoff.manifest import APPROVAL_RECORD_DIR, MAX_ID_LENGTH, Item, Manifest, TrustAll
+from handoff.manifest import APPROVAL_RECORD_DIR, MAX_ID_LENGTH, SYNC_POINTS, Item, Manifest, TrustAll
 from handoff.state import SUCCEEDED, TIMESTAMP_FORMAT, StatusDoc, check_status, format_timestamp
 
 #: The remote of every target repository.
@@ -81,6 +86,21 @@ DROPPED_ENV_PREFIXES: Final[tuple[str, ...]] = ("AWS_", "GIT_", "GH_", "GITHUB_"
 #: Names of the parent's environment variables that :func:`child_env` drops as well.
 DROPPED_ENV_NAMES: Final[tuple[str, ...]] = ("PWD", "OLDPWD")
 
+#: The status file of every item, directly below ``.private/handoff/`` (Data Models).
+STATUS_FILE: Final = "status.json"
+
+#: The file name of an item's Handoff_Report, in ``.private/handoff/<repo>/<id>/`` (design
+#: section 20).
+REPORT_FILE: Final = "report.md"
+
+#: The directory, below ``.private/handoff/``, of the Handoff_Prompts of the Sync_Points
+#: (design section 17).
+SYNC_PROMPT_DIR: Final = "sync"
+
+#: The value of :data:`handoff.manifest.SYNC_POINTS` whose Handoff_Prompts are the rollout
+#: prompts of Requirement 23.1, one per repository, directly below ``.private/handoff/``.
+ROLLOUT_SYNC_POINT: Final = "rollout"
+
 IssueCode: TypeAlias = Literal[
     "timeout_seconds",
     "max_concurrency",
@@ -88,6 +108,7 @@ IssueCode: TypeAlias = Literal[
     "mode",
     "repo",
     "item_id",
+    "sync_point",
     "worktree",
     "trust_tools",
     "trust_all",
@@ -133,9 +154,9 @@ class CommandIssue:
     Attributes:
         code: What is wrong, one of :data:`IssueCode`. Codes name the input: a setting
             (``timeout_seconds``, ``max_concurrency``, ``kiro_cli``), a field of the item
-            (``mode``, ``repo``, ``item_id``, ``trust_tools``, ``trust_all``), a derived
-            path (``worktree``), or another input (``selftest``, ``agent``, ``prompt``,
-            ``base_sha``, ``approval``).
+            (``mode``, ``repo``, ``item_id``, ``sync_point``, ``trust_tools``,
+            ``trust_all``), a derived path (``worktree``), or another input (``selftest``,
+            ``agent``, ``prompt``, ``base_sha``, ``approval``).
         detail: An explanation for the maintainer. It can hold local paths, so it belongs
             in local output and in ``.private/``, not in a tracked file.
     """
@@ -442,6 +463,26 @@ class PublishPlan:
     approved_in: str
     steps: tuple[PublishStep, ...]
     excluded: tuple[PublishExclusion, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class HandoffFiles:
+    """Where the runner writes the files of one item, all strictly below ``.private/handoff/``.
+
+    Attributes:
+        status: ``<handoff_dir>/status.json``, the one status file of every item
+            (Requirement 28.13). It does not depend on the item.
+        report: ``<handoff_dir>/<repo>/<id>/report.md``, the item's Handoff_Report
+            (Requirement 28.8).
+        prompt: The item's Handoff_Prompt: ``<handoff_dir>/sync/<sync_point>-<repo>.md`` for
+            the Sync_Points ``a`` to ``e``, and ``<handoff_dir>/<repo>.md`` for ``rollout``
+            (design section 17). The name has no item ID, as in design section 17, so two
+            items of one Sync_Point and one repository get the same path.
+    """
+
+    status: str
+    report: str
+    prompt: str
 
 
 def build_git_plan(config: HandoffConfig, item: Item) -> GitPlan:
@@ -762,6 +803,52 @@ def child_env(
     return env
 
 
+def handoff_files(handoff_dir: str, *, repo: str, item_id: str, sync_point: str) -> HandoffFiles:
+    """Build the paths of an item's Handoff_Prompt and Handoff_Report, and of the status file.
+
+    Requirement 28.22 keeps the three in this repository's ``.private/``, and the layout of
+    design sections 17 and 20 puts them in ``.private/handoff/``. ``repo`` and ``item_id``
+    must have the forms that :func:`handoff.manifest.parse_manifest` and
+    :func:`build_git_plan` require, which make each one path component that is not ``.`` or
+    ``..``, and ``sync_point`` must be one of :data:`handoff.manifest.SYNC_POINTS`. So every
+    path has ``handoff_dir`` and at least one more component, in normal form. Nothing is
+    created or read.
+
+    Args:
+        handoff_dir: This repository's ``.private/handoff/`` directory, absolute and in
+            normal form, as for :func:`build_publish_plan`.
+        repo: The item's target repository.
+        item_id: The item's ID.
+        sync_point: The item's Sync_Point.
+
+    Returns:
+        The three paths.
+
+    Raises:
+        TypeError: ``handoff_dir`` is not a ``str``.
+        ValueError: ``handoff_dir`` is not an absolute path in normal form that ends with
+            ``.private/handoff``.
+        CommandError: With every problem found: ``repo`` or ``item_id`` does not have its
+            form (codes ``repo`` and ``item_id``, as for :func:`build_git_plan`), or
+            ``sync_point`` is not a Sync_Point (code ``sync_point``).
+    """
+    directory = _handoff_dir(handoff_dir)
+    issues = [issue for issue in (_repo_issue(repo), _item_id_issue(item_id)) if issue is not None]
+    if type(sync_point) is not str or sync_point not in SYNC_POINTS:
+        issues.append(CommandIssue("sync_point", f"must be one of {', '.join(SYNC_POINTS)}, got {_show(sync_point)}"))
+    if issues:
+        raise CommandError(issues)
+    if sync_point == ROLLOUT_SYNC_POINT:
+        prompt = posixpath.join(directory, f"{repo}.md")
+    else:
+        prompt = posixpath.join(directory, SYNC_PROMPT_DIR, f"{sync_point}-{repo}.md")
+    return HandoffFiles(
+        status=posixpath.join(directory, STATUS_FILE),
+        report=posixpath.join(directory, repo, item_id, REPORT_FILE),
+        prompt=prompt,
+    )
+
+
 def _publish_one(
     config: HandoffConfig,
     item_id: str,
@@ -904,23 +991,15 @@ def _location(config: HandoffConfig, item: Item, issues: list[CommandIssue]) -> 
                 )
             )
     repo = item.repo
-    if type(repo) is not str or repo in (".", "..") or _REPO.fullmatch(repo) is None:
-        issues.append(
-            CommandIssue(
-                "repo", f"must be one path component of ASCII letters, digits, '.', '_', '-', got {_show(repo)}"
-            )
-        )
+    repo_issue = _repo_issue(repo)
+    if repo_issue is not None:
+        issues.append(repo_issue)
     elif repo not in config.repos:
         issues.append(CommandIssue("repo", f"{repo} is not in repos of config.json"))
     item_id = item.id
-    if type(item_id) is not str or len(item_id) > MAX_ID_LENGTH or _ITEM_ID.fullmatch(item_id) is None:
-        issues.append(
-            CommandIssue(
-                "item_id",
-                f"must be lowercase ASCII letters and digits in groups joined by single hyphens, at most {MAX_ID_LENGTH} "
-                f"characters, got {_show(item_id)}",
-            )
-        )
+    item_id_issue = _item_id_issue(item_id)
+    if item_id_issue is not None:
+        issues.append(item_id_issue)
     if len(issues) > before:
         return None
 
@@ -933,6 +1012,26 @@ def _location(config: HandoffConfig, item: Item, issues: list[CommandIssue]) -> 
     if len(issues) > before:
         return None
     return main_trees[repo], worktree
+
+
+def _repo_issue(repo: object) -> CommandIssue | None:
+    """Check that a repository name is one path component of the manifest's form, not ``.`` or ``..``."""
+    if type(repo) is not str or repo in (".", "..") or _REPO.fullmatch(repo) is None:
+        return CommandIssue(
+            "repo", f"must be one path component of ASCII letters, digits, '.', '_', '-', got {_show(repo)}"
+        )
+    return None
+
+
+def _item_id_issue(item_id: object) -> CommandIssue | None:
+    """Check that an item ID has the manifest's form, which makes it one path component."""
+    if type(item_id) is not str or len(item_id) > MAX_ID_LENGTH or _ITEM_ID.fullmatch(item_id) is None:
+        return CommandIssue(
+            "item_id",
+            f"must be lowercase ASCII letters and digits in groups joined by single hyphens, at most {MAX_ID_LENGTH} "
+            f"characters, got {_show(item_id)}",
+        )
+    return None
 
 
 def _mode(item: Item, issues: list[CommandIssue]) -> str | None:
