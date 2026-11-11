@@ -26,7 +26,10 @@ check has two layers.
    is ``state``. An item with no history is in ``INITIAL_STATE``. A state written into
    the file without a transition is therefore rejected on the next read. The remaining
    fields are checked for their container type only (see :class:`ItemRecord`); the
-   modules that write them decide what goes inside.
+   modules that write them decide what goes inside. ``events`` is the harness's own
+   record of what it did outside the items, such as removing a stale lock (design
+   section 20, "同時実行と排他"): each entry has exactly the keys of :class:`HarnessEvent`,
+   checked as :func:`record_event` describes.
 
 Errors: :class:`InvalidStatusError` for a value or text that is not a status. The design
 has the harness refuse to start on a damaged status file, and the maintainer restores
@@ -91,9 +94,28 @@ MAX_DEPTH: Final = 32
 
 _TIMESTAMP_SHAPE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 
+#: Form of ``events[].kind``: lowercase ASCII words joined by single underscores, such as
+#: ``stale_lock_removed``. The kinds themselves belong to the module that records them.
+_EVENT_KIND: Final = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*")
+
 #: One entry of an item's ``history``: the state left, the state entered, when, and why.
 #: Written in the functional form because ``from`` is a Python keyword.
 HistoryEntry = TypedDict("HistoryEntry", {"from": str, "to": str, "at": str, "reason": str})
+
+
+class HarnessEvent(TypedDict):
+    """One entry of ``events``: something the harness did that is not a transition of an item.
+
+    Attributes:
+        at: When, in ``TIMESTAMP_FORMAT``.
+        kind: What happened, in the form of ``_EVENT_KIND``, for example
+            ``stale_lock_removed``.
+        detail: An explanation for the maintainer. Not blank.
+    """
+
+    at: str
+    kind: str
+    detail: str
 
 
 class ItemRecord(TypedDict):
@@ -140,16 +162,20 @@ class StatusDoc(TypedDict):
         schema_version: Always ``SCHEMA_VERSION``.
         selftest: The latest selftest result, or ``None`` before the first selftest.
         items: Each item's record, keyed by its item ID (a non-empty string).
+        events: What the harness did outside the items, oldest first. Only
+            :func:`record_event` adds an entry, and nothing changes or removes one.
     """
 
     schema_version: int
     selftest: dict[str, Any] | None
     items: dict[str, ItemRecord]
+    events: list[HarnessEvent]
 
 
 _TOP_KEYS: Final = StatusDoc.__required_keys__
 _ITEM_KEYS: Final = ItemRecord.__required_keys__
 _ENTRY_KEYS: Final = HistoryEntry.__required_keys__
+_EVENT_KEYS: Final = HarnessEvent.__required_keys__
 
 _JSON_TYPE_NAMES: Final[dict[type, str]] = {
     dict: "object",
@@ -175,12 +201,13 @@ class TransitionError(ValueError):
 
 
 def empty_status() -> StatusDoc:
-    """Return a status with no items and no selftest result.
+    """Return a status with no items, no selftest result and no events.
 
     Returns:
-        A new status: ``schema_version`` 1, ``selftest`` ``None``, ``items`` empty.
+        A new status: ``schema_version`` 1, ``selftest`` ``None``, ``items`` and ``events``
+        empty.
     """
-    return {"schema_version": SCHEMA_VERSION, "selftest": None, "items": {}}
+    return {"schema_version": SCHEMA_VERSION, "selftest": None, "items": {}, "events": []}
 
 
 def add_item(status: StatusDoc, item_id: str) -> StatusDoc:
@@ -250,6 +277,41 @@ def transition(status: StatusDoc, item_id: str, to_state: str, *, at: str, reaso
     record = result["items"][item_id]
     record["state"] = to_state
     record["history"].append({"from": from_state, "to": to_state, "at": at, "reason": reason})
+    return result
+
+
+def record_event(status: StatusDoc, *, at: str, kind: str, detail: str) -> StatusDoc:
+    """Return a copy of a status with one more entry at the end of ``events``.
+
+    An event records something the harness did that is not a transition of an item, such as
+    removing a lock whose process is gone (design section 20, "同時実行と排他"). Nothing
+    else in the status changes, and the earlier events are kept as they are.
+
+    Args:
+        status: A status that passes :func:`check_status`. It is not changed.
+        at: When it happened, in ``TIMESTAMP_FORMAT`` (:func:`format_timestamp` writes it).
+            The caller reads the clock; this module does not.
+        kind: What happened: lowercase ASCII words joined by single underscores, such as
+            ``stale_lock_removed``. The module that records an event names its kinds.
+        detail: An explanation for the maintainer. Not blank.
+
+    Returns:
+        A new status whose ``events`` ends with ``{"at": at, "kind": kind, "detail": detail}``.
+
+    Raises:
+        InvalidStatusError: ``status`` is not a status.
+        TransitionError: ``at`` is not a timestamp in ``TIMESTAMP_FORMAT``, ``kind`` does not
+            have its form, or ``detail`` is blank.
+    """
+    check_status(status)
+    if not _is_timestamp(at):
+        raise TransitionError(f"at must be UTC in whole seconds, like 2026-11-10T00:00:00Z, not {_show(at)}")
+    if not _is_event_kind(kind):
+        raise TransitionError(f"kind must be lowercase words joined by underscores, not {_show(kind)}")
+    if not _is_reason(detail):
+        raise TransitionError(f"detail must be a non-blank string, not {_show(detail)}")
+    result = copy.deepcopy(status)
+    result["events"].append({"at": at, "kind": kind, "detail": detail})
     return result
 
 
@@ -465,6 +527,38 @@ def _check_schema(status: object) -> None:
         if not item_id:
             raise InvalidStatusError(f"{path}: an item ID is a non-empty string")
         _check_item(path, record)
+    _check_events(status["events"])
+
+
+def _check_events(events: object) -> None:
+    """Check ``events``: an array of objects with the keys of :class:`HarnessEvent`.
+
+    Raises:
+        InvalidStatusError: ``events`` is not an array, or an entry is not an object with
+            exactly ``at``, ``kind`` and ``detail`` in the forms of :func:`record_event`.
+    """
+    path = '$["events"]'
+    if type(events) is not list:
+        raise InvalidStatusError(f"{path}: expected an array, found {_json_type(events)}")
+    for index, entry in enumerate(events):
+        entry_path = f"{path}[{index}]"
+        if type(entry) is not dict:
+            raise InvalidStatusError(f"{entry_path}: expected an object, found {_json_type(entry)}")
+        _check_keys(entry_path, entry, _EVENT_KEYS)
+        if not _is_timestamp(entry["at"]):
+            raise InvalidStatusError(
+                f"{_child(entry_path, 'at')}: expected UTC in whole seconds, like 2026-11-10T00:00:00Z,"
+                f" found {_show(entry['at'])}"
+            )
+        if not _is_event_kind(entry["kind"]):
+            raise InvalidStatusError(
+                f"{_child(entry_path, 'kind')}: expected lowercase words joined by underscores,"
+                f" found {_show(entry['kind'])}"
+            )
+        if not _is_reason(entry["detail"]):
+            raise InvalidStatusError(
+                f"{_child(entry_path, 'detail')}: expected a non-blank string, found {_show(entry['detail'])}"
+            )
 
 
 def _check_item(path: str, record: object) -> None:
@@ -570,6 +664,11 @@ def _is_timestamp(value: object) -> bool:
 def _is_reason(value: object) -> bool:
     """Whether a value can be a history reason: a string that is not blank."""
     return type(value) is str and bool(value.strip()) and _encodable(value)
+
+
+def _is_event_kind(value: object) -> bool:
+    """Whether a value can be ``events[].kind``: lowercase ASCII words joined by underscores."""
+    return type(value) is str and _EVENT_KIND.fullmatch(value) is not None
 
 
 def _encodable(text: str) -> bool:
