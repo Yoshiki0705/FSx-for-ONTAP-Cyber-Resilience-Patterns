@@ -801,8 +801,8 @@ def test_property_25_handoff_files_stay_below_private_handoff(case: FileCase) ->
     **Validates: Requirements 23.4, 28.5, 28.6, 28.22**
     """
     for name in sorted(case.odd):
-        value = getattr(case, name)
-        event(f"odd {name}" + (" that could climb out" if climbs(value) else ""))
+        climbing = name in FILE_FIELDS and climbs(getattr(case, name))
+        event(f"odd {name}" + (" that could climb out" if climbing else ""))
     try:
         files = command.handoff_files(
             case.handoff_dir, repo=case.repo, item_id=case.item_id, sync_point=case.sync_point
