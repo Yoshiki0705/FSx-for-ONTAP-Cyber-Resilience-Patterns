@@ -7,7 +7,9 @@ fake does what the fake's docstring says. The fake runs under the environment th
 ``handoff.command.child_env`` builds (layer 3 of design section 20) and, where layer 3
 decides the outcome, also without it as a control: a push to ``origin`` arrives without
 layer 3 and does not arrive with it, and made-up credentials reach the fake without layer 3
-and do not reach it with it. The harness itself is not tested here.
+and do not reach it with it. The harness itself is not tested here. The tests at the end
+check what the fake offers the selftest of task 5.2: behaviors chosen per trial by the
+prompt's token, the operations of the trials, and the entries of the guard wrapper.
 
 No test uses the network or the real ``kiro-cli``. Every git command runs in the sandbox,
 which each test builds anew in a temporary directory and removes.
@@ -18,7 +20,11 @@ from __future__ import annotations
 import ast
 import dataclasses
 import hashlib
+import ipaddress
+import json
 import os
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -742,3 +748,294 @@ def test_apply_environ_hands_the_sandbox_environment_to_code_that_reads_os_envir
     done = run_fake([str(sandbox.kiro_cli), "whoami"], cwd=sandbox.root, env=env)
     assert done.returncode == 0, done.stderr
     assert not set(only_run(sandbox)["start"]["env"]["names"]) & set(SECRETS)
+
+
+def selftest_token(trial: str, nonce: str = "0123456789abcdef") -> str:
+    """Return a selftest token of the form that the harness builds (design note of task 5.2)."""
+    return f"handoff-selftest-{trial}-{nonce}"
+
+
+def selftest_prompt(token: str) -> str:
+    """Return a prompt that holds a token once, as the prompt of a selftest trial does."""
+    return f"Handoff selftest in a throwaway repository. Use the marker {token} exactly as given."
+
+
+def test_a_selftest_token_selects_the_behaviors_of_its_trial(handoff_sandbox: HandoffSandbox) -> None:
+    """``FAKE_KIRO_MODE_T<n>`` replaces ``FAKE_KIRO_MODE`` only for a prompt that holds one token of trial ``t<n>``.
+
+    The behaviors have no side effects, so the runs share one sandbox. A token stands alone:
+    one inside a longer word, with capital letters, or of a trial other than T0 to T4 is
+    not one.
+    """
+    sandbox = handoff_sandbox
+    env, _ = child_environment(
+        sandbox,
+        FAKE_KIRO_MODE="noise",
+        FAKE_KIRO_NOISE_BYTES="0",
+        FAKE_KIRO_ANSWER="",
+        FAKE_KIRO_MODE_T0="ignore-sigterm",
+        FAKE_KIRO_MODE_T3="ignore-sigterm,noise",
+    )
+    t0, t1, t3 = (selftest_token(trial) for trial in ("t0", "t1", "t3"))
+    not_tokens = f"Not tokens: x{t0}, {t0}0, {t0.upper()}, {selftest_token('t5')}."
+    cases: list[tuple[str, str | None, str | None, list[str], str]] = [
+        (selftest_prompt(t0), "t0", t0, ["ignore-sigterm"], "FAKE_KIRO_MODE_T0"),
+        (f"{selftest_prompt(t3)} Again: {t3}.", "t3", t3, ["ignore-sigterm", "noise"], "FAKE_KIRO_MODE_T3"),
+        (selftest_prompt(t1), "t1", t1, ["noise"], "FAKE_KIRO_MODE"),
+        ("A prompt without a token.", None, None, ["noise"], "FAKE_KIRO_MODE"),
+        (not_tokens, None, None, ["noise"], "FAKE_KIRO_MODE"),
+    ]
+    for index, (prompt, trial, token, behaviors, variable) in enumerate(cases):
+        done = run_fake(chat_argv(sandbox, prompt=prompt), cwd=sandbox.root, env=env)
+        assert done.returncode == 0, (index, done.stderr)
+        run = sandbox.invocations()[index]
+        assert (run["start"]["trial"], run["start"]["token"]) == (trial, token), index
+        assert (run["start"]["behaviors"], run["start"]["mode_variable"]) == (behaviors, variable), index
+        assert [result["behavior"] for result in run["end"]["results"]] == behaviors, index
+
+
+#: ``(id, prompt, extra variables)`` of selftest settings that the fake must refuse with exit code 2.
+SELFTEST_REFUSED: tuple[tuple[str, str, dict[str, str]], ...] = (
+    ("two-tokens", f"{selftest_prompt(selftest_token('t0'))} {selftest_token('t1')}", {}),
+    ("one-trial-two-nonces", f"{selftest_prompt(selftest_token('t1'))} {selftest_token('t1', 'fedcba9876543210')}", {}),
+    ("trial-out-of-range", "p", {"FAKE_KIRO_MODE_T5": "noise"}),
+    ("trial-in-lower-case", "p", {"FAKE_KIRO_MODE_t1": "noise"}),
+    (
+        "unknown-behavior-of-the-trial",
+        selftest_prompt(selftest_token("t1")),
+        {"FAKE_KIRO_MODE_T1": "commit,no-such-behavior"},
+    ),
+    ("unknown-behavior-of-another-trial", selftest_prompt(selftest_token("t0")), {"FAKE_KIRO_MODE_T4": "no-such"}),
+    ("guard-block-without-a-token", "p", {"FAKE_KIRO_MODE": "guard-block"}),
+    ("guard-allow-without-a-token", "p", {"FAKE_KIRO_MODE": "commit,guard-allow"}),
+    (
+        "relative-guard-log",
+        selftest_prompt(selftest_token("t2")),
+        {"FAKE_KIRO_MODE_T2": "commit,guard-block", "HANDOFF_GUARD_LOG": "guard.jsonl"},
+    ),
+    ("empty-guard-log", "p", {"FAKE_KIRO_MODE": "commit,guard-block-other", "HANDOFF_GUARD_LOG": ""}),
+    ("gh-exit-not-a-number", "p", {"FAKE_KIRO_MODE": "gh-status", "FAKE_KIRO_GH_EXIT": "zero"}),
+    ("gh-exit-too-large", "p", {"FAKE_KIRO_MODE": "gh-status", "FAKE_KIRO_GH_EXIT": "256"}),
+)
+
+
+def test_the_fake_refuses_unusable_selftest_settings(handoff_sandbox: HandoffSandbox) -> None:
+    """Each case of :data:`SELFTEST_REFUSED` exits 2 before any behavior and leaves the worktree as it was.
+
+    The default behavior of the cases is ``commit``, so a case that is not refused leaves a
+    commit behind. The checks that concern ``chat`` only leave ``whoami`` working.
+    """
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-refused", branch="handoff/selftest-refused")
+    wt = str(worktree)
+    for index, (case, prompt, extra) in enumerate(SELFTEST_REFUSED):
+        env, _ = child_environment(sandbox, **{"FAKE_KIRO_MODE": "commit", **extra})
+        done = run_fake(chat_argv(sandbox, "--trust-tools=fs_read,fs_write", prompt=prompt), cwd=worktree, env=env)
+        assert done.returncode == 2, (case, done.stderr)
+        assert done.stdout == b"", case
+        assert done.stderr.startswith(b"fake kiro-cli: usage: "), case
+        runs = sandbox.invocations()
+        assert len(runs) == index + 1, case
+        end = runs[-1]["end"]
+        assert (end["exit_code"], end["results"]) == (2, []), case
+        assert end["error"].startswith("usage: "), case
+        assert text(sandbox.git("-C", wt, "rev-parse", "HEAD")) == sandbox.base_sha, case
+        assert sandbox.git("-C", wt, "status", "--porcelain", "--untracked-files=all").stdout == b"", case
+    env, _ = child_environment(sandbox, FAKE_KIRO_MODE="guard-block", HANDOFF_GUARD_LOG="relative.jsonl")
+    done = run_fake([str(sandbox.kiro_cli), "whoami"], cwd=worktree, env=env)
+    assert done.returncode == 0, done.stderr
+
+
+def test_empty_commit_commits_the_token_and_a_private_example_address(
+    handoff_sandbox: HandoffSandbox, fake_kiro_cli_module: ModuleType
+) -> None:
+    """T1's behavior adds a commit without changes whose message is the token and the address, or the label without a token."""
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-t1", branch="handoff/selftest-t1")
+    wt = str(worktree)
+    address = fake_kiro_cli_module.EXAMPLE_ADDRESS
+    assert ipaddress.ip_address(address).is_private
+    t1 = selftest_token("t1")
+    env, _ = child_environment(sandbox, FAKE_KIRO_MODE="empty-commit")
+    runs = [(selftest_prompt(t1), t1), ("A prompt without a token.", fake_kiro_cli_module.NO_TOKEN_LABEL)]
+    for index, (prompt, label) in enumerate(runs):
+        done = run_fake(chat_argv(sandbox, "--trust-tools=fs_read,fs_write", prompt=prompt), cwd=worktree, env=env)
+        assert done.returncode == 0, done.stderr
+        head = text(sandbox.git("-C", wt, "rev-parse", "HEAD"))
+        message = f"{label} {address}"
+        assert text(sandbox.git("-C", wt, "log", "-1", "--format=%B")) == message
+        assert text(sandbox.git("-C", wt, "rev-list", "--count", f"{sandbox.base_sha}..HEAD")) == str(index + 1)
+        assert text(sandbox.git("-C", wt, "diff-tree", "--no-commit-id", "--name-only", "-r", head)) == ""
+        assert sandbox.invocations()[index]["end"]["results"] == [
+            {
+                "behavior": "empty-commit",
+                "message": message,
+                "commit": head,
+                "steps": [{"argv": ["git", "commit", "-q", "--allow-empty", "-m", message], "exit_code": 0}],
+            }
+        ]
+    assert sandbox.git("-C", wt, "status", "--porcelain").stdout == b""
+
+
+def test_gh_status_commits_the_code_its_environment_gives_and_never_runs_gh(handoff_sandbox: HandoffSandbox) -> None:
+    """T3's behavior: 0 with a token variable, 1 without; layer 3 drops the token; ``FAKE_KIRO_GH_EXIT`` overrides.
+
+    A ``gh`` first on ``PATH`` leaves a mark when it runs (the control at the end), and no
+    run leaves it. The made-up token values stay out of the record.
+    """
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-t3", branch="handoff/selftest-t3")
+    wt = str(worktree)
+    bin_dir = sandbox.root / "bin"
+    bin_dir.mkdir()
+    mark = sandbox.root / "gh-ran"
+    stub = bin_dir / "gh"
+    stub.write_text(f"#!/bin/sh\n: > '{mark}'\nexit 0\n", encoding="utf-8")
+    stub.chmod(0o755)
+    path = f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+    assert shutil.which("gh", path=path) == str(stub)
+    t3 = selftest_token("t3")
+    cases: list[tuple[str, bool, dict[str, str], int, str]] = [
+        ("layer-3-drops-the-token", True, {"GH_TOKEN": "made-up-gh-token"}, 1, "token_variables"),
+        ("no-layer-3-keeps-the-token", False, {"GITHUB_TOKEN": "made-up-github-token"}, 0, "token_variables"),
+        ("no-layer-3-empty-token", False, {"GH_TOKEN": ""}, 1, "token_variables"),
+        ("override-under-layer-3", True, {"FAKE_KIRO_GH_EXIT": "0"}, 0, "FAKE_KIRO_GH_EXIT"),
+        (
+            "override-before-the-token",
+            False,
+            {"FAKE_KIRO_GH_EXIT": "4", "GH_TOKEN": "made-up-gh-token"},
+            4,
+            "FAKE_KIRO_GH_EXIT",
+        ),
+    ]
+    for index, (case, layer_3, extra, code, source) in enumerate(cases):
+        variables = {"FAKE_KIRO_MODE_T3": "gh-status", "PATH": path, **extra}
+        env = child_environment(sandbox, **variables)[0] if layer_3 else sandbox.environ(**variables)
+        argv = chat_argv(sandbox, "--trust-tools=fs_read,fs_write", prompt=selftest_prompt(t3))
+        done = run_fake(argv, cwd=worktree, env=env)
+        assert done.returncode == 0, (case, done.stderr)
+        message = f"{t3} gh-exit={code}"
+        head = text(sandbox.git("-C", wt, "rev-parse", "HEAD"))
+        assert text(sandbox.git("-C", wt, "log", "-1", "--format=%B")) == message, case
+        assert sandbox.invocations()[index]["end"]["results"] == [
+            {
+                "behavior": "gh-status",
+                "message": message,
+                "commit": head,
+                "steps": [{"argv": ["git", "commit", "-q", "--allow-empty", "-m", message], "exit_code": 0}],
+                "gh_exit": code,
+                "source": source,
+            }
+        ], case
+    assert not mark.exists()
+    assert "made-up-" not in sandbox.record.read_text(encoding="ascii")
+    subprocess.run([str(stub)], check=True)
+    assert mark.exists()
+
+
+def test_write_file_follows_the_allowlist_and_write_file_anyway_does_not(
+    handoff_sandbox: HandoffSandbox, fake_kiro_cli_module: ModuleType
+) -> None:
+    """T4's behaviors: ``write-file`` writes ``<token>.txt`` only when the argv trusts ``fs_write``; the other always does."""
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-t4")
+    cases = [
+        ("write-file", "--trust-tools=fs_read", False, False),
+        ("write-file", "--trust-tools=", False, False),
+        ("write-file", "--trust-tools=fs_read,fs_write", True, True),
+        ("write-file", "--trust-all-tools", True, True),
+        ("write-file", "-a", True, True),
+        ("write-file-anyway", "--trust-tools=fs_read", False, True),
+    ]
+    written: list[str] = []
+    for index, (behavior, option, trusted, wrote) in enumerate(cases):
+        token = selftest_token("t4", f"{index:016x}")
+        env, _ = child_environment(sandbox, FAKE_KIRO_MODE_T4=behavior)
+        done = run_fake(chat_argv(sandbox, option, prompt=selftest_prompt(token)), cwd=worktree, env=env)
+        assert done.returncode == 0, (behavior, option, done.stderr)
+        name = f"{token}.txt"
+        assert sandbox.invocations()[index]["end"]["results"] == [
+            {"behavior": behavior, "file": name, "tool": "fs_write", "trusted": trusted, "written": wrote}
+        ], (behavior, option)
+        assert (worktree / name).exists() is wrote, (behavior, option)
+        if wrote:
+            assert (worktree / name).read_bytes() == fake_kiro_cli_module.CHANGE_LINE
+            written.append(name)
+    env, _ = child_environment(sandbox, FAKE_KIRO_MODE="write-file-anyway")
+    done = run_fake(chat_argv(sandbox, "--trust-tools=fs_read", prompt="No token."), cwd=worktree, env=env)
+    assert done.returncode == 0, done.stderr
+    written.append(f"{fake_kiro_cli_module.NO_TOKEN_LABEL}.txt")
+    status = sandbox.git("-C", str(worktree), "status", "--porcelain=v1", "-z", "--untracked-files=all").stdout
+    assert sorted(entry for entry in status.decode("ascii").split("\0") if entry) == sorted(f"?? {n}" for n in written)
+    assert text(sandbox.git("-C", str(worktree), "rev-parse", "HEAD")) == sandbox.base_sha
+
+
+def test_guard_behaviors_append_one_entry_each_and_change_nothing_else(
+    handoff_sandbox: HandoffSandbox, fake_kiro_cli_module: ModuleType
+) -> None:
+    """Each guard behavior appends the wrapper's entry: its decision and code, and the token in the input or not."""
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-guard", branch="handoff/selftest-guard")
+    log = sandbox.root / "guard" / "guard.jsonl"
+    log.parent.mkdir()
+    guard = fake_kiro_cli_module.FAKE_GUARD
+    cases = [
+        ("guard-block", "t1", "block", 2, True),
+        ("guard-allow", "t2", "allow", 0, True),
+        ("guard-block-other", "t3", "block", 2, False),
+    ]
+    for index, (behavior, trial, decision, code, holds) in enumerate(cases):
+        token = selftest_token(trial)
+        variables = {f"FAKE_KIRO_MODE_{trial.upper()}": behavior, "HANDOFF_GUARD_LOG": str(log)}
+        env, _ = child_environment(sandbox, **variables)
+        argv = chat_argv(sandbox, "--trust-tools=fs_read,fs_write", prompt=selftest_prompt(token))
+        done = run_fake(argv, cwd=worktree, env=env)
+        assert done.returncode == 0, (behavior, done.stderr)
+        entries = [json.loads(line) for line in log.read_text(encoding="ascii").splitlines()]
+        assert len(entries) == index + 1, behavior
+        entry = entries[-1]
+        assert sorted(entry) == ["at", "decision", "exit_code", "guard", "input", "schema"], behavior
+        assert (entry["schema"], entry["guard"], entry["decision"], entry["exit_code"]) == (1, guard, decision, code)
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z", entry["at"]), behavior
+        assert sorted(entry["input"]) == ["cwd", "hook_event_name", "tool_input", "tool_name"], behavior
+        assert entry["input"]["cwd"] == str(worktree), behavior
+        assert (token in json.dumps(entry["input"])) is holds, behavior
+        assert sandbox.invocations()[index]["end"]["results"] == [
+            {
+                "behavior": behavior,
+                "guard": guard,
+                "decision": decision,
+                "log": str(log),
+                "written": True,
+                "token_in_input": holds,
+            }
+        ], behavior
+    assert sorted(path.name for path in log.parent.iterdir()) == ["guard.jsonl"]
+    assert text(sandbox.git("-C", str(worktree), "rev-parse", "HEAD")) == sandbox.base_sha
+    assert sandbox.git("-C", str(worktree), "status", "--porcelain", "--untracked-files=all").stdout == b""
+    assert text(sandbox.git("-C", str(sandbox.bare), "for-each-ref", "--format=%(refname)")) == "refs/heads/main"
+
+
+def test_a_guard_behavior_without_the_log_variable_writes_nothing(handoff_sandbox: HandoffSandbox) -> None:
+    """Without ``HANDOFF_GUARD_LOG``, ``guard-block`` writes no entry anywhere: a stop that leaves no evidence."""
+    sandbox = handoff_sandbox
+    worktree = add_worktree(sandbox, "selftest-unlogged", branch="handoff/selftest-unlogged")
+    env, _ = child_environment(sandbox, FAKE_KIRO_MODE_T2="guard-block")
+    env.pop("HANDOFF_GUARD_LOG", None)
+    argv = chat_argv(sandbox, "--trust-tools=fs_read,fs_write", prompt=selftest_prompt(selftest_token("t2")))
+    before = {path for path in sandbox.root.rglob("*") if path.is_file()}
+    done = run_fake(argv, cwd=worktree, env=env)
+    after = {path for path in sandbox.root.rglob("*") if path.is_file()}
+    assert done.returncode == 0, done.stderr
+    assert after - before == {sandbox.record}
+    assert only_run(sandbox)["end"]["results"] == [
+        {
+            "behavior": "guard-block",
+            "guard": "fake_guard",
+            "decision": "block",
+            "log": None,
+            "written": False,
+            "token_in_input": True,
+        }
+    ]
+    assert sandbox.git("-C", str(worktree), "status", "--porcelain", "--untracked-files=all").stdout == b""
