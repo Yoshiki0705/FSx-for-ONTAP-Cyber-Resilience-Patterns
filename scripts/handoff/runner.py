@@ -11,7 +11,9 @@ and writes the files, and records what happened. With ``cli.py`` it is the I/O l
 
 Division of work with ``cli.py`` (task 2.3). ``cli.py`` parses the command line; reads and
 checks ``config.json`` and ``manifest.json`` (exit code 2, before any other I/O); reads the
-deny lists with :func:`load_deny_terms`; opens the harness with :meth:`Harness.open`; adds the
+deny lists with :func:`load_deny_terms`; checks the approvals of ``agents/approved.json``
+against the agent configurations they name and passes those that pass as
+:attr:`RunContext.approved_agents`; opens the harness with :meth:`Harness.open`; adds the
 records of new items with :meth:`Harness.add_missing_items`; chooses items with
 ``dag.select`` on :attr:`Harness.status`; holds a change item with :meth:`Harness.hold` until
 task 5 wires the change mode; runs each selected query item with
@@ -35,9 +37,14 @@ item from ``queued`` to ``needs-human`` with a short reason, unless the step say
    prompt is drawn and scanned, and written to its path, held or not. A held prompt (scan
    findings, over the size limit), a prompt whose executor is this session (only rows 5 and 6
    of the executor table apply: ``executor_is_this_session``, since this session carries such
-   an item out), and any refusal of ``command.build_kiro_invocation`` or
-   ``command.build_git_plan`` hold the item, in this order. :meth:`Harness.draw_prompt` carries
-   out steps 1 and 2 alone, for ``cli.py plan`` and ``manual``, and changes no state.
+   an item out), any refusal of ``command.build_kiro_invocation`` or
+   ``command.build_git_plan``, and an agent configuration that ``agents.<mode>`` of the
+   configuration names for the item's mode without an approval for that mode in
+   :attr:`RunContext.approved_agents` (``agent_not_approved``; the item is not started with the
+   default agent instead) hold the item, in this order. An approved agent is given to
+   ``command.build_kiro_invocation`` for the item's own mode only, so the argv gets
+   ``--agent <name>``. :meth:`Harness.draw_prompt` carries out steps 1 and 2 alone, for
+   ``cli.py plan`` and ``manual``, and changes no state.
 3. ``kiro-cli whoami`` in the environment of ``command.child_env``, the one the run gets. A
    failure raises :class:`LoginRequired` (or :class:`KiroCliMissing`) and leaves the item
    ``queued`` (Requirement 28.18).
@@ -51,7 +58,11 @@ item from ``queued`` to ``needs-human`` with a short reason, unless the step say
    ``rev-parse``. When the SHA of the line ``refs/heads/main`` of ``ls-remote`` differs from
    ``rev-parse``, the three run once more; a second difference holds the item. Then
    ``worktree add --detach`` with that SHA. An existing worktree path holds the item before any
-   git command runs: a worktree of an earlier run is kept until ``cli.py cleanup``.
+   git command runs: a worktree of an earlier run is kept until ``cli.py cleanup``. When the
+   argv has ``--agent <name>``, the new worktree is then searched (:func:`_agent_shadows`):
+   kiro-cli prefers a workspace's agent configuration to the global one of the same name, so a
+   configuration of that name in ``.kiro/agents/`` or ``.amazonq/cli-agents/`` holds the item
+   (``agent_shadowed``). ``kiro-cli`` does not start, and the worktree is kept.
 7. A snapshot of the main working tree (``HEAD``, branch, ``git status``), the move to
    ``running`` (reason ``dispatched``), and ``kiro-cli`` with the argv of
    ``command.build_kiro_invocation``. Its PID goes into the record once it runs.
@@ -165,6 +176,27 @@ WORKTREE_REMOVED: Final = "worktree_removed"
 #: rows 5 and 6 of the executor table apply, so the prompt is not passed to the target
 #: repository's Kiro (design section 20, "実行者の判定").
 EXECUTOR_IS_THIS_SESSION: Final = "executor_is_this_session"
+
+#: The history reason of an item whose mode names an agent configuration (``agents`` of
+#: ``config.json``) that has no approval for that mode in :attr:`RunContext.approved_agents`.
+#: The item is held rather than started with the default agent (task 2.5).
+AGENT_NOT_APPROVED: Final = "agent_not_approved"
+
+#: The history reason of an item whose worktree holds an agent configuration of the name given
+#: with ``--agent``, which kiro-cli would read instead of the approved global one (task 2.5).
+AGENT_SHADOWED: Final = "agent_shadowed"
+
+#: The directories of a workspace, relative to its root, where an agent configuration could take
+#: the place of the global one in ``~/.kiro/agents/``. kiro-cli's documentation names
+#: ``.kiro/agents/`` and says that it wins over a global configuration of the same name. kiro-cli
+#: also looked for ``.amazonq`` in its verbose log (task 2.5); whether it reads agents from
+#: ``.amazonq/cli-agents/``, the Amazon Q Developer CLI's place, has not been confirmed, so that
+#: directory is searched too.
+AGENT_CONFIG_DIRS: Final[tuple[str, ...]] = (".kiro/agents", ".amazonq/cli-agents")
+
+#: The most bytes of a file in :data:`AGENT_CONFIG_DIRS` whose ``name`` field is read. A larger
+#: ``.json`` file counts as a configuration of the name looked for, since its name is unknown.
+AGENT_FILE_LIMIT: Final = 1 << 20
 
 #: Seconds allowed for :func:`harness_tree_of`, which runs before ``config.json`` (and its
 #: ``timeout_seconds``) is read. ``git rev-parse`` reads local files only.
@@ -336,7 +368,12 @@ class RunContext:
             form. Protected as well.
         deny: The deny terms, from :func:`load_deny_terms`.
         confirmed_refs: The refs that the IN-2 check confirmed. A query item requires none.
-        approved_agents: The agent configurations whose content the maintainer approved.
+        approved_agents: ``(name, mode)`` pairs: the agent configurations whose approval in
+            ``agents/approved.json`` passed the checks of ``cli.py`` for that mode when the
+            command started. An item gets ``--agent <name>`` only when ``agents.<mode>`` of
+            the configuration names ``name`` for the item's mode and the pair is here; when
+            the mode names an agent and the pair is not here, the item is held
+            (:data:`AGENT_NOT_APPROVED`).
         kill_grace_seconds: Seconds from SIGTERM to SIGKILL. A test may shorten it.
     """
 
@@ -347,7 +384,7 @@ class RunContext:
     session_worktrees_dir: str
     deny: DenyTerms
     confirmed_refs: frozenset[RequiredRef] = frozenset()
-    approved_agents: frozenset[str] = frozenset()
+    approved_agents: frozenset[tuple[str, str]] = frozenset()
     kill_grace_seconds: float = KILL_GRACE_SECONDS
 
     def __post_init__(self) -> None:
@@ -365,8 +402,10 @@ class RunContext:
         if not all(isinstance(ref, RequiredRef) for ref in refs):
             raise TypeError("confirmed_refs must hold RequiredRef only")
         agents = frozenset(self.approved_agents)
-        if not all(type(name) is str for name in agents):
-            raise TypeError("approved_agents must hold str only")
+        if not all(
+            type(pair) is tuple and len(pair) == 2 and all(type(part) is str for part in pair) for pair in agents
+        ):
+            raise TypeError("approved_agents must hold (name, mode) pairs of str only")
         object.__setattr__(self, "confirmed_refs", refs)
         object.__setattr__(self, "approved_agents", agents)
         grace = self.kill_grace_seconds
@@ -434,7 +473,9 @@ class PromptDraft:
         git_plan: The git commands that create the item's worktree (``command.build_git_plan``),
             or ``None`` when they were refused or the body could not be drawn.
         invocation: The ``kiro-cli`` run (``command.build_kiro_invocation``), or ``None`` when it
-            was refused (a held prompt always is) or the body could not be drawn.
+            was refused (a held prompt always is), the body could not be drawn, or the item is
+            held for :data:`AGENT_NOT_APPROVED` (so that no argv without the configured agent
+            exists to be started).
         hold_reason: The history reason with which a run moves the item to ``needs-human``
             instead of passing the prompt on, or ``None`` when it may be passed on. One line
             without local paths.
@@ -1221,6 +1262,8 @@ class _QueryRun:
         invocation: command.KiroInvocation | None = None
         git_plan: command.GitPlan | None = None
         refusals: list[command.CommandError] = []
+        agent = self.config.agents.get(item.mode)
+        agent_approved = agent is not None and (agent, item.mode) in context.approved_agents
         try:
             invocation = command.build_kiro_invocation(
                 self.config,
@@ -1228,7 +1271,7 @@ class _QueryRun:
                 rendered,
                 home=context.home,
                 selftest_result=self.harness.selftest_result(),
-                approved_agents=context.approved_agents,
+                approved_agents=frozenset({agent}) if agent is not None and agent_approved else frozenset(),
             )
         except command.CommandError as error:
             refusals.append(error)
@@ -1253,6 +1296,14 @@ class _QueryRun:
             )
         elif refusals:
             hold = (refusals[0].history_reason, str(refusals[0]))
+        elif agent is not None and not agent_approved:
+            hold = (
+                AGENT_NOT_APPROVED,
+                f"agents.{item.mode} of config.json names the agent configuration {agent}, and no approval of "
+                f"{agent} for the {item.mode} mode passed the checks of cli.py (agents/approved.json); the item is "
+                "not started with the default agent instead",
+            )
+            invocation = None
         return PromptDraft(
             item_id=item.id,
             path=files.prompt,
@@ -1308,6 +1359,15 @@ class _QueryRun:
             held = self._create_worktree(plan)
             if held is not None:
                 return held
+            if invocation.agent is not None:
+                shadows = _agent_shadows(_present(self.worktree), invocation.agent)
+                if shadows:
+                    return self._hold(
+                        AGENT_SHADOWED,
+                        f"the worktree has what kiro-cli could read as the agent configuration {invocation.agent} "
+                        f"instead of the approved global one: {'; '.join(shadows)}. kiro-cli was not started, and "
+                        f"the worktree is kept for cli.py cleanup {item.id}",
+                    )
             try:
                 before = self._snapshot()
             except _StepFailed as failure:
@@ -2438,6 +2498,97 @@ def _prompt_sharers(manifest: Manifest, item: Item, directory: str, mine: str) -
         if is_within(theirs, mine) and is_within(mine, theirs):
             sharers.append(other.id)
     return tuple(sharers)
+
+
+def _agent_shadows(worktree: str, agent: str) -> list[str]:
+    """What in a worktree kiro-cli could read as the agent configuration ``agent`` instead of the global one.
+
+    Each directory of :data:`AGENT_CONFIG_DIRS` is listed. An entry counts when its file name
+    without the last suffix is ``agent``, or when it is a JSON file whose top-level ``name`` field
+    (any of them, when the key is repeated) is ``agent``. Both are compared with
+    :meth:`str.casefold`: whether kiro-cli takes the name from the file name or from the field,
+    and whether it tells letter cases apart, has not been confirmed, so either way counts. Links
+    are resolved with ``os.path.realpath`` and followed only inside the worktree. A directory or
+    an entry that resolves outside it counts without being read, and so do a directory that
+    cannot be listed and a ``.json`` file that cannot be read as JSON or is longer than
+    :data:`AGENT_FILE_LIMIT` bytes, since no name can be read from them.
+
+    Args:
+        worktree: The item's worktree, which exists.
+        agent: The name given with ``--agent``.
+
+    Returns:
+        One line per finding, naming the entry relative to the worktree; empty when there is none.
+    """
+    root = os.path.realpath(worktree)
+    wanted = agent.casefold()
+    found: list[str] = []
+    for relative in AGENT_CONFIG_DIRS:
+        directory = os.path.realpath(posixpath.join(worktree, relative))
+        if not _resolves_within(directory, root):
+            found.append(f"{relative} resolves outside the worktree, to {directory}, and is not read")
+            continue
+        if not os.path.isdir(directory):
+            continue
+        try:
+            names = sorted(os.listdir(directory))
+        except OSError as exc:
+            found.append(f"{relative} cannot be listed ({exc.strerror or exc})")
+            continue
+        for name in names:
+            shown = f"{relative}/{name}"
+            if posixpath.splitext(name)[0].casefold() == wanted:
+                found.append(f"{shown}: its file name matches {agent}")
+                continue
+            target = os.path.realpath(posixpath.join(directory, name))
+            if not _resolves_within(target, root):
+                found.append(f"{shown} resolves outside the worktree, and its name field is not read")
+                continue
+            if not os.path.isfile(target):
+                continue
+            problem, fields = _name_fields(target)
+            if problem is not None:
+                if name.casefold().endswith(".json"):
+                    found.append(f"{shown} {problem}, so its name field is unknown")
+            elif wanted in fields:
+                found.append(f"{shown}: its name field matches {agent}")
+    return found
+
+
+class _Pairs(list[tuple[str, Any]]):
+    """The key-value pairs of one JSON object, in order, with repeated keys kept."""
+
+
+def _name_fields(path: str) -> tuple[str | None, frozenset[str]]:
+    """The top-level ``name`` fields of a file read as JSON, case-folded, or why they cannot be read.
+
+    Args:
+        path: A regular file, resolved.
+
+    Returns:
+        ``(None, names)`` when the file is JSON (``names`` is empty unless it is an object with
+        a string ``name``), or ``(problem, frozenset())`` when it cannot be read, is longer than
+        :data:`AGENT_FILE_LIMIT` bytes, or is not UTF-8 JSON.
+    """
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(AGENT_FILE_LIMIT + 1)
+    except OSError as exc:
+        return f"cannot be read ({exc.strerror or exc})", frozenset()
+    if len(data) > AGENT_FILE_LIMIT:
+        return f"is longer than {AGENT_FILE_LIMIT} bytes", frozenset()
+    try:
+        document = json.loads(data.decode("utf-8"), object_pairs_hook=_Pairs)
+    except (ValueError, RecursionError):
+        return "is not UTF-8 JSON", frozenset()
+    if not isinstance(document, _Pairs):
+        return None, frozenset()
+    return None, frozenset(value.casefold() for key, value in document if key == "name" and type(value) is str)
+
+
+def _resolves_within(path: str, root: str) -> bool:
+    """Whether a resolved path is ``root`` or below it, compared exactly (letter case kept)."""
+    return path == root or path.startswith(root.rstrip("/") + "/")
 
 
 def _existing_ancestor(path: str) -> str:

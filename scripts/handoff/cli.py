@@ -31,13 +31,36 @@ customer-name list, which is required (the file named by the environment variabl
 ``CUSTOMER_TERMS_FILE``, as for ``guard_customer_names.py``, or else
 ``~/.kiro/hooks/private/customer-terms.txt``), and ``.private/research/phase4/deny-terms.txt`` of
 this repository's main working tree, which may be missing until the research writes it. No ref is
-confirmed yet (IN-2 is wired in task 15.4) and no agent configuration is approved (task 2.5), so
-every prompt draws its refs as unconfirmed and no argv has ``--agent``.
+confirmed yet (IN-2 is wired in task 15.4), so every prompt draws its refs as unconfirmed.
+
+Agent configurations (task 2.5). ``plan``, ``run`` and ``manual`` also read
+``agents/approved.json`` of the handoff directory by the rules of ``config.json``, after the items
+are checked and before the deny lists: ``{"schema_version": 1, "agents": [...]}``, where each
+approval has exactly ``name`` (of the form ``[A-Za-z0-9_][A-Za-z0-9_.-]*`` that
+``command.build_kiro_argv`` requires), ``mode`` (one of :data:`handoff.config.MODES`), ``path``
+(exactly ``~/.kiro/agents/<name>.json``), ``sha256`` (64 lowercase hexadecimal digits),
+``approved_at`` (:data:`handoff.state.TIMESTAMP_FORMAT`) and ``approved_in`` (not blank), and no
+name or mode appears twice. A missing file approves nothing. A file that cannot be read or is
+malformed ends the command with exit code 2 before any process starts. Then, each time one of the
+three commands runs, the approval whose name and mode are those of ``agents.<mode>`` of
+``config.json`` is checked against its file: ``path`` with ``~`` expanded is a regular file and not
+a symbolic link (``lstat``), its SHA-256 is ``sha256``, and as JSON it has that ``name``,
+``tools`` and ``allowedTools`` lists within ``mode_tool_ceiling.<mode>``, ``mcpServers`` ``{}``
+and ``includeMcpJson`` ``false``. Each failed check goes to standard error, and the approval does
+not count; this does not change the exit code. An approval counts for its own mode only. An item
+whose mode names an agent gets ``--agent <name>`` when that approval counts; otherwise the runner
+holds it in ``needs-human`` (``agent_not_approved``) and never starts it with the default agent.
+An item whose mode names no agent starts without ``--agent``. Before ``kiro-cli`` starts with
+``--agent``, the runner holds the item (``agent_shadowed``) when the new worktree has a
+configuration of that name in ``.kiro/agents/`` or ``.amazonq/cli-agents/``
+(:mod:`handoff.runner`, step 6). The checks are made when the command starts, and ``kiro-cli``
+reads the file again when it starts, so a change in between is not seen.
 
 Subcommands:
 
 - ``plan (--sync-point X | --items ID,...)``: for each named item, its state, its dependencies,
-  the executor and the rows of the executor table that decide it, the path of the drawn
+  the executor and the rows of the executor table that decide it, whether its argv gets
+  ``--agent`` (or why the item is held for its agent instead), the path of the drawn
   Handoff_Prompt, the scan result, and what ``run`` would do with it if every item it starts
   ended ``succeeded``: start it (and in which turn), hold it in ``needs-human`` (with the
   reason), or not start it (with the reasons of ``dag.select``). An item that waits for a
@@ -51,9 +74,10 @@ Subcommands:
   an item starts or ends, until no named item can start. A change item is held in
   ``needs-human`` (``change_mode_not_wired``) until task 5 wires the change mode. The runner holds
   a query item whose prompt has a scan finding, is too long, cannot be drawn, or names this
-  session as its executor. Each item is attempted at most once per run. SIGINT stops starting
-  items, stops the running ones (they become ``failed``, ``harness_interrupted``; one that had
-  not reached ``kiro-cli`` stays ``queued``) and waits for them (design H8). ``LoginRequired``,
+  session as its executor, and one whose agent is not approved or has a configuration of the
+  same name in the worktree (above). Each item is attempted at most once per run. SIGINT stops
+  starting items, stops the running ones (they become ``failed``, ``harness_interrupted``; one
+  that had not reached ``kiro-cli`` stays ``queued``) and waits for them (design H8). ``LoginRequired``,
   ``DiskSpaceLow``, ``UnsafeLocation`` and the other runner errors stop starting items and let the
   running ones finish. When ``kiro-cli`` cannot be found, before the first item or at an item's
   ``whoami``, the manual display of each named item that is ``queued`` and ready is printed
@@ -105,8 +129,8 @@ Exit codes:
 
 Output: standard output carries the results, with paths under the home directory written as
 ``~/...``. Standard error carries the details, which can hold local paths: the issues of a
-rejected input, the ``detail`` of an outcome, the messages of the runner's errors, and the
-warnings of the ``handoff`` loggers.
+rejected input, the checks that an agent approval failed, the ``detail`` of an outcome, the
+messages of the runner's errors, and the warnings of the ``handoff`` loggers.
 """
 
 from __future__ import annotations
@@ -120,12 +144,15 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(_here.parent))
 
 import argparse  # noqa: E402
+import hashlib  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import posixpath  # noqa: E402
+import re  # noqa: E402
 import shlex  # noqa: E402
 import signal  # noqa: E402
+import stat  # noqa: E402
 import threading  # noqa: E402
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence  # noqa: E402
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait  # noqa: E402
@@ -135,7 +162,7 @@ from datetime import datetime, timezone  # noqa: E402
 from typing import Any, Final  # noqa: E402
 
 from handoff import command, dag, runner, state  # noqa: E402
-from handoff.config import ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
+from handoff.config import MODES, ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
 from handoff.executor import Executor, ExecutorChoice, choose  # noqa: E402
 from handoff.manifest import SYNC_POINTS, Item, Manifest, ManifestError, parse_manifest  # noqa: E402
 from handoff.prompt import MAX_BODY_BYTES, RenderedPrompt  # noqa: E402
@@ -149,6 +176,21 @@ CUSTOMER_TERMS_VARIABLE: Final = "CUSTOMER_TERMS_FILE"
 #: The configuration and the manifest, directly below the handoff directory.
 CONFIG_FILE: Final = "config.json"
 MANIFEST_FILE: Final = "manifest.json"
+
+#: The approvals of agent configurations, relative to the handoff directory (task 2.5).
+APPROVALS_FILE: Final = "agents/approved.json"
+
+#: The one place where an approved agent configuration may be: kiro-cli's global agent directory.
+APPROVED_AGENT_PATH: Final = "~/.kiro/agents/{name}.json"
+
+_APPROVAL_KEYS: Final[tuple[str, ...]] = ("schema_version", "agents")
+_APPROVAL_ENTRY_KEYS: Final[tuple[str, ...]] = ("name", "mode", "path", "sha256", "approved_at", "approved_in")
+
+#: The agent name that ``command.build_kiro_argv`` accepts after ``--agent`` (task 1.9). It has no
+#: ``/`` and does not start with ``.``, so ``~/.kiro/agents/<name>.json`` stays in that directory.
+_AGENT_NAME: Final = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
+_SHA256: Final = re.compile(r"[0-9a-f]{64}")
+_TIMESTAMP_SHAPE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 
 #: The history reason of a change item that ``run`` holds until task 5 wires the change mode.
 CHANGE_MODE_HELD: Final = "change_mode_not_wired"
@@ -185,6 +227,7 @@ _HOLD_NOTES: Final[Mapping[str, str]] = {
     "prompt_scan_findings": "走査の該当がある本文は渡さない。テンプレートか変数を直してから status set で queued に戻す",
     "prompt_too_long": f"本文が {MAX_BODY_BYTES} バイトを超える",
     "worktree_exists": "worktree が既にある。cli.py cleanup {id} で消してから",
+    runner.AGENT_NOT_APPROVED: "承認の検証で落ちた点は標準エラー出力にある。既定のエージェントでは起動しない",
 }
 
 
@@ -255,6 +298,27 @@ class _Forecast:
     after: frozenset[str]
     ready: frozenset[str]
     waiting: Mapping[str, tuple[dag.SkipReason, ...]]
+
+
+@dataclass(frozen=True, slots=True)
+class _Approval:
+    """One approval of ``agents/approved.json`` that has its form (the module docstring).
+
+    Attributes:
+        name: The agent configuration's name.
+        mode: The mode that it is approved for.
+        path: ``~/.kiro/agents/<name>.json``, as written.
+        sha256: The SHA-256 of the approved file, 64 lowercase hexadecimal digits.
+        approved_at: When the approval was written, in ``state.TIMESTAMP_FORMAT``.
+        approved_in: Where the decision is recorded.
+    """
+
+    name: str
+    mode: str
+    path: str
+    sha256: str
+    approved_at: str
+    approved_in: str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -517,8 +581,104 @@ def _deny_terms(inputs: _Inputs) -> runner.DenyTerms:
     return runner.load_deny_terms(customer, posixpath.join(inputs.harness_tree, runner.EXTRA_TERMS_FILE))
 
 
-def _context(inputs: _Inputs, deny: runner.DenyTerms) -> runner.RunContext:
-    """The inputs of the runner. No ref is confirmed and no agent is approved yet (module docstring)."""
+def _agent_approvals(inputs: _Inputs) -> tuple[_Approval, ...]:
+    """Read ``agents/approved.json`` of the handoff directory and check its form (the module docstring).
+
+    Returns:
+        The approvals, in the order of the file; none when the file does not exist.
+
+    Raises:
+        _Exit: The file cannot be read, is not such JSON, or lacks its form (exit code 2).
+    """
+    path = posixpath.join(inputs.handoff_dir, APPROVALS_FILE)
+    if not os.path.lexists(path):
+        return ()
+    raw = _read_json(path)
+    issues = _approval_issues(raw)
+    if issues:
+        raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", issues))
+    return tuple(_Approval(**{key: entry[key] for key in _APPROVAL_ENTRY_KEYS}) for entry in raw["agents"])
+
+
+def _approval_issues(raw: Any) -> list[str]:
+    """Every way in which the JSON of ``agents/approved.json`` lacks its form, one ``<where>: <what>`` each."""
+    if type(raw) is not dict:
+        return [f"$: must be an object, got {type(raw).__name__}"]
+    issues = _key_issues("$", raw, _APPROVAL_KEYS)
+    version = raw.get("schema_version")
+    if "schema_version" in raw and (type(version) is not int or version != 1):
+        issues.append(f"$.schema_version: must be 1, got {version!r}")
+    if "agents" not in raw:
+        return issues
+    agents = raw["agents"]
+    if type(agents) is not list:
+        return [*issues, f"$.agents: must be a list, got {type(agents).__name__}"]
+    first: dict[tuple[str, str], int] = {}
+    for index, entry in enumerate(agents):
+        where = f"$.agents[{index}]"
+        if type(entry) is not dict:
+            issues.append(f"{where}: must be an object, got {type(entry).__name__}")
+            continue
+        issues.extend(_key_issues(where, entry, _APPROVAL_ENTRY_KEYS))
+        issues.extend(_approval_entry_issues(where, entry))
+        for key in ("name", "mode"):
+            value = entry.get(key)
+            if type(value) is not str:
+                continue
+            if (key, value) in first:
+                issues.append(f"{where}.{key}: {value!r} is also the {key} of $.agents[{first[(key, value)]}]")
+            else:
+                first[(key, value)] = index
+    return issues
+
+
+def _key_issues(where: str, obj: Mapping[str, Any], keys: tuple[str, ...]) -> list[str]:
+    """The keys of ``keys`` that an object lacks, then the keys that it has besides them."""
+    missing = [f"{where}.{key}: missing" for key in keys if key not in obj]
+    unknown = [f"{where}: unknown key {key!r}" for key in sorted(obj) if key not in keys]
+    return [*missing, *unknown]
+
+
+def _approval_entry_issues(where: str, entry: Mapping[str, Any]) -> list[str]:
+    """The fields of one approval that lack their form. A missing field is left to :func:`_key_issues`."""
+    issues: list[str] = []
+    name = entry.get("name")
+    named = type(name) is str and _AGENT_NAME.fullmatch(name) is not None
+    if "name" in entry and not named:
+        issues.append(f"{where}.name: must be of the form {_AGENT_NAME.pattern}, got {name!r}")
+    mode = entry.get("mode")
+    if "mode" in entry and (type(mode) is not str or mode not in MODES):
+        issues.append(f"{where}.mode: must be one of {', '.join(MODES)}, got {mode!r}")
+    path = entry.get("path")
+    expected = APPROVED_AGENT_PATH.format(name=name if named else "<name>")
+    if "path" in entry and (not named or type(path) is not str or path != expected):
+        issues.append(f"{where}.path: must be exactly {expected}, got {path!r}")
+    digest = entry.get("sha256")
+    if "sha256" in entry and (type(digest) is not str or _SHA256.fullmatch(digest) is None):
+        issues.append(f"{where}.sha256: must be 64 lowercase hexadecimal digits, got {digest!r}")
+    if "approved_at" in entry and not _is_timestamp(entry["approved_at"]):
+        issues.append(
+            f"{where}.approved_at: must be a moment written as {state.TIMESTAMP_FORMAT}, got {entry['approved_at']!r}"
+        )
+    recorded = entry.get("approved_in")
+    if "approved_in" in entry and (type(recorded) is not str or not recorded.strip()):
+        issues.append(f"{where}.approved_in: must be a string that is not blank, got {recorded!r}")
+    return issues
+
+
+def _is_timestamp(value: object) -> bool:
+    """Whether a value is a moment written exactly as :func:`handoff.state.format_timestamp` writes it."""
+    if type(value) is not str or _TIMESTAMP_SHAPE.fullmatch(value) is None:
+        return False
+    try:
+        moment = datetime.strptime(value, state.TIMESTAMP_FORMAT).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return state.format_timestamp(moment) == value
+
+
+def _context(inputs: _Inputs, deny: runner.DenyTerms, approvals: Sequence[_Approval]) -> runner.RunContext:
+    """The inputs of the runner, with the agent approvals that pass their checks now. No ref is confirmed yet."""
     return runner.RunContext(
         config=inputs.config,
         manifest=inputs.manifest,
@@ -527,8 +687,126 @@ def _context(inputs: _Inputs, deny: runner.DenyTerms) -> runner.RunContext:
         session_worktrees_dir=inputs.session_worktrees_dir,
         deny=deny,
         confirmed_refs=frozenset(),
-        approved_agents=frozenset(),
+        approved_agents=_verified_agents(inputs, approvals),
     )
+
+
+def _verified_agents(inputs: _Inputs, approvals: Sequence[_Approval]) -> frozenset[tuple[str, str]]:
+    """Check, now, the approval of each agent that ``config.json`` names, and return the pairs that pass.
+
+    For each mode whose ``agents.<mode>`` names an agent, the approval with that name and that
+    mode is checked against its file with :func:`_agent_file_problems`. An approval of the same
+    name for another mode does not count. Each reason why a named agent is not approved goes to
+    standard error, one line each; the exit code does not change for it.
+
+    Args:
+        inputs: The checked inputs.
+        approvals: What :func:`_agent_approvals` returned.
+
+    Returns:
+        The ``(name, mode)`` pairs whose approval passed every check.
+    """
+    passed: set[tuple[str, str]] = set()
+    for mode, name in inputs.config.agents.items():
+        approval = next((entry for entry in approvals if (entry.name, entry.mode) == (name, mode)), None)
+        if approval is None:
+            others = [entry.mode for entry in approvals if entry.name == name]
+            note = f"（{'、'.join(others)} の承認はあるが、承認は承認した mode の項目にだけ使う）" if others else ""
+            _err(
+                f"エージェント設定 {name}（{mode}）は承認されていない: {APPROVALS_FILE} に {name} の {mode} の承認がない{note}"
+            )
+            continue
+        problems = _agent_file_problems(approval, inputs.config.mode_tool_ceiling.get(mode, ()), inputs.home)
+        for check, detail in problems:
+            _err(f"エージェント設定 {name}（{mode}）の承認を使わない: {check}: {detail}")
+        if not problems:
+            passed.add((name, mode))
+    return frozenset(passed)
+
+
+def _agent_file_problems(approval: _Approval, ceiling: Sequence[str], home: str) -> list[tuple[str, str]]:
+    """Check an approval against its file, now; every failed check as ``(check, detail)``.
+
+    The file first: ``path`` with ``~`` expanded must be a regular file and not a symbolic link
+    (``lstat``); it is read without following a link, and its SHA-256 must be ``sha256``. Then
+    its content, also when the SHA-256 differs, so that every difference is shown: JSON by the
+    rules of ``config.json``, ``name`` equal to the approval's, ``tools`` and ``allowedTools``
+    lists of names in ``ceiling``, ``mcpServers`` ``{}`` and ``includeMcpJson`` ``false``.
+
+    Args:
+        approval: An approval that has its form.
+        ceiling: ``mode_tool_ceiling`` of the approval's mode.
+        home: The home directory, to expand ``~``.
+
+    Returns:
+        The failed checks, in that order; empty when the approval passes.
+    """
+    path = normalize_path(approval.path, home)
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        return [("lstat", f"{path} does not exist")]
+    except OSError as exc:
+        return [("lstat", f"{path}: {exc.strerror or exc}")]
+    if stat.S_ISLNK(before.st_mode):
+        return [("symlink", f"{path} is a symbolic link, and a link is not followed")]
+    if not stat.S_ISREG(before.st_mode):
+        return [("regular_file", f"{path} is not a regular file")]
+    try:
+        data = _read_regular(path, before)
+    except OSError as exc:
+        return [("read", f"{path}: {exc.strerror or exc}")]
+    problems: list[tuple[str, str]] = []
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != approval.sha256:
+        problems.append(("sha256", f"{path} has the SHA-256 {actual}, not the approved {approval.sha256}"))
+    try:
+        document = json.loads(
+            data.decode("utf-8"), object_pairs_hook=_without_repeated_keys, parse_constant=_no_constant
+        )
+    except (ValueError, RecursionError) as exc:
+        return [*problems, ("json", f"{path} is not valid JSON: {exc}")]
+    if type(document) is not dict:
+        return [*problems, ("json", f"{path} holds {type(document).__name__}, not an object")]
+
+    def got(key: str) -> str:
+        return "missing" if key not in document else repr(document[key])
+
+    if document.get("name") != approval.name:
+        problems.append(("name", f"must be {approval.name!r}, got {got('name')}"))
+    for key in ("tools", "allowedTools"):
+        tools = document.get(key)
+        if type(tools) is not list:
+            problems.append((key, f"must be a list, got {got(key)}"))
+            continue
+        outside = [tool for tool in tools if type(tool) is not str or tool not in ceiling]
+        if outside:
+            problems.append((key, f"{outside!r} not in mode_tool_ceiling.{approval.mode} ({', '.join(ceiling)})"))
+    servers = document.get("mcpServers")
+    if type(servers) is not dict or servers:
+        problems.append(("mcpServers", f"must be {{}}, got {got('mcpServers')}"))
+    if document.get("includeMcpJson") is not False:
+        problems.append(("includeMcpJson", f"must be false, got {got('includeMcpJson')}"))
+    return problems
+
+
+def _read_regular(path: str, seen: os.stat_result) -> bytes:
+    """Read a file without following a symbolic link, requiring it to be the regular file that ``lstat`` saw.
+
+    Raises:
+        OSError: It cannot be opened or read, or it is not that file any more.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (seen.st_dev, seen.st_ino):
+            raise OSError("it changed between lstat and open")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 1 << 16):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
 
 
 # --------------------------------------------------------------------------------------------
@@ -539,9 +817,10 @@ def _context(inputs: _Inputs, deny: runner.DenyTerms) -> runner.RunContext:
 def _plan(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``plan``: show what ``run`` would do with the named items, and start nothing."""
     selector, named = _named_items(inputs, args)
+    approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:
-        context = _context(inputs, deny)
+        context = _context(inputs, deny, approvals)
         view = _with_records(harness.status, inputs.manifest)
         drafts = {
             item.id: harness.draw_prompt(context, item.id)
@@ -561,7 +840,7 @@ def _plan(args: argparse.Namespace, inputs: _Inputs) -> int:
     _out("run の扱いは、run が起動する項目がすべて succeeded で終わった場合の見込み")
     for item in named:
         _out("")
-        _plan_item(inputs, item, view, drafts.get(item.id), forecast)
+        _plan_item(inputs, item, view, drafts.get(item.id), forecast, context.approved_agents)
     return EXIT_OK
 
 
@@ -645,6 +924,7 @@ def _plan_item(
     view: state.StatusDoc,
     draft: runner.PromptDraft | None,
     forecast: _Forecast,
+    approved: frozenset[tuple[str, str]],
 ) -> None:
     """Show one item of ``plan``."""
     record = view["items"][item.id]
@@ -669,9 +949,24 @@ def _plan_item(
     else:
         _out(f"  本文: {_tilde(draft.path, inputs.home)}（{rendered.byte_length} バイト）")
         _out(f"  走査: {_scan_text(rendered)}")
+    _out(f"  エージェント: {_agent_text(inputs.config, item, approved)}")
     _out(f"  run の扱い: {_forecast_text(item, forecast)}")
     if draft is not None and draft.detail and rendered is not None:
         _err(f"{item.id}: {draft.detail}")
+
+
+def _agent_text(config: HandoffConfig, item: Item, approved: frozenset[tuple[str, str]]) -> str:
+    """Whether ``run`` gives an item ``--agent``, or why it holds the item for its agent, for ``plan``."""
+    name = config.agents.get(item.mode)
+    if name is None:
+        return f"--agent を付けない（config.json の agents に {item.mode} の指定がない）"
+    if (name, item.mode) in approved:
+        places = " と ".join(f"{directory}/" for directory in runner.AGENT_CONFIG_DIRS)
+        return (
+            f"--agent {name} を付ける（{APPROVALS_FILE} の承認を検証した）。run は worktree を作った後、"
+            f"{places} に同じ名前の設定があれば起動しない（{runner.AGENT_SHADOWED}）"
+        )
+    return f"{name} は {item.mode} で承認されていない。--agent なしでは起動しない（{runner.AGENT_NOT_APPROVED}）"
 
 
 def _write_executor(choice: ExecutorChoice, note: str) -> None:
@@ -722,9 +1017,10 @@ def _forecast_text(item: Item, forecast: _Forecast) -> str:
 def _run(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``run``: start the named items (the module docstring)."""
     selector, named = _named_items(inputs, args)
+    approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:
-        context = _context(inputs, deny)
+        context = _context(inputs, deny, approvals)
         missing = _missing_kiro_cli(inputs)
         if missing is not None:
             _err(f"kiro-cli が {missing} に見つからない。手作業で渡すための表示に切り替える（Requirement 28.21）")
@@ -981,13 +1277,14 @@ def _sigint_calls(handler: Callable[[], None]) -> Iterator[None]:
 def _manual(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``manual ID``: print what the maintainer pastes by hand (Requirement 28.21)."""
     item = _item(inputs, args.item_id)
+    approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:
         view = _with_records(harness.status, inputs.manifest)
         current = view["items"][item.id]["state"]
         if current not in _MANUAL_STATES:
             raise _Exit(EXIT_ITEMS, f"{item.id} is {current}; only a queued, failed or needs-human item is handed over")
-        return _write_manual(harness, _context(inputs, deny), inputs, item, view)
+        return _write_manual(harness, _context(inputs, deny, approvals), inputs, item, view)
 
 
 def _manual_for_ready(
@@ -1040,6 +1337,12 @@ def _write_manual(
         return EXIT_ITEMS
     if rendered.over_limit:
         _err(f"{item.id}: 本文が {rendered.byte_length} バイトで、kiro-cli に渡す上限 {MAX_BODY_BYTES} バイトを超える")
+    if draft.hold_reason == runner.AGENT_NOT_APPROVED:
+        _err(
+            f"{item.id}: 注意: config.json の agents.{item.mode} のエージェント設定 "
+            f"{inputs.config.agents.get(item.mode)} は承認されていない。run はこの項目を起動せずに "
+            f"needs-human（{runner.AGENT_NOT_APPROVED}）にする"
+        )
     if os.path.lexists(plan.worktree):
         _err(
             f"{item.id}: 注意: worktree {_tilde(plan.worktree, inputs.home)} が既にあるので、手順 1 の 4 行目は失敗する。"
