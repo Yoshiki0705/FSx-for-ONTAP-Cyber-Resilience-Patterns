@@ -17,8 +17,12 @@ records of new items with :meth:`Harness.add_missing_items`; chooses items with
 task 5 wires the change mode; runs each selected query item with
 :meth:`Harness.run_query_item`; and shows the outcomes. It stops starting items on
 :class:`LoginRequired`, :class:`DiskSpaceLow` and :class:`UnsafeLocation`, and turns to the
-manual mode on :class:`KiroCliMissing`. Every write to ``.private/handoff/``, every process and
-every change of ``status.json`` happens here.
+manual mode on :class:`KiroCliMissing`. For its other subcommands it draws prompts with
+:meth:`Harness.draw_prompt` (``plan``, ``manual``), reads the status without the lock with
+:func:`read_status` and lists worktrees with :func:`list_worktrees` (``status``, ``cleanup``),
+removes an approved worktree with :meth:`Harness.remove_worktree` (``cleanup --approved``), and
+finds the main working tree that holds ``.private/handoff`` with :func:`harness_tree_of`. Every
+write to ``.private/handoff/``, every process and every change of ``status.json`` happens here.
 
 One query item (:meth:`Harness.run_query_item`), in this order. A step that fails moves the
 item from ``queued`` to ``needs-human`` with a short reason, unless the step says otherwise:
@@ -29,8 +33,11 @@ item from ``queued`` to ``needs-human`` with a short reason, unless the step say
 2. The template, read from ``.private/handoff/<template>``; then ``git status`` of the target
    repository's main working tree, for the uncommitted count of ``prompt.render``; then the
    prompt is drawn and scanned, and written to its path, held or not. A held prompt (scan
-   findings, over the size limit) and any refusal of ``command.build_kiro_invocation`` or
-   ``command.build_git_plan`` hold the item.
+   findings, over the size limit), a prompt whose executor is this session (only rows 5 and 6
+   of the executor table apply: ``executor_is_this_session``, since this session carries such
+   an item out), and any refusal of ``command.build_kiro_invocation`` or
+   ``command.build_git_plan`` hold the item, in this order. :meth:`Harness.draw_prompt` carries
+   out steps 1 and 2 alone, for ``cli.py plan`` and ``manual``, and changes no state.
 3. ``kiro-cli whoami`` in the environment of ``command.child_env``, the one the run gets. A
    failure raises :class:`LoginRequired` (or :class:`KiroCliMissing`) and leaves the item
    ``queued`` (Requirement 28.18).
@@ -124,7 +131,8 @@ from hashlib import sha256
 from typing import Any, Final, Literal, TypeAlias
 
 from handoff import command, evaluate, prompt, state
-from handoff.config import HandoffConfig, is_within, overlaps
+from handoff.config import HandoffConfig, is_within, normalize_path, overlaps
+from handoff.executor import Executor
 from handoff.manifest import Item, Manifest, RequiredRef
 
 _LOG: Final = logging.getLogger(__name__)
@@ -149,6 +157,18 @@ HARNESS_INTERRUPTED: Final = "harness_interrupted"
 
 #: The kind of the event recorded when a stale lock is removed.
 STALE_LOCK_REMOVED: Final = "stale_lock_removed"
+
+#: The kind of the event recorded when ``cli.py cleanup --approved`` removed a worktree.
+WORKTREE_REMOVED: Final = "worktree_removed"
+
+#: The history reason of an item whose drawn prompt names this session as its executor: only
+#: rows 5 and 6 of the executor table apply, so the prompt is not passed to the target
+#: repository's Kiro (design section 20, "実行者の判定").
+EXECUTOR_IS_THIS_SESSION: Final = "executor_is_this_session"
+
+#: Seconds allowed for :func:`harness_tree_of`, which runs before ``config.json`` (and its
+#: ``timeout_seconds``) is read. ``git rev-parse`` reads local files only.
+LOCATE_TIMEOUT_SECONDS: Final = 60
 
 #: The customer-name list that the PreToolUse guard ``guard_customer_names.py`` reads.
 #: ``cli.py`` expands ``~`` before it calls :func:`load_deny_terms`.
@@ -271,6 +291,14 @@ class UnsafeLocation(RunnerError):
     """A path that the runner would write, or a worktree it would create, resolves to a place it must not use."""
 
 
+class GitCommandFailed(RunnerError):
+    """A git command that the runner ran for ``cli.py`` (outside a run of an item) did not succeed.
+
+    The message names the command, how it ended and the end of its standard error; it can hold
+    local paths.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class DenyTerms:
     """The deny terms that ``prompt.render`` scans a body with, and what to tell about their lists.
@@ -386,6 +414,43 @@ class ItemOutcome:
     worktree: str | None
     exit_code: int | None
     timed_out: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PromptDraft:
+    """An item's Handoff_Prompt, drawn, scanned and written as a run does, before anything starts.
+
+    :meth:`Harness.draw_prompt` returns it for ``cli.py plan`` and ``manual``, and a run of a
+    query item starts from one (steps 1 and 2 of the module docstring). Drawing changes no state.
+
+    Attributes:
+        item_id: The item.
+        path: Where the item's Handoff_Prompt goes (``command.handoff_files``).
+        written: Whether the body was written to ``path``. ``False`` when the path is shared with
+            another item or the body could not be drawn.
+        rendered: The drawn and scanned prompt, or ``None`` when it could not be drawn.
+        uncommitted_count: The entries of ``git status`` in the target repository's main working
+            tree (row 3 of the executor table), or ``None`` when they were not read.
+        git_plan: The git commands that create the item's worktree (``command.build_git_plan``),
+            or ``None`` when they were refused or the body could not be drawn.
+        invocation: The ``kiro-cli`` run (``command.build_kiro_invocation``), or ``None`` when it
+            was refused (a held prompt always is) or the body could not be drawn.
+        hold_reason: The history reason with which a run moves the item to ``needs-human``
+            instead of passing the prompt on, or ``None`` when it may be passed on. One line
+            without local paths.
+        detail: More for the maintainer, for local output: the issues, or the positions and kinds
+            of the scan findings. Empty when ``hold_reason`` is ``None``.
+    """
+
+    item_id: str
+    path: str
+    written: bool
+    rendered: prompt.RenderedPrompt | None
+    uncommitted_count: int | None
+    git_plan: command.GitPlan | None
+    invocation: command.KiroInvocation | None
+    hold_reason: str | None
+    detail: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -511,6 +576,135 @@ def git_environment(parent: Mapping[str, str]) -> dict[str, str]:
     }
     env["GIT_TERMINAL_PROMPT"] = "0"
     return env
+
+
+def read_status(handoff_dir: str) -> state.StatusDoc:
+    """Read ``status.json`` without taking the lock, for ``cli.py status`` and ``cleanup``'s listing.
+
+    These displays must work while another harness runs. That harness replaces the file with
+    ``os.replace``, so a read sees the previous version or the new one, never part of one.
+    Nothing is created or written, and no record is reconciled: a ``running`` record whose
+    process is gone stays ``running`` until the next :meth:`Harness.open`.
+
+    Args:
+        handoff_dir: This repository's ``.private/handoff`` directory, as for :meth:`Harness.open`.
+
+    Returns:
+        The status; an empty one when ``status.json`` does not exist yet.
+
+    Raises:
+        TypeError: ``handoff_dir`` is not a ``str``.
+        ValueError: ``handoff_dir`` does not have its form.
+        UnsafeLocation: ``.private`` or ``handoff`` is a symbolic link, or ``status.json`` resolves
+            outside ``.private/handoff``.
+        StatusUnreadable: ``status.json`` is not a status.
+    """
+    directory = _checked_handoff_dir(handoff_dir)
+    _check_physical_handoff_dir(directory)
+    return _StatusFile(directory).load()
+
+
+def harness_tree_of(directory: str) -> str:
+    """Find the main working tree of the repository that holds a directory.
+
+    ``git -C <directory> rev-parse --path-format=absolute --git-common-dir`` names the ``.git``
+    directory that the main working tree and every linked worktree of a repository share. Its
+    parent is the main working tree, also when ``directory`` lies in a linked worktree, so a
+    harness started from a worktree finds the main working tree's ``.private/handoff``. This
+    runs before ``config.json`` is read, with the time limit :data:`LOCATE_TIMEOUT_SECONDS`.
+
+    Args:
+        directory: An absolute directory inside the repository, such as the one of ``cli.py``.
+
+    Returns:
+        The main working tree, absolute and in normal form.
+
+    Raises:
+        ValueError: ``directory`` is not an absolute path.
+        GitCommandFailed: git did not succeed, printed no absolute path, or named a common
+            directory that is not called ``.git`` (a bare repository, or one made with
+            ``--separate-git-dir``), whose parent is not a main working tree.
+    """
+    if type(directory) is not str or not directory.startswith("/"):
+        raise ValueError(f"directory must be an absolute path, got {directory!r}")
+    argv = ("git", "-C", directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    result = _git_once(argv, directory, "finding the main working tree", timeout_seconds=LOCATE_TIMEOUT_SECONDS)
+    common = result.stdout.decode("utf-8", "replace").strip()
+    if not common.startswith("/") or "\n" in common:
+        raise GitCommandFailed(f"git rev-parse --git-common-dir printed {_clip(common)}, not one absolute path")
+    common = "/" + posixpath.normpath(common).lstrip("/")
+    if posixpath.basename(common) != ".git":
+        raise GitCommandFailed(f"the common git directory {common} is not the .git directory of a main working tree")
+    return posixpath.dirname(common)
+
+
+def list_worktrees(main_tree: str, *, timeout_seconds: float) -> tuple[str, ...]:
+    """List the worktrees that a repository's main working tree knows of, reading only.
+
+    ``git --no-optional-locks -C <main> worktree list --porcelain``: the path of each ``worktree``
+    line, the main working tree first, as git wrote them (absolute). A worktree whose directory
+    is gone is listed too, until ``git worktree prune``.
+
+    Args:
+        main_tree: The repository's main working tree, absolute.
+        timeout_seconds: The time limit, ``timeout_seconds`` of the configuration.
+
+    Returns:
+        The paths, in git's order.
+
+    Raises:
+        GitCommandFailed: git did not succeed, for example because ``main_tree`` is not a
+            repository or does not exist.
+    """
+    argv = ("git", "--no-optional-locks", "-C", main_tree, "worktree", "list", "--porcelain")
+    result = _git_once(argv, main_tree, "listing the worktrees", timeout_seconds=timeout_seconds)
+    lines = result.stdout.decode("utf-8", "replace").splitlines()
+    return tuple(line[len("worktree ") :] for line in lines if line.startswith("worktree "))
+
+
+def branch_exists(main_tree: str, branch: str, *, timeout_seconds: float) -> bool:
+    """Tell whether a repository has a local branch, reading only.
+
+    ``git --no-optional-locks -C <main> rev-parse --verify -q refs/heads/<branch>``: exit code 0
+    when it exists, 1 when it does not.
+
+    Args:
+        main_tree: The repository's main working tree, absolute.
+        branch: The branch name without ``refs/heads/``, such as ``handoff/<id>``.
+        timeout_seconds: The time limit.
+
+    Returns:
+        Whether ``refs/heads/<branch>`` exists.
+
+    Raises:
+        GitCommandFailed: git ended with another code, or did not end.
+    """
+    argv = ("git", "--no-optional-locks", "-C", main_tree, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
+    result = _git_once(argv, main_tree, "looking up a branch", timeout_seconds=timeout_seconds, allowed=(0, 1))
+    return result.exit_code == 0
+
+
+def _git_once(
+    argv: tuple[str, ...], cwd: str, what: str, *, timeout_seconds: float, allowed: tuple[int, ...] = (0,)
+) -> ProcessResult:
+    """Run one git command of ``cli.py``'s in :func:`git_environment`, requiring an allowed exit code.
+
+    Raises:
+        GitCommandFailed: It did not start, did not end in time, or ended with another code.
+        KeyboardInterrupt: The harness was interrupted while it ran; its group was stopped.
+    """
+    result = _run_process(
+        argv,
+        cwd=cwd,
+        env=git_environment(os.environ),
+        timeout_seconds=timeout_seconds,
+        kill_grace_seconds=KILL_GRACE_SECONDS,
+    )
+    if result.ending == "interrupted":
+        raise KeyboardInterrupt
+    if result.ending != "exited" or result.exit_code not in allowed:
+        raise GitCommandFailed(f"{what}: {_detail(result)}")
+    return result
 
 
 class Harness:
@@ -716,17 +910,106 @@ class Harness:
             KeyboardInterrupt: The harness was interrupted. When ``kiro-cli`` ran, its group was
                 stopped, the report written and the item moved to ``failed`` first.
         """
-        if not isinstance(context, RunContext):
-            raise TypeError(f"context must be a RunContext, not {type(context).__name__}")
-        item = context.manifest.by_id.get(item_id)
-        if item is None:
-            raise RunnerError(f"the manifest has no item {item_id!r}")
+        item = self._context_item(context, item_id)
         if item.mode != "query":
             raise RunnerError(f"{item_id} is a {item.mode} item; this runner starts query items only")
-        if not (is_within(self._handoff_dir, context.harness_tree) and self._handoff_dir != context.harness_tree):
-            raise RunnerError(f"{self._handoff_dir} is not in the harness tree {context.harness_tree}")
         with self._reserve(context.manifest, item):
             return _QueryRun(self, context, item, stop).run()
+
+    def draw_prompt(self, context: RunContext, item_id: str) -> PromptDraft:
+        """Draw, scan and write one item's Handoff_Prompt as a run does, and start nothing else.
+
+        Steps 1 and 2 of the module docstring, for an item of either mode and in any state:
+        ``cli.py plan`` shows the result and ``cli.py manual`` prints the body for the maintainer
+        to paste. The status is not changed. The only process is ``git status`` of the target
+        repository's main working tree, and the only file written is the item's Handoff_Prompt
+        (not when its path is shared or it cannot be drawn).
+
+        Args:
+            context: The checked inputs.
+            item_id: An item of ``context.manifest``.
+
+        Returns:
+            The draft, with the hold reason that a run would record, if any.
+
+        Raises:
+            TypeError: ``context`` is not a :class:`RunContext`.
+            RunnerError: The item is not in the manifest, or ``handoff_dir`` is not in
+                ``context.harness_tree``.
+            UnsafeLocation: A file of the item resolves outside ``.private/handoff``.
+        """
+        item = self._context_item(context, item_id)
+        return _QueryRun(self, context, item, None).draw()
+
+    def remove_worktree(self, item: Item, *, config: HandoffConfig, home: str) -> ProcessResult:
+        """Remove an item's worktree with ``git worktree remove``, without ``--force``.
+
+        ``cli.py cleanup <id> --approved`` calls this once the maintainer approved; nothing removes
+        a worktree on its own (design section 20, "後片付けの方針"). The worktree is the one that
+        ``command.build_git_plan`` names, ``<worktrees_root>/<repo>/<id>``. git refuses one with
+        modified or untracked files, and then nothing is removed. When git removes it, the item's
+        record forgets the path (``worktree`` becomes ``null``; the Handoff_Report keeps it) and
+        ``events`` gets a ``worktree_removed`` entry, in one write of the status. No branch is
+        touched.
+
+        Args:
+            item: An item of the checked manifest.
+            config: The checked configuration.
+            home: The absolute home directory, to expand the ``~`` of the record's path.
+
+        Returns:
+            The ``git worktree remove`` process: ``ok`` tells whether git removed the worktree.
+
+        Raises:
+            TypeError: ``item`` is not an :class:`handoff.manifest.Item`.
+            handoff.command.CommandError: The worktree path cannot be built.
+            RunnerError: The item is ``running`` in the status, or an item of its repository runs
+                in this harness, or its record names a worktree other than the one above.
+            KeyboardInterrupt: The harness was interrupted while git ran.
+        """
+        if not isinstance(item, Item):
+            raise TypeError(f"item must be an Item, not {type(item).__name__}")
+        plan = command.build_git_plan(config, item)
+        with self._mutex:
+            if self._closed:
+                raise RunnerError("the harness is closed; open it again")
+            record = self._status["items"].get(item.id)
+            if record is not None and record["state"] == state.RUNNING:
+                raise RunnerError(f"{item.id} is running; its worktree is not removed")
+            if item.repo in self._active_repos:
+                raise RunnerError(f"an item of {item.repo} runs in this harness; its worktree is not removed now")
+            named = None if record is None else record["worktree"]
+            if named is not None:
+                expanded = normalize_path(named, home)
+                if not (is_within(expanded, plan.worktree) and is_within(plan.worktree, expanded)):
+                    raise RunnerError(
+                        f"the record of {item.id} names the worktree {named}, not {plan.worktree}; "
+                        "remove it by hand after reading it"
+                    )
+            self._active_repos.add(item.repo)
+        try:
+            argv = ("git", "-C", plan.main_tree, "worktree", "remove", plan.worktree)
+            result = _run_process(
+                argv,
+                cwd=plan.main_tree,
+                env=git_environment(os.environ),
+                timeout_seconds=config.timeout_seconds,
+                kill_grace_seconds=KILL_GRACE_SECONDS,
+            )
+            if result.ending == "interrupted":
+                raise KeyboardInterrupt
+            if result.ok:
+                with self._mutex:
+                    status = copy.deepcopy(self._status)
+                    if item.id in status["items"]:
+                        status["items"][item.id]["worktree"] = None
+                    detail = f"{item.id}: git worktree remove {_tilde(plan.worktree, home)}"
+                    self._commit(state.record_event(status, at=_now(), kind=WORKTREE_REMOVED, detail=detail))
+                _LOG.info("%s: removed its worktree", item.id)
+            return result
+        finally:
+            with self._mutex:
+                self._active_repos.discard(item.repo)
 
     def selftest_result(self) -> str | None:
         """``result`` of the latest selftest in the status, or ``None`` before the first one."""
@@ -735,6 +1018,22 @@ class Harness:
             if isinstance(selftest, dict) and type(selftest.get("result")) is str:
                 return selftest["result"]
             return None
+
+    def _context_item(self, context: RunContext, item_id: str) -> Item:
+        """Check the context and return the manifest's item, for :meth:`run_query_item` and :meth:`draw_prompt`.
+
+        Raises:
+            TypeError: ``context`` is not a :class:`RunContext`.
+            RunnerError: The manifest has no such item, or ``handoff_dir`` is not in the harness tree.
+        """
+        if not isinstance(context, RunContext):
+            raise TypeError(f"context must be a RunContext, not {type(context).__name__}")
+        item = context.manifest.by_id.get(item_id)
+        if item is None:
+            raise RunnerError(f"the manifest has no item {item_id!r}")
+        if not (is_within(self._handoff_dir, context.harness_tree) and self._handoff_dir != context.harness_tree):
+            raise RunnerError(f"{self._handoff_dir} is not in the harness tree {context.harness_tree}")
+        return item
 
     def _move(self, item_id: str, to_state: str, reason: str, **fields: Any) -> None:
         """Apply one transition, set fields of the item's record, and write the status."""
@@ -840,7 +1139,10 @@ class _StepFailed(Exception):
 
 
 class _QueryRun:
-    """One query item from ``queued`` to its final state. :meth:`Harness.run_query_item` uses it once."""
+    """One query item from ``queued`` to its final state. :meth:`Harness.run_query_item` uses it once.
+
+    :meth:`Harness.draw_prompt` uses one for :meth:`draw` alone, for an item of either mode.
+    """
 
     def __init__(self, harness: Harness, context: RunContext, item: Item, stop: threading.Event | None) -> None:
         """Keep the inputs of the run.
@@ -878,12 +1180,15 @@ class _QueryRun:
             _LOG.info("%s: stopped before kiro-cli started; it stays queued", self.item.id)
             return self._outcome(state.QUEUED, "stopped before kiro-cli started", "")
 
-    def _run(self) -> ItemOutcome:
-        """Steps 1 to 7, up to the start of ``kiro-cli``."""
+    def draw(self) -> PromptDraft:
+        """Steps 1 and 2: the prompt path, the template, the uncommitted count, the body and its checks.
+
+        Changes no state; :meth:`_run` holds the item with the draft's reason, if any.
+        """
         item, context, files = self.item, self.context, self.files
         sharers = _prompt_sharers(context.manifest, item, self.directory, files.prompt)
         if sharers:
-            return self._hold(
+            return self._draft(
                 "prompt_path_shared",
                 f"{_rel(files.prompt, self.directory)} is also the Handoff_Prompt path of {', '.join(sharers)}; "
                 "neither is written or started until the manifest gives them separate paths",
@@ -893,11 +1198,11 @@ class _QueryRun:
         try:
             template_text = _read_template(posixpath.join(self.directory, item.template), self.directory)
         except (OSError, UnicodeDecodeError, UnsafeLocation) as exc:
-            return self._hold("template_unreadable", f"{item.template}: {exc}")
+            return self._draft("template_unreadable", f"{item.template}: {exc}")
         try:
             uncommitted = _status_entry_count(self._main_tree_status())
         except _StepFailed as failure:
-            return self._hold("main_tree_unreadable", failure.detail)
+            return self._draft("main_tree_unreadable", failure.detail)
         try:
             rendered = prompt.render(
                 context.manifest,
@@ -911,16 +1216,11 @@ class _QueryRun:
             )
         except prompt.PromptError as error:
             kinds = ", ".join(dict.fromkeys(issue.kind for issue in error.issues))
-            return self._hold(f"prompt_not_drawn ({kinds})", str(error))
+            return self._draft(f"prompt_not_drawn ({kinds})", str(error), uncommitted=uncommitted)
         _write_file(files.prompt, rendered.body.encode("utf-8"), self.directory)
-        self.prompt_path = files.prompt
-        if rendered.needs_human:
-            found = ", ".join(f"line {finding.line}: {finding.kind}" for finding in rendered.findings) or "none"
-            return self._hold(
-                _present(rendered.history_reason),
-                f"the Handoff_Prompt {_rel(files.prompt, self.directory)} is held and not passed on "
-                f"({rendered.byte_length} bytes; scan findings: {found})",
-            )
+        invocation: command.KiroInvocation | None = None
+        git_plan: command.GitPlan | None = None
+        refusals: list[command.CommandError] = []
         try:
             invocation = command.build_kiro_invocation(
                 self.config,
@@ -930,9 +1230,64 @@ class _QueryRun:
                 selftest_result=self.harness.selftest_result(),
                 approved_agents=context.approved_agents,
             )
-            plan = command.build_git_plan(self.config, item)
         except command.CommandError as error:
-            return self._hold(error.history_reason, str(error))
+            refusals.append(error)
+        try:
+            git_plan = command.build_git_plan(self.config, item)
+        except command.CommandError as error:
+            refusals.append(error)
+        hold: tuple[str, str] | None = None
+        if rendered.needs_human:
+            found = ", ".join(f"line {finding.line}: {finding.kind}" for finding in rendered.findings) or "none"
+            hold = (
+                _present(rendered.history_reason),
+                f"the Handoff_Prompt {_rel(files.prompt, self.directory)} is held and not passed on "
+                f"({rendered.byte_length} bytes; scan findings: {found})",
+            )
+        elif rendered.executor_choice.executor is not Executor.TARGET_REPO_KIRO:
+            rows = ", ".join(str(number) for number in rendered.executor_choice.rows)
+            hold = (
+                EXECUTOR_IS_THIS_SESSION,
+                f"only rows {rows} of the executor table apply, so this session carries {item.id} out; "
+                f"its Handoff_Prompt is not passed to the Kiro of {item.repo}",
+            )
+        elif refusals:
+            hold = (refusals[0].history_reason, str(refusals[0]))
+        return PromptDraft(
+            item_id=item.id,
+            path=files.prompt,
+            written=True,
+            rendered=rendered,
+            uncommitted_count=uncommitted,
+            git_plan=git_plan,
+            invocation=invocation,
+            hold_reason=None if hold is None else hold[0],
+            detail="" if hold is None else hold[1],
+        )
+
+    def _draft(self, reason: str, detail: str, *, uncommitted: int | None = None) -> PromptDraft:
+        """A draft whose body was not drawn or not written, with the reason that holds the item."""
+        return PromptDraft(
+            item_id=self.item.id,
+            path=self.files.prompt,
+            written=False,
+            rendered=None,
+            uncommitted_count=uncommitted,
+            git_plan=None,
+            invocation=None,
+            hold_reason=reason,
+            detail=detail,
+        )
+
+    def _run(self) -> ItemOutcome:
+        """Steps 1 to 7, up to the start of ``kiro-cli``."""
+        item = self.item
+        draft = self.draw()
+        if draft.written:
+            self.prompt_path = draft.path
+        if draft.hold_reason is not None:
+            return self._hold(draft.hold_reason, draft.detail)
+        invocation, plan, rendered = _present(draft.invocation), _present(draft.git_plan), _present(draft.rendered)
         self._check_stop()
         with _ChildPaths() as child:
             env = command.child_env(
