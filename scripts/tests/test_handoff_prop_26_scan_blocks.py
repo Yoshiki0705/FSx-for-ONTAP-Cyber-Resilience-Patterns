@@ -33,8 +33,9 @@ use no variable, none. ``scan.check`` called here on the drawn body is the oracl
 ``render``: a ``render`` that skipped the scan, scanned part of the body or dropped the deny
 terms would differ from it. The hold reasons and the size limit are those of task 1.8.
 
-Two functions check the property. The first draws its variables from ``prompt_vars()``: half
-of the examples plant nothing and half plant a non-empty subset of the six kinds. The second
+Two functions check the property. The first draws its variables from ``prompt_vars()``, and
+``st.booleans()`` decides whether an example plants nothing or a non-empty subset of the six
+kinds; hypothesis does not split the examples evenly, so the split differs per seed. The second
 writes one two-word deny term, a Latin word and a katakana word, in one of the spellings that
 the scan folds onto it (task 1.7: upper, lower and swapped case, full-width letters,
 half-width katakana, NFD, other white space between the words) at any character position of
@@ -180,8 +181,8 @@ def checked_manifest(case: handoff_strategies.ManifestCase) -> manifest.Manifest
 def examples(draw: st.DrawFn) -> Example:
     """Draw the inputs of one example.
 
-    Half of the examples plant nothing, so that their bodies hold no string of the property
-    other than the placeholders; the others plant one to six of the kinds.
+    ``st.booleans()`` decides whether the example plants nothing, so that its bodies hold no
+    string of the property other than the placeholders, or one to six of the kinds.
 
     Args:
         draw: The hypothesis draw function.
