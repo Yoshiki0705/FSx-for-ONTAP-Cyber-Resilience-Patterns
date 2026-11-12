@@ -134,9 +134,9 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 
 ### 3. インシデント後の検証済み復旧
 
-**本リポジトリ** が DR レプリケーション監視を担当（`templates/dr-replication.yaml` — SnapMirror ラグアラーム）。
+**Observability リポジトリ** が SnapMirror ラグ監視を Terraform モジュール（`terraform/fsxn-ontap-custom-metrics`）として提供。設定と通知先は本リポジトリの[デプロイガイド](deployment-guide.md)の「SnapMirror ラグ監視」を参照。
 
-**Observability リポジトリ** が復旧ポイント検証を担当:
+**Observability リポジトリ** が復旧ポイント検証も担当:
 1. 対象 Snapshot を FlexClone として複製（即時、copy-on-write）
 2. 隔離された S3 Access Point をアタッチ（VPC スコープ）
 3. ランサムウェア関連のファイル拡張子をスキャン
@@ -159,7 +159,8 @@ not duplicated across them: a copy that stops being updated outlives the one tha
 | EMS イベントリファレンス | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
 | FPolicy 運用 | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
 | NIST CSF 2.0 完全マッピング | [cyber-resilience-framework-mapping.md](cyber-resilience-framework-mapping.md) | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
-| 復旧検証 | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
+| SnapMirror ラグ監視 | [deployment-guide.md](deployment-guide.md) の「SnapMirror ラグ監視」 | [Terraform モジュール `fsxn-ontap-custom-metrics`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/tree/main/terraform/fsxn-ontap-custom-metrics) |
+| 復旧検証 | — | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
 | セキュリティ補遺 | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
 | デプロイ前提条件 | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |
 

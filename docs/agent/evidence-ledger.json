@@ -1201,6 +1201,34 @@
         "docs/ontap-native/gcnv-ontap-mode-security-features.md"
       ],
       "note": "General ONTAP SnapLock property; applies on both GCNV ONTAP-mode and FSx for ONTAP."
+    },
+    {
+      "id": "E-038",
+      "claim": "A CloudWatch metric alarm is rejected when its alarm action names an SNS topic in a different Region. An alarm in us-west-2 cannot notify a topic in ap-northeast-1.",
+      "subject": "Amazon CloudWatch PutMetricAlarm, SNS notification action across Regions",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_PutMetricAlarm.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "Gives the SNS action ARN form arn:aws:sns:region:account-id:sns-topic-name, and every example uses a topic in one Region. The page does not state a same-Region requirement, so the restriction rests on the observation, not on this page."
+        }
+      ],
+      "observation": "2026-11-12, one account, one run per case. PutMetricAlarm in us-west-2 with the alarm action set to an SNS topic in ap-northeast-1 returned ValidationError: Invalid region ap-northeast-1 specified. Only us-west-2 is supported. Control with the topic in us-west-2: PutMetricAlarm succeeded, set-alarm-state to ALARM delivered the notification to an SQS queue subscribed to the topic, and the alarm action history recorded a successful execution. Other Region pairs were not tried.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether an alarm action can name an SNS topic in another Region. The design places the DR-side alarm and its topic in the DR Region, which works whichever way the answer goes."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "The error text names the alarm's own Region as the only supported one. That wording is taken as the same-Region rule for this Region pair; it was not tested for other pairs."
     }
   ]
 }

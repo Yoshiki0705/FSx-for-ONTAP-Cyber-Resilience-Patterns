@@ -256,10 +256,6 @@ class TestParameterFiles:
 class TestLambdaReservedConcurrency:
     """Event-triggered Lambdas outside event-driven.yaml must cap their concurrency (CKV_AWS_115)."""
 
-    def test_lag_monitor_reserves_one_execution(self) -> None:
-        lam = load_yaml(TEMPLATES_DIR / "dr-replication.yaml")["Resources"]["LagMonitorLambda"]
-        assert lam["Properties"]["ReservedConcurrentExecutions"] == 1
-
     def test_security_hub_publisher_concurrency_is_a_parameter(self) -> None:
         tpl = load_yaml(TEMPLATES_DIR / "siem-integration.yaml")
         param = tpl["Parameters"]["SecurityHubPublisherReservedConcurrency"]
@@ -282,7 +278,6 @@ class TestAsyncLambdaDeadLetterQueue:
     """EventBridge-invoked Lambdas must send failed events to their own SQS queue (CKV_AWS_116)."""
 
     CASES = [
-        ("dr-replication.yaml", "LagMonitorLambda", "LagMonitorRole", "LagMonitorDlq", "LagMonitorDlqAlarm"),
         (
             "siem-integration.yaml",
             "SecurityHubPublisherLambda",
@@ -365,7 +360,6 @@ OPTIONAL_KMS_BINDINGS = [
     ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
     ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
-    ("dr-replication.yaml", "LagMonitorLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
 ]
 # main.yaml nests only these templates; the others are deployed as standalone stacks

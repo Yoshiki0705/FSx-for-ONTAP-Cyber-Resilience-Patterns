@@ -28,7 +28,6 @@ aws cloudformation create-stack \
 | `scanning.example.json` | `scanning.yaml` | Both paths |
 | `scanning-ha.example.json` | `scanning-ha.yaml` | HA scanner deployment |
 | `observability.example.json` | `observability.yaml` | Both paths |
-| `dr-replication.example.json` | `dr-replication.yaml` | DR monitoring |
 | `cost-scheduler.example.json` | `cost-scheduler.yaml` | Non-production cost savings |
 | `hub-aggregation.example.json` | `hub-aggregation.yaml` | Central hub account |
 | `spoke-monitoring.example.json` | `spoke-monitoring.yaml` | Workload accounts |
