@@ -107,6 +107,19 @@ Subcommands:
   line numbers of the findings go to standard error and the exit code is 1, so that a deny term is
   not handed over by hand either. A prompt that cannot be drawn, or whose executor is this
   session, is not shown either.
+- ``verify ID --worktree PATH`` (task 5.5): the check after a hand-over by ``manual``. The maintainer's
+  worktree (``PATH``, absolute) gets the observation of a change run, steps 1 to 8 of the design's
+  "結果の確認", with :meth:`handoff.runner.Harness.verify_manual`: the same method builds the
+  observations as for ``run``, and ``evaluate.final_state`` gives the final state, which is written
+  to ``status.json`` (``queued``, then ``running`` with the reason ``manual_verify``, then the final
+  state). It needs no ``kiro-cli``. The item must be a ``queued`` change item; a ``failed`` or
+  ``needs-human`` item goes back with ``status set`` first (the state table has no other way into
+  ``running``). ``PATH`` must be a worktree that git lists for the item's repository, with ``HEAD`` on
+  ``handoff/<id>``, below the recorded ``base_sha`` (a record without one gets the merge base with
+  ``origin/main`` after a fetch), and outside every protected tree. Otherwise the request is refused
+  with exit code 1 and the status is not changed. Standard output has the final state and its
+  reason in one line. The main working tree is compared from just before the observation to just
+  after it, so a change made while the maintainer worked is not seen.
 - ``status``: reads the status without the lock, so it works while ``run`` goes on. Shows each
   item's state, its last transition and its time in ``running``, the items that wait because a
   dependency failed, the total time in ``running``, and the differences between the worktrees
@@ -149,7 +162,7 @@ Exit codes:
 ====  =====================================================================================
 0     Success. For ``publish``: every listed item was published. For ``run``: every item it started or held ended ``succeeded`` (also when no
       item could start). For ``selftest``: the result is ``guards_active``.
-1     An item ended ``failed`` or ``needs-human`` in this ``run``, a listed item was not published by ``publish``, or a request was refused
+1     An item ended ``failed`` or ``needs-human`` in this ``run`` or ``verify``, ``verify`` refused the item or the worktree, a listed item was not published by ``publish``, or a request was refused
       for an item's state or content: ``manual`` of an item that is ``running`` or
       ``succeeded``, has a scan finding, cannot be drawn or belongs to this session; ``status set`` from a state other
       than ``failed`` and ``needs-human``; ``cleanup`` where git refused or could not tell;
@@ -437,6 +450,13 @@ def _parser() -> argparse.ArgumentParser:
         help="print an item's Handoff_Prompt and the commands that make its worktree, for pasting by hand",
     )
     manual.add_argument("item_id", metavar="ID")
+    verify = commands.add_parser(
+        "verify",
+        help="observe the worktree that you made by hand for a change item, and record its final state",
+        description="observe the worktree that you made by hand for a change item, and record its final state",
+    )
+    verify.add_argument("item_id", metavar="ID")
+    verify.add_argument("--worktree", required=True, metavar="PATH", help="the worktree on handoff/<id> (absolute)")
     status_parser = commands.add_parser("status", help="show the state of every item; 'status set' re-queues one")
     actions = status_parser.add_subparsers(dest="status_action", metavar="set")
     setter = actions.add_parser("set", help="move a failed or needs-human item back to queued")
@@ -1472,6 +1492,21 @@ def _manual(args: argparse.Namespace, inputs: _Inputs) -> int:
         return _write_manual(harness, _context(inputs, deny, approvals), inputs, item, view)
 
 
+def _verify(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``verify ID --worktree PATH``: observe the maintainer's worktree like a change run (Requirement 28.21)."""
+    item = _item(inputs, args.item_id)
+    if not posixpath.isabs(args.worktree):
+        raise _Exit(EXIT_USAGE, f"--worktree {args.worktree} must be an absolute path")
+    worktree = posixpath.normpath(args.worktree)
+    with runner.Harness.open(inputs.handoff_dir) as harness:
+        context = _run_context(inputs, runner.DenyTerms((), ()), frozenset())
+        outcome = harness.verify_manual(context, item.id, worktree)
+    _out(f"{item.id}: {outcome.state}（{outcome.reason}）")
+    if outcome.detail:
+        _err(f"{item.id}: {outcome.detail}")
+    return EXIT_OK if outcome.state == state.SUCCEEDED else EXIT_ITEMS
+
+
 def _manual_for_ready(
     harness: runner.Harness, context: runner.RunContext, inputs: _Inputs, named: tuple[Item, ...]
 ) -> int:
@@ -2000,6 +2035,7 @@ _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] 
     "plan": _plan,
     "run": _run,
     "manual": _manual,
+    "verify": _verify,
     "status": _status,
     "cleanup": _cleanup,
     "selftest": _selftest,
