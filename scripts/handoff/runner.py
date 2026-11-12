@@ -218,6 +218,10 @@ POLL_SECONDS: Final = 0.2
 #: The history reason of the move to ``running``.
 DISPATCHED: Final = "dispatched"
 
+#: The history reason of the move to ``running`` for ``cli.py verify``: the observation of a worktree
+#: that the maintainer made by hand (Requirement 28.21).
+MANUAL_VERIFY: Final = "manual_verify"
+
 #: The history reason of a ``running`` item whose harness ended without finishing it.
 HARNESS_INTERRUPTED: Final = "harness_interrupted"
 
@@ -449,6 +453,13 @@ class SelftestRefused(RunnerError):
 
     ``repos`` has a repository called ``selftest``, ``agents.change`` has no approval, or another
     refusal of ``command.build_selftest_invocation``. Nothing was started or written.
+    """
+
+
+class VerifyRefused(RunnerError):
+    """:meth:`Harness.verify_manual` did not accept the worktree or the item (``cli.py`` exit code 1).
+
+    The message says which check failed. Nothing was changed: the item keeps its state.
     """
 
 
@@ -1304,6 +1315,43 @@ class Harness:
         with self._reserve(context.manifest, item):
             return _ChangeRun(self, context, item, stop).run()
 
+    def verify_manual(
+        self, context: RunContext, item_id: str, worktree: str, *, stop: threading.Event | None = None
+    ) -> ItemOutcome:
+        """Observe a worktree that the maintainer made by hand, and record the final state of a change item.
+
+        The observation is that of :meth:`run_change_item` (steps 1 to 8 of the design's "結果の確認"):
+        the same method builds the observations and ``evaluate.final_state`` decides. ``kiro-cli`` does
+        not run; the observations take its exit code as 0, no time-out and no output. The item moves
+        ``queued`` to ``running`` (``manual_verify``) and then to its final state.
+
+        Everything is checked before the move, and a refusal changes nothing. The worktree must be an
+        absolute path in normal form that resolves outside every protected tree, be listed by
+        ``git worktree list`` of the item's repository, have ``HEAD`` on ``handoff/<id>``, and descend
+        from the item's ``base_sha``. A record without a ``base_sha`` gets the merge base of ``HEAD``
+        and ``origin/main`` after a fetch.
+
+        Args:
+            context: The checked inputs.
+            item_id: A change item of ``context.manifest`` whose record is ``queued``.
+            worktree: The worktree, absolute.
+            stop: As for :meth:`run_query_item`.
+
+        Returns:
+            What became of the item.
+
+        Raises:
+            TypeError: ``context`` is not a :class:`RunContext`.
+            VerifyRefused: A check above failed. Nothing was changed.
+            RunnerError: As for :meth:`run_change_item`.
+            KeyboardInterrupt: The harness was interrupted; the item moved to ``failed`` first.
+        """
+        item = self._context_item(context, item_id)
+        if item.mode != "change":
+            raise VerifyRefused(f"{item_id} is a {item.mode} item; verify observes change items only")
+        with self._reserve(context.manifest, item):
+            return _ManualVerify(self, context, item, worktree, stop).run()
+
     def publish_batch(
         self,
         context: RunContext,
@@ -1941,18 +1989,22 @@ class _QueryRun:
         except KeyboardInterrupt:
             self._end(report, state.FAILED, HARNESS_INTERRUPTED, note="観測の途中でハーネスが中断された")
             raise
-        evaluation = evaluate.final_state(
-            observations,
-            mode=self.item.mode,
-            declared_files=self.item.declared_files,
-            verify_commands=[verify.cmd for verify in self.item.verify_commands],
-        )
+        evaluation = self._evaluate(observations)
         return self._end(
             report,
             evaluation.state,
             evaluation.history_reason,
             observations=observations,
             after=after,
+        )
+
+    def _evaluate(self, observations: evaluate.Observations) -> evaluate.Evaluation:
+        """Decide the final state from the observations alone (``evaluate.final_state``); the report is not an input."""
+        return evaluate.final_state(
+            observations,
+            mode=self.item.mode,
+            declared_files=self.item.declared_files,
+            verify_commands=[verify.cmd for verify in self.item.verify_commands],
         )
 
     def _end(
@@ -2521,6 +2573,209 @@ class _ChangeRun(_QueryRun):
             f"{_detail(ran)}\nthe re-run has no exit code to record (exit code {ran.exit_code}), so it counts as "
             "neither passed nor failed",
         )
+
+
+class _ManualVerify(_ChangeRun):
+    """One change item whose worktree the maintainer made by hand, from ``queued`` to its final state.
+
+    :meth:`Harness.verify_manual` uses it once. The observation is :meth:`_ChangeRun._observe` and the
+    decision is :meth:`_QueryRun._evaluate`, as for a run of ``kiro-cli``; only the start differs:
+    the worktree and the base come from the maintainer's checkout, after the checks of :meth:`_admit`,
+    and ``kiro-cli`` is replaced by a result with exit code 0, no time-out and no output.
+
+    The main working tree is compared from just before this observation to just after it, so a change
+    that the maintainer's own work made earlier is not seen.
+    """
+
+    def __init__(
+        self, harness: Harness, context: RunContext, item: Item, worktree: str, stop: threading.Event | None
+    ) -> None:
+        """Keep the inputs of the observation.
+
+        Args:
+            harness: The harness, which owns the status.
+            context: The checked inputs.
+            item: The change item.
+            worktree: The maintainer's worktree, as given.
+            stop: The stop request, or ``None``.
+        """
+        super().__init__(harness, context, item, stop)
+        self.given = worktree
+
+    def run(self) -> ItemOutcome:
+        """Check, move to ``running``, observe and record the final state.
+
+        Returns:
+            The outcome.
+
+        Raises:
+            VerifyRefused: A check failed; nothing changed.
+        """
+        try:
+            return self._verify()
+        except _Stopped:
+            _LOG.info("%s: stopped before the observation started; it stays queued", self.item.id)
+            return self._outcome(state.QUEUED, "stopped before the observation started", "")
+
+    def _verify(self) -> ItemOutcome:
+        """The steps of :meth:`run`."""
+        item = self.item
+        self._admit()
+        try:
+            before = self._snapshot()
+        except _StepFailed as failure:
+            raise VerifyRefused(f"{item.id}: {failure.what}: {failure.detail}") from None
+        self._check_stop()
+        self.harness._move(
+            item.id,
+            state.RUNNING,
+            MANUAL_VERIFY,
+            pid=None,
+            worktree=_tilde(_present(self.worktree), self.context.home),
+            branch=self.branch,
+            base_sha=self.base_sha,
+            report=None,
+            observations=None,
+            rerun=[],
+            rerun_skipped=[],
+            report_flags=[],
+        )
+        now = _now()
+        result = ProcessResult(
+            argv=(),
+            cwd=_present(self.worktree),
+            pid=None,
+            ending="exited",
+            exit_code=0,
+            stdout=b"",
+            stderr=b"",
+            signals=(),
+            stragglers=False,
+            output_complete=True,
+            start_error=None,
+            missing_program=False,
+            started_at=now,
+            ended_at=now,
+            duration_seconds=0.0,
+        )
+        try:
+            observations, _ = self._observe(result, before)
+        except _StepFailed as failure:
+            return self._conclude(state.NEEDS_HUMAN, "observation_failed", failure.detail)
+        except _Stopped:
+            return self._conclude(state.FAILED, HARNESS_INTERRUPTED, STOPPED_WHILE_OBSERVING)
+        except KeyboardInterrupt:
+            self._conclude(state.FAILED, HARNESS_INTERRUPTED, "観測の途中でハーネスが中断された")
+            raise
+        evaluation = self._evaluate(observations)
+        return self._conclude(evaluation.state, evaluation.history_reason, "", observations)
+
+    def _conclude(
+        self, to_state: str, reason: str, note: str, observations: evaluate.Observations | None = None
+    ) -> ItemOutcome:
+        """Record the final state with the observations, if any, and describe it."""
+        fields: dict[str, Any] = {"pid": None, "report_flags": []}
+        if observations is not None:
+            fields.update(observations.to_json())
+        self.harness._move(self.item.id, to_state, reason, **fields)
+        _LOG.info("%s: %s (%s)", self.item.id, to_state, reason)
+        return ItemOutcome(
+            item_id=self.item.id,
+            state=to_state,
+            reason=reason,
+            detail=note,
+            prompt=None,
+            report=None,
+            worktree=self.worktree,
+            exit_code=None,
+            timed_out=False,
+        )
+
+    def _refuse(self, why: str) -> VerifyRefused:
+        """The refusal for a failed check, which names the item."""
+        return VerifyRefused(f"{self.item.id}: {why}; nothing was changed")
+
+    def _admit(self) -> None:
+        """Check the item and the worktree, then set ``worktree``, ``base_sha``, ``branch`` and ``plan``.
+
+        Raises:
+            VerifyRefused: The item is not ``queued``, or the worktree is not a place, a worktree of
+                this repository, on ``handoff/<id>`` and below the base that the checks above name.
+        """
+        item, config = self.item, self.config
+        record = self.harness.status["items"].get(item.id)
+        if record is None:
+            raise self._refuse("it has no record yet; it starts as queued when run or plan adds it")
+        if record["state"] != state.QUEUED:
+            raise self._refuse(
+                f"it is {record['state']}; only a queued item is observed (a failed or needs-human item that was "
+                f"handed over by hand goes back first: cli.py status set {item.id} queued --reason ...)"
+            )
+        given = self.given
+        if not _is_normal_absolute(given):
+            raise self._refuse(f"--worktree {given!r} is not an absolute path in normal form")
+        real = os.path.realpath(given)
+        protected = [(f"the main working tree of {name}", repo.main_tree) for name, repo in config.repos.items()]
+        protected.append(("this repository's main working tree", self.context.harness_tree))
+        protected.append(("the IDE session worktree directory", self.context.session_worktrees_dir))
+        for label, path in sorted(protected):
+            if overlaps(real, os.path.realpath(path)):
+                raise self._refuse(f"the worktree {given} resolves to {real}, which meets {label}")
+        if not os.path.isdir(real):
+            raise self._refuse(f"the worktree {given} is not a directory")
+        try:
+            plan = command.build_git_plan(config, item)
+        except command.CommandError as error:
+            raise self._refuse(str(error)) from None
+        try:
+            listed = list_worktrees(plan.main_tree, timeout_seconds=self.timeout)
+        except GitCommandFailed as error:
+            raise self._refuse(str(error)) from None
+        if real not in {os.path.realpath(path) for path in listed[1:]}:
+            raise self._refuse(f"{given} is not a worktree that git lists for {item.repo} ({plan.main_tree})")
+        self.worktree, self.plan, self.branch = real, plan, plan.branch
+        try:
+            self._branch_head("the branch of the worktree")
+            self.base_sha = self._base(record["base_sha"])
+        except _StepFailed as failure:
+            raise self._refuse(f"{failure.what}: {failure.detail}") from None
+
+    def _base(self, recorded: str | None) -> str:
+        """The base of the branch: the recorded ``base_sha`` if it is below ``HEAD``, else the merge base with ``origin/main``.
+
+        Raises:
+            _StepFailed: git failed, or the recorded base is not below ``HEAD``, or ``HEAD`` shares no
+                history with ``origin/main``.
+            _Stopped: A stop request came during the fetch.
+        """
+        worktree, plan = _present(self.worktree), _present(self.plan)
+        if recorded is not None:
+            below = self._read(
+                ("git", "-C", worktree, "merge-base", "--is-ancestor", recorded, "HEAD"),
+                worktree,
+                "the recorded base of the item",
+                allowed=(0, 1),
+            )
+            if below.exit_code != 0:
+                raise _StepFailed("the recorded base of the item", below, f"{recorded} is not below HEAD of {worktree}")
+            return recorded
+        fetched = self._git(plan.fetch)
+        if not fetched.ok:
+            raise _StepFailed("the fetch for the base", fetched, _detail(fetched))
+        parsed = self._git(plan.rev_parse)
+        origin_main = parsed.stdout.decode("utf-8", "replace").strip()
+        if not parsed.ok or _OBJECT_ID.fullmatch(origin_main) is None:
+            raise _StepFailed("origin/main for the base", parsed, _detail(parsed))
+        found = self._read(
+            ("git", "-C", worktree, "merge-base", "HEAD", origin_main),
+            worktree,
+            "the base of the branch",
+            allowed=(0, 1),
+        )
+        base = found.stdout.decode("utf-8", "replace").strip()
+        if found.exit_code != 0 or _OBJECT_ID.fullmatch(base) is None:
+            raise _StepFailed("the base of the branch", found, f"HEAD of {worktree} shares no history with origin/main")
+        return base
 
 
 def github_repo_of(url: str) -> str | None:
