@@ -426,6 +426,14 @@ Resources:
   # ---------------------------------------------------------------
   EventTransformerLambda:
     Type: AWS::Lambda::Function
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_116
+            comment: >-
+              This function is invoked only by SQS event source mappings, not asynchronously.
+              AWS documents that, for SQS event sources, the dead-letter queue belongs on the
+              source queue, and both source queues here have a RedrivePolicy.
     Properties:
       FunctionName: !Sub '${ProjectName}-event-transformer-${Environment}'
       Runtime: python3.12

@@ -73,6 +73,22 @@
 
 ---
 
+## Lambda 同時実行数と DLQ (dr-replication / siem-integration)
+
+`event-driven.yaml` の外にある、EventBridge から呼ばれる Lambda 関数 2 つは、同時実行数に上限を設け、失敗したイベントを専用の SQS キューに残します。`dr-replication.yaml` と `siem-integration.yaml` は `main.yaml` に入れ子にされていないため、別のスタックとしてデプロイします。
+
+| 関数 | テンプレート | 予約同時実行数 | DLQ | アラーム |
+|------|-------------|----------------|-----|---------|
+| `LagMonitorLambda` | `dr-replication.yaml` | 1 (固定) | `LagMonitorDlq` | `LagMonitorDlqAlarm` |
+| `SecurityHubPublisherLambda` | `siem-integration.yaml` | `SecurityHubPublisherReservedConcurrency` (既定 10) | `SecurityHubPublisherDlq` | `SecurityHubPublisherDlqAlarm` |
+
+- 各キューは AWS マネージドキー `alias/aws/sqs` で暗号化され、メッセージを 14 日間保持し、スタックと一緒に削除されます。
+- 各実行ロールの `sqs:SendMessage` は、自分のキューにだけ許可されます。
+- 各アラームは、キューに 1 件以上のメッセージが見えている状態 (5 分周期) で発火し、`SecurityAlertTopicArn` の SNS トピックに通知します。キューにメッセージがあることは、Lambda の再試行後も関数が失敗したことを示します。イベントは 14 日間キューに残るので、内容を確認できます。
+- `SecurityHubPublisherReservedConcurrency` (Number、既定 10、最小 1): Lambda はアカウントの同時実行数のうち 100 を未予約のまま残すため、設定できる上限は「アカウントの未予約枠 − 100」です。[Lambda の予約同時実行数](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html)を参照してください。既定の上限 1,000 で他に予約がなければ、上限は 900 です。
+- `event-driven.yaml` の `EventTransformerLambda` は SQS キューから取り込みます。SQS をイベントソースにする場合、AWS は DLQ を関数ではなく取り込み元のキューに置く構成とし、この 2 つの取り込み元キューには `RedrivePolicy` が設定済みです。テンプレートでは `CKV_AWS_116` の Checkov 除外として記録しています。
+- 未測定: これらの変更は cfn-lint、Checkov、ユニットテストで確認しただけで、デプロイはしていません。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い

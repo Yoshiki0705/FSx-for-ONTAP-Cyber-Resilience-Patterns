@@ -118,6 +118,24 @@ Resources:
               - Effect: Allow
                 Action: securityhub:BatchImportFindings
                 Resource: '*'
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt SecurityHubPublisherDlq.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Dead-letter queue for events that the asynchronous EventBridge invocation
+  # could not process after Lambda's retries.
+  SecurityHubPublisherDlq:
+    Type: AWS::SQS::Queue
+    Condition: DeploySecurityHub
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub '${ProjectName}-securityhub-publisher-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days (maximum)
+      KmsMasterKeyId: alias/aws/sqs
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -134,6 +152,8 @@ Resources:
       ReservedConcurrentExecutions: !Ref SecurityHubPublisherReservedConcurrency
       Architectures: [arm64]
       Role: !GetAtt SecurityHubPublisherRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt SecurityHubPublisherDlq.Arn
       Environment:
         Variables:
           PRODUCT_ARN: !Sub 'arn:${AWS::Partition}:securityhub:${AWS::Region}:${AWS::AccountId}:product/${AWS::AccountId}/${ProjectName}'
@@ -148,6 +168,31 @@ Resources:
           Value: !Ref ProjectName
         - Key: Layer
           Value: siem
+
+  SecurityHubPublisherDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: DeploySecurityHub
+    Properties:
+      AlarmName: !Sub '${ProjectName}-securityhub-publisher-dlq-${Environment}'
+      AlarmDescription: >
+        The Security Hub publisher Lambda failed after retries and a failed event is
+        waiting in its dead-letter queue. Findings were not imported.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SecurityHubPublisherDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
 
   SecurityHubEventRule:
     Type: AWS::Events::Rule
@@ -245,6 +290,11 @@ Outputs:
     Condition: DeploySecurityHub
     Description: Security Hub publisher Lambda ARN
     Value: !GetAtt SecurityHubPublisherLambda.Arn
+
+  SecurityHubPublisherDlqUrl:
+    Condition: DeploySecurityHub
+    Description: Dead-letter queue URL for the Security Hub publisher Lambda
+    Value: !Ref SecurityHubPublisherDlq
 
   SiemForwarderQueueUrl:
     Condition: DeploySiemForwarder

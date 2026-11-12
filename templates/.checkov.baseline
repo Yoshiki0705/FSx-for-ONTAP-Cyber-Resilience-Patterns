@@ -6,8 +6,6 @@
                 {
                     "resource": "AWS::Lambda::Function.LagMonitorLambda",
                     "check_ids": [
-                        "CKV_AWS_115",
-                        "CKV_AWS_116",
                         "CKV_AWS_117",
                         "CKV_AWS_173"
                     ]
@@ -20,7 +18,6 @@
                 {
                     "resource": "AWS::Lambda::Function.EventTransformerLambda",
                     "check_ids": [
-                        "CKV_AWS_116",
                         "CKV_AWS_117",
                         "CKV_AWS_173"
                     ]
@@ -74,8 +71,6 @@
                 {
                     "resource": "AWS::Lambda::Function.SecurityHubPublisherLambda",
                     "check_ids": [
-                        "CKV_AWS_115",
-                        "CKV_AWS_116",
                         "CKV_AWS_117",
                         "CKV_AWS_173"
                     ]

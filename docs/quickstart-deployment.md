@@ -415,6 +415,21 @@ echo "All resources deleted."
 | `QuarantineActionS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `NotificationEmail` | `''` | アラートメール送信先 | 本番では設定推奨 |
 
+### dr-replication.yaml
+
+DLQ とアラームの構成は [デプロイガイド](ja/deployment-guide.md) を参照。
+
+| Parameter | Default | 説明 | 変更タイミング |
+|-----------|---------|------|--------------|
+| `SecurityAlertTopicArn` | — | Event-Driven Stack の出力値。DLQ アラームの通知先 | **必須: スタック作成時に指定** |
+
+### siem-integration.yaml
+
+| Parameter | Default | 説明 | 変更タイミング |
+|-----------|---------|------|--------------|
+| `SecurityHubPublisherReservedConcurrency` | `10` | Security Hub 発行 Lambda の予約同時実行数 (最小 1)。上限は「アカウントの未予約枠 − 100」 | 同時実行枠が小さいアカウント、または同時発生イベントが多い環境 |
+| `SecurityAlertTopicArn` | — | Event-Driven Stack の出力値。DLQ アラームの通知先 | **必須: スタック作成時に指定** |
+
 ### observability.yaml
 
 | Parameter | Default | 説明 | 変更タイミング |
