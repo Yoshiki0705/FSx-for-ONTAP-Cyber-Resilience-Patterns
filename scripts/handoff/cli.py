@@ -81,8 +81,8 @@ Subcommands:
   output then points to ``cli.py selftest`` and ``cli.py manual <id>``. A change item that passes
   is started in a worker thread with :meth:`handoff.runner.Harness.run_change_item` (task 5.3),
   as a query item is with :meth:`handoff.runner.Harness.run_query_item`, and ends in the state
-  that ``evaluate.final_state`` gives its observations (the runner does not carry out the
-  conflict check and the re-run of verification commands yet, task 5.3b).
+  that ``evaluate.final_state`` gives its observations, the conflict check and the re-run of its
+  verification commands included (task 5.3b).
   ``command.build_kiro_argv`` still refuses a change item without ``guards_active`` behind this
   check. Without a ``guards_active`` selftest, then, the only ``kiro-cli`` runs are those of query
   items, which trust ``fs_read`` alone (Requirement 28.17). A query item is not checked. The

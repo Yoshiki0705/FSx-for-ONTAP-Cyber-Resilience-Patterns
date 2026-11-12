@@ -80,18 +80,42 @@ and these differences. Step 6 makes the branch ``handoff/<id>`` with ``worktree 
 fails when the branch exists already, so an earlier run's branch is never reset; the branch goes
 into the record with the worktree. ``command.build_kiro_invocation`` refuses a change item without
 a ``guards_active`` selftest, so such an item is held at step 2 (``cli.py run`` holds it earlier,
-task 5.2). Step 8 observes what design section 20 lists for the change mode, with ``base_sha`` in
-the place of ``origin/main`` (``origin/main`` of the main working tree can move while the item
-runs; the base cannot): the worktree's ``HEAD`` must still be on ``handoff/<id>`` (otherwise
-``observation_failed``, since only that branch is handed over), its commits and their subjects
-since the base (step 1), the files changed since the base (step 2), ``git status`` of the
-worktree (step 3), the changed files outside the declared ones (step 4), the handoff branch on
-the remote with ``git -C <main> ls-remote origin refs/heads/handoff/<id>`` (step 7) and the main
-working tree before and after (step 8). Steps 5 and 6, the conflict check and the re-run of the
-declared verification commands, are not carried out yet (task 5.3b, :data:`CHANGE_STEPS_NOT_DONE`):
-``conflicts`` is empty because no conflict was looked for, and no declared verification command
-gets a re-run result or a skip reason, so ``evaluate.final_state`` counts each one as
-``rerun_unaccounted``. The report and the outcome's detail say so.
+task 5.2). Step 8 observes what design section 20 lists for the change mode, in its order, with
+``base_sha`` in the place of ``origin/main`` for steps 1 and 2 (``origin/main`` of the main working
+tree can move while the item runs; the base cannot):
+
+- The worktree's ``HEAD`` must be on ``handoff/<id>`` (otherwise ``observation_failed``, since only
+  that branch is handed over). Its SHA is read once, and steps 1 and 2 use it.
+- Step 1, the commits and their subjects since the base; step 2, the files changed since the base;
+  step 3, ``git status`` of the worktree; step 4, the changed files outside the declared ones.
+- Step 5, the conflict check: ``git -C <main> fetch --no-tags origin main`` (the plan's ``fetch``),
+  ``origin/main`` read with the plan's ``rev-parse``, and the files of
+  ``git diff --name-only <base_sha> <origin/main>``, compared with the changed files by
+  ``evaluate.conflicting_files``. The other handoff branches of a batch are not compared (no batch
+  is passed). The Handoff_Report lists the default branch's files and the conflicts.
+- Step 6, the re-run of the declared verification commands, in their declared order. A command
+  that ``manifest.rerun_skip_reason`` does not allow (``offline: false``, or a pattern such as
+  ``git push``) is not run, and its reason goes to ``rerun_skipped``. None runs when the run cannot
+  end ``succeeded`` from what steps 1 to 4 and ``kiro-cli``'s ending show (``timed_out``,
+  ``exit_code_nonzero``, ``no_commits``, ``dirty``, ``undeclared_files``): the worktree then holds
+  work that is unfinished, uncommitted or not declared, and the harness does not run its code;
+  each command gets that reason instead. The others run one at a time in the worktree, in the
+  environment of ``command.child_env`` with new temporary paths for each (``kiro-cli`` could have
+  written into its own), with ``timeout_seconds``, a process group and the stop request, as
+  ``kiro-cli`` does. The exit code goes to ``rerun``; a command that passed its time limit gets its
+  exit code when that is not 0 (a signal gives a negative one). A command that cannot start, or
+  that passed its time limit and still exited 0 or was not reaped, ends the observation
+  (``observation_failed``), since no exit code can stand for it. The whole output of each goes to
+  the Handoff_Report. When a command ran, the worktree is read again: ``HEAD`` must still be on
+  ``handoff/<id>`` at the SHA of steps 1 and 2 (otherwise ``observation_failed``: the branch would
+  hand over commits that were not observed), and ``git status`` that is no longer empty makes
+  ``dirty`` true (what was verified is then not what was committed).
+- Step 7, the handoff branch on the remote with
+  ``git -C <main> ls-remote origin refs/heads/handoff/<id>``, after the re-runs.
+- Step 8, the main working tree before ``kiro-cli`` and after the re-runs.
+
+A stop request during the observation (the fetch or a re-run) ends the item ``failed``
+(``harness_interrupted``), as one during ``kiro-cli`` does.
 
 Processes. Every process is started with an argv, ``shell=False``, ``stdin`` from
 ``/dev/null`` and ``start_new_session=True``, so that it leads a process group of its own, and
@@ -144,8 +168,7 @@ repositories, reads the effects with its own git, and writes the record
 of ``status.json``. :func:`kiro_fingerprint` gives the ``kiro-cli`` version and ``config_sha256``
 that a result is tied to.
 
-Not done here yet: the conflict check and the re-run of the verification commands of a change
-item (task 5.3b), and the publish mode (task 5.4).
+Not done here yet: the publish mode (task 5.4).
 """
 
 from __future__ import annotations
@@ -176,7 +199,7 @@ from typing import Any, Final, Literal, TypeAlias
 from handoff import command, evaluate, prompt, state
 from handoff.config import HandoffConfig, is_within, normalize_path, overlaps
 from handoff.executor import Executor
-from handoff.manifest import Item, Manifest, RequiredRef
+from handoff.manifest import Item, Manifest, RequiredRef, VerifyCommand, rerun_skip_reason
 
 _LOG: Final = logging.getLogger(__name__)
 
@@ -218,20 +241,19 @@ AGENT_NOT_APPROVED: Final = "agent_not_approved"
 #: with ``--agent``, which kiro-cli would read instead of the approved global one (task 2.5).
 AGENT_SHADOWED: Final = "agent_shadowed"
 
-#: The steps of "結果の確認" (design section 20) that a change run does not carry out yet: 5, the
-#: conflict check, and 6, the re-run of the declared verification commands (task 5.3b). Their
-#: observations are passed as not done: ``conflicts`` is empty because no conflict was looked
-#: for, and no declared verification command gets a re-run result or a skip reason, so
-#: ``evaluate.final_state`` counts each one as ``rerun_unaccounted``.
-CHANGE_STEPS_NOT_DONE: Final[tuple[int, ...]] = (5, 6)
-
-#: What the Handoff_Report and the outcome's detail of an observed change run say about
-#: :data:`CHANGE_STEPS_NOT_DONE`.
-CHANGE_STEPS_NOT_DONE_NOTE: Final = (
-    "結果の確認の手順 5（衝突の確認）と手順 6（宣言した検証コマンドの再実行）は、まだ行っていない"
-    "（タスク 5.3b）。observations の conflicts が空なのは衝突を探していないため。宣言した検証コマンドには"
-    "再実行の結果も再実行しなかった理由もないので、1 つでもあれば rerun_unaccounted になる"
+#: The conditions of ``evaluate.final_state`` that, once steps 1 to 4 show one, keep a change run
+#: from running the declared verification commands (step 6, the module docstring): the worktree
+#: then holds work that is unfinished, uncommitted or not declared.
+RERUN_BLOCKERS: Final[tuple[evaluate.Condition, ...]] = (
+    "timed_out",
+    "exit_code_nonzero",
+    "no_commits",
+    "dirty",
+    "undeclared_files",
 )
+
+#: The note of a stop request that came while a run was observed (the fetch or a re-run).
+STOPPED_WHILE_OBSERVING: Final = "観測の途中（衝突の確認の fetch か検証コマンドの再実行）で停止の依頼を受けて止めた"
 
 #: The directories of a workspace, relative to its root, where an agent configuration could take
 #: the place of the global one in ``~/.kiro/agents/``. kiro-cli's documentation names
@@ -1525,6 +1547,36 @@ class _StepFailed(Exception):
         self.detail = detail
 
 
+@dataclass(frozen=True, slots=True)
+class _ConflictCheck:
+    """Step 5 of a change run, for the Handoff_Report.
+
+    Attributes:
+        origin_main: ``refs/remotes/origin/main`` of the main working tree after the fetch.
+        default_branch_files: The files of ``git diff --name-only <base_sha> <origin_main>``, sorted.
+        conflicts: The item's changed files among them (``evaluate.conflicting_files``).
+    """
+
+    origin_main: str
+    default_branch_files: tuple[str, ...]
+    conflicts: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _Rerun:
+    """One declared verification command of a change run (step 6), for the Handoff_Report.
+
+    Attributes:
+        cmd: The argv, as declared.
+        skip_reason: Why it was not run, or ``None`` when it ran.
+        result: How it ran, or ``None`` when it did not.
+    """
+
+    cmd: tuple[str, ...]
+    skip_reason: str | None
+    result: ProcessResult | None
+
+
 class _QueryRun:
     """One query item from ``queued`` to its final state. :meth:`Harness.run_query_item` uses it once.
 
@@ -1556,6 +1608,7 @@ class _QueryRun:
         self.worktree: str | None = None
         self.base_sha: str | None = None
         self.branch: str | None = None
+        self.plan: command.GitPlan | None = None
 
     def run(self) -> ItemOutcome:
         """Carry out the steps of the module docstring.
@@ -1772,12 +1825,13 @@ class _QueryRun:
         if result.exit_code is None:
             return self._end(report, state.FAILED, "kiro_cli_not_reaped", note="SIGKILL の後も終了を確かめられなかった")
         try:
-            after = self._snapshot()
-            observations = self._observe(result, before, after)
+            observations, after = self._observe(result, before)
         except _StepFailed as failure:
             if result.timed_out:
                 return self._end(report, state.FAILED, "timed_out, observation_failed", note=failure.detail)
             return self._end(report, state.NEEDS_HUMAN, "observation_failed", note=failure.detail)
+        except _Stopped:
+            return self._end(report, state.FAILED, HARNESS_INTERRUPTED, note=STOPPED_WHILE_OBSERVING)
         except KeyboardInterrupt:
             self._end(report, state.FAILED, HARNESS_INTERRUPTED, note="観測の途中でハーネスが中断された")
             raise
@@ -1915,6 +1969,7 @@ class _QueryRun:
 
     def _create_worktree(self, plan: command.GitPlan) -> ItemOutcome | None:
         """Step 6: decision D-15. Returns the outcome when the item is held, ``None`` when the worktree exists."""
+        self.plan = plan
         agreed: str | None = None
         attempts: list[str] = []
         for attempt in (1, 2):
@@ -2007,9 +2062,15 @@ class _QueryRun:
         return result.stdout.decode("utf-8", "replace").strip() or None
 
     def _observe(
-        self, result: ProcessResult, before: evaluate.MainTreeSnapshot, after: evaluate.MainTreeSnapshot
-    ) -> evaluate.Observations:
-        """Build the observations of a query run (design section 20, "結果の確認")."""
+        self, result: ProcessResult, before: evaluate.MainTreeSnapshot
+    ) -> tuple[evaluate.Observations, evaluate.MainTreeSnapshot]:
+        """Build the observations of a query run (design section 20, "結果の確認").
+
+        Returns:
+            The observations, and the snapshot of the main working tree that they compare
+            with ``before``. The snapshot is taken first.
+        """
+        after = self._snapshot()
         worktree, base = _present(self.worktree), _present(self.base_sha)
         argv = ("git", "--no-optional-locks", "-C", worktree, "status", "--porcelain=v1", "-z")
         dirty = bool(self._read(argv, worktree, "git status of the worktree").stdout)
@@ -2031,7 +2092,7 @@ class _QueryRun:
             ).stdout.decode("utf-8", "replace")
             changed = tuple(sorted({name for name in names.split("\0") if name}))
         try:
-            return evaluate.Observations(
+            observations = evaluate.Observations(
                 exit_code=_present(result.exit_code),
                 timed_out=result.timed_out,
                 stdout_bytes=len(result.stdout),
@@ -2047,10 +2108,15 @@ class _QueryRun:
             )
         except evaluate.EvaluationError as exc:
             raise _StepFailed("the observations", None, str(exc)) from exc
+        return observations, after
 
     def report_data(self) -> dict[str, Any]:
         """More keys for the JSON block of the Handoff_Report's observations; none for a query run."""
         return {}
+
+    def report_sections(self) -> list[str]:
+        """More lines for the Handoff_Report, after the observations' notes; none for a query run."""
+        return []
 
 
 class _ChangeRun(_QueryRun):
@@ -2071,82 +2137,140 @@ class _ChangeRun(_QueryRun):
         """
         super().__init__(harness, context, item, stop)
         self.commits: tuple[tuple[str, str], ...] | None = None
+        self.conflict_check: _ConflictCheck | None = None
+        self.reruns: list[_Rerun] | None = None
 
     def report_data(self) -> dict[str, Any]:
-        """The commits since the base, as ``{"sha", "subject"}`` objects; ``None`` when they were not read."""
-        if self.commits is None:
-            return {"commits": None}
-        return {"commits": [{"sha": sha, "subject": subject} for sha, subject in self.commits]}
+        """The commits since the base and the conflict check; ``None`` for what was not reached.
 
-    def _end(
-        self,
-        report: _Report,
-        to_state: str,
-        reason: str,
-        *,
-        note: str | None = None,
-        observations: evaluate.Observations | None = None,
-        after: evaluate.MainTreeSnapshot | None = None,
-    ) -> ItemOutcome:
-        """Record the final state as :class:`_QueryRun` does; an observed run notes the steps not done."""
-        if observations is not None and note is None:
-            note = CHANGE_STEPS_NOT_DONE_NOTE
-        return super()._end(report, to_state, reason, note=note, observations=observations, after=after)
+        Returns:
+            ``commits`` as ``{"sha", "subject"}`` objects, and ``conflict_check`` as
+            ``{"origin_main", "default_branch_files", "conflicts"}``.
+        """
+        commits = None if self.commits is None else [{"sha": sha, "subject": text} for sha, text in self.commits]
+        check = self.conflict_check
+        conflict_check = None
+        if check is not None:
+            conflict_check = {
+                "origin_main": check.origin_main,
+                "default_branch_files": list(check.default_branch_files),
+                "conflicts": list(check.conflicts),
+            }
+        return {"commits": commits, "conflict_check": conflict_check}
+
+    def report_sections(self) -> list[str]:
+        """The conflict check (step 5) and the re-run of each verification command (step 6), with its output."""
+        lines = ["", "### 衝突の確認（結果の確認の手順 5）", ""]
+        check = self.conflict_check
+        if check is None:
+            lines.append("行っていない（観測がこの手順の前に終わった）。")
+        else:
+            lines += [
+                f"- `fetch` の後の `origin/main`: {_code(check.origin_main)}",
+                f"- base_sha から origin/main までに変わったファイル: {len(check.default_branch_files)} 件",
+                *(f"  - {_code(path)}" for path in check.default_branch_files),
+                f"- 衝突（この項目が変えたファイルと同じファイル）: {len(check.conflicts)} 件",
+                *(f"  - {_code(path)}" for path in check.conflicts),
+            ]
+        lines += ["", "### 検証コマンドの再実行（結果の確認の手順 6）", ""]
+        declared = self.item.verify_commands
+        if not declared:
+            lines.append("宣言した検証コマンドはない。")
+            return lines
+        done = self.reruns or []
+        if len(done) < len(declared):
+            lines += [f"宣言した {len(declared)} 件のうち、観測が終わる前に扱ったのは {len(done)} 件。", ""]
+        for index, rerun in enumerate(done, 1):
+            if index > 1:
+                lines.append("")
+            lines += [f"#### {index}. {_code(shlex.join(rerun.cmd))}", ""]
+            if rerun.result is None:
+                lines.append(f"- 再実行しなかった: {_one_line(rerun.skip_reason or '')}")
+                continue
+            ran = rerun.result
+            lines.append(f"- 再実行した: {_rerun_ending(ran, self.timeout)}、所要時間 {ran.duration_seconds:.1f} 秒")
+            if ran.signals:
+                lines.append(f"- プロセスグループへのシグナル: {', '.join(ran.signals)}")
+            for title, data in (("標準出力", ran.stdout), ("標準エラー出力", ran.stderr)):
+                text = data.decode("utf-8", "replace")
+                fence = _fence(text)
+                lines += [
+                    f"- {title}（{len(data)} バイト。UTF-8 として読めないバイトは置換文字にした）:",
+                    "",
+                    fence + "text",
+                    _block(text) + fence,
+                ]
+        return lines
 
     def _observe(
-        self, result: ProcessResult, before: evaluate.MainTreeSnapshot, after: evaluate.MainTreeSnapshot
-    ) -> evaluate.Observations:
+        self, result: ProcessResult, before: evaluate.MainTreeSnapshot
+    ) -> tuple[evaluate.Observations, evaluate.MainTreeSnapshot]:
         """Build the observations of a change run (design section 20, "結果の確認", and the module docstring).
 
+        Returns:
+            The observations, and the snapshot of the main working tree that they compare with
+            ``before``, taken last.
+
         Raises:
-            _StepFailed: A git command failed, ``git log`` printed something else than commits, or
-                the worktree's ``HEAD`` is not on ``handoff/<id>``.
+            _StepFailed: A git command failed, ``git log`` printed something else than commits,
+                the worktree's ``HEAD`` is not on ``handoff/<id>`` or a re-run moved it, or a
+                verification command has no exit code to record.
+            _Stopped: A stop request came during the fetch or a re-run.
         """
-        worktree, base, branch = _present(self.worktree), _present(self.base_sha), _present(self.branch)
-        ref = f"refs/heads/{branch}"
-        on = self._read(
-            ("git", "--no-optional-locks", "-C", worktree, "symbolic-ref", "-q", "HEAD"),
-            worktree,
-            "the branch of the worktree",
-            allowed=(0, 1),
-        )
-        current = on.stdout.decode("utf-8", "replace").strip() if on.exit_code == 0 else ""
-        if current != ref:
-            raise _StepFailed(
-                "the branch of the worktree",
-                None,
-                f"HEAD of the worktree {worktree} is {current or 'detached'}, not {ref}; only {branch} is handed over",
-            )
+        worktree, base = _present(self.worktree), _present(self.base_sha)
+        head = self._branch_head("the branch of the worktree")
         logged = self._read(
-            ("git", "-C", worktree, "log", "-z", "--no-show-signature", "--format=%H%x09%s", f"{base}..HEAD"),
+            ("git", "-C", worktree, "log", "-z", "--no-show-signature", "--format=%H%x09%s", f"{base}..{head}"),
             worktree,
             "the commits of the worktree",
         )
         self.commits = _commit_subjects(logged.stdout)
         names = self._read(
-            ("git", "-C", worktree, "diff", "--name-only", "--no-renames", "-z", base, "HEAD"),
+            ("git", "-C", worktree, "diff", "--name-only", "--no-renames", "-z", base, head),
             worktree,
             "files changed in the worktree",
         ).stdout.decode("utf-8", "replace")
         changed = tuple(sorted({name for name in names.split("\0") if name}))
-        argv = ("git", "--no-optional-locks", "-C", worktree, "status", "--porcelain=v1", "-z")
-        dirty = bool(self._read(argv, worktree, "git status of the worktree").stdout)
+        dirty = self._worktree_dirty()
+        try:
+            undeclared = evaluate.undeclared_files(changed, self.item.declared_files)
+            conflicts = self._conflicts(changed)
+        except evaluate.EvaluationError as exc:
+            raise _StepFailed("the observations", None, str(exc)) from exc
+        blockers = {
+            "timed_out": result.timed_out,
+            "exit_code_nonzero": result.exit_code != 0,
+            "no_commits": not self.commits,
+            "dirty": dirty,
+            "undeclared_files": bool(undeclared),
+        }
+        rerun, rerun_skipped = self._reruns(tuple(name for name in RERUN_BLOCKERS if blockers[name]))
+        if rerun:
+            # A verification command runs the worktree's code, which can commit or leave files.
+            if self._branch_head("the branch of the worktree after the re-runs") != head:
+                raise _StepFailed(
+                    "the branch of the worktree after the re-runs",
+                    None,
+                    f"a verification command moved {self.branch} from {head}; the commits that steps 1 and 2 "
+                    "observed are no longer the ones the branch would hand over",
+                )
+            dirty = self._worktree_dirty() or dirty
         listed = self._read(
-            ("git", "-C", self.main_tree, "ls-remote", command.REMOTE, ref),
+            ("git", "-C", self.main_tree, "ls-remote", command.REMOTE, f"refs/heads/{_present(self.branch)}"),
             self.main_tree,
             "the handoff branch on the remote",
         )
-        rerun, rerun_skipped = self._reruns()
+        after = self._snapshot()
         try:
-            return evaluate.Observations(
+            observations = evaluate.Observations(
                 exit_code=_present(result.exit_code),
                 timed_out=result.timed_out,
                 stdout_bytes=len(result.stdout),
                 commits=len(self.commits),
                 changed_files=changed,
-                undeclared_files=evaluate.undeclared_files(changed, self.item.declared_files),
+                undeclared_files=undeclared,
                 dirty=dirty,
-                conflicts=self._conflicts(changed),
+                conflicts=conflicts,
                 remote_branch_exists=bool(listed.stdout.strip()),
                 main_tree_change=evaluate.main_tree_change(before, after, self.item.declared_files),
                 rerun=rerun,
@@ -2154,28 +2278,143 @@ class _ChangeRun(_QueryRun):
             )
         except evaluate.EvaluationError as exc:
             raise _StepFailed("the observations", None, str(exc)) from exc
+        return observations, after
+
+    def _branch_head(self, what: str) -> str:
+        """The SHA of the worktree's ``HEAD``, which must be on ``handoff/<id>``.
+
+        Raises:
+            _StepFailed: ``HEAD`` is detached or on another branch: only ``handoff/<id>`` is handed over.
+        """
+        worktree, branch = _present(self.worktree), _present(self.branch)
+        ref = f"refs/heads/{branch}"
+        on = self._read(
+            ("git", "--no-optional-locks", "-C", worktree, "symbolic-ref", "-q", "HEAD"),
+            worktree,
+            what,
+            allowed=(0, 1),
+        )
+        current = on.stdout.decode("utf-8", "replace").strip() if on.exit_code == 0 else ""
+        if current != ref:
+            raise _StepFailed(
+                what,
+                None,
+                f"HEAD of the worktree {worktree} is {current or 'detached'}, not {ref}; only {branch} is handed over",
+            )
+        return _present(self._head(worktree, "HEAD of the worktree", unborn_ok=False))
+
+    def _worktree_dirty(self) -> bool:
+        """Step 3: whether ``git status --porcelain`` of the worktree prints anything."""
+        worktree = _present(self.worktree)
+        argv = ("git", "--no-optional-locks", "-C", worktree, "status", "--porcelain=v1", "-z")
+        return bool(self._read(argv, worktree, "git status of the worktree").stdout)
 
     def _conflicts(self, changed: tuple[str, ...]) -> tuple[str, ...]:
-        """Step 5, the conflict check: not carried out yet (task 5.3b), so no conflict is reported.
+        """Step 5, the conflict check, against the default branch after a new fetch.
 
         Args:
-            changed: The item's changed files, which the check will compare.
+            changed: The item's changed files.
 
         Returns:
-            Always empty. :data:`CHANGE_STEPS_NOT_DONE` names the step, and the report and the
-            outcome's detail say that it was not made.
-        """
-        return ()
+            The changed files that ``origin/main`` also changed since the base, as
+            ``evaluate.conflicting_files`` gives them. The check is kept for the report.
 
-    def _reruns(self) -> tuple[tuple[evaluate.RerunResult, ...], tuple[evaluate.RerunSkip, ...]]:
-        """Step 6, the re-run of the declared verification commands: not carried out yet (task 5.3b).
+        Raises:
+            _StepFailed: The fetch, ``rev-parse`` or ``diff`` failed.
+            _Stopped: A stop request came during the fetch or ``rev-parse``.
+            evaluate.EvaluationError: git printed a path that is not repository-relative.
+        """
+        plan, base = _present(self.plan), _present(self.base_sha)
+        fetched = self._git(plan.fetch)
+        if not fetched.ok:
+            raise _StepFailed("the fetch of the conflict check", fetched, _detail(fetched))
+        parsed = self._git(plan.rev_parse)
+        if not parsed.ok:
+            raise _StepFailed("origin/main after the fetch", parsed, _detail(parsed))
+        origin_main = parsed.stdout.decode("utf-8", "replace").strip()
+        if _OBJECT_ID.fullmatch(origin_main) is None:
+            raise _StepFailed("origin/main after the fetch", parsed, f"rev-parse printed {_clip(origin_main)}")
+        diff = ("diff", "--name-only", "--no-renames", "-z", base, origin_main)
+        names = self._read(
+            ("git", "--no-optional-locks", "-C", self.main_tree, *diff),
+            self.main_tree,
+            "files changed on the default branch",
+        ).stdout.decode("utf-8", "replace")
+        default_branch_files = tuple(sorted({name for name in names.split("\0") if name}))
+        conflicts = evaluate.conflicting_files(changed, default_branch_files, ())
+        self.conflict_check = _ConflictCheck(origin_main, default_branch_files, conflicts)
+        return conflicts
+
+    def _reruns(
+        self, blockers: tuple[str, ...]
+    ) -> tuple[tuple[evaluate.RerunResult, ...], tuple[evaluate.RerunSkip, ...]]:
+        """Step 6, the re-run of the declared verification commands, in their declared order.
+
+        Args:
+            blockers: The conditions of :data:`RERUN_BLOCKERS` that steps 1 to 4 showed. When
+                there is one, no command runs.
 
         Returns:
-            No re-run result and no skip reason, so ``evaluate.final_state`` counts every
-            declared verification command as ``rerun_unaccounted``, and an item that declares
-            one needs a human.
+            The re-run results and the skip reasons, which account for every declared command.
+
+        Raises:
+            _StepFailed: A command could not start, or passed its time limit with no exit code
+                other than 0 to record.
+            _Stopped: A stop request came while a command ran.
+            KeyboardInterrupt: The harness was interrupted while a command ran.
         """
-        return (), ()
+        self.reruns = []
+        results: list[evaluate.RerunResult] = []
+        skipped: list[evaluate.RerunSkip] = []
+        for verify in self.item.verify_commands:
+            reason = rerun_skip_reason(verify)
+            if reason is None and blockers:
+                reason = (
+                    f"not re-run, since the run cannot end succeeded ({', '.join(blockers)}): the harness does not "
+                    "run the code of a worktree whose work is unfinished, uncommitted or not declared"
+                )
+            if reason is not None:
+                self.reruns.append(_Rerun(verify.cmd, reason, None))
+                skipped.append(evaluate.RerunSkip(verify.cmd, reason))
+                continue
+            results.append(evaluate.RerunResult(verify.cmd, self._rerun(verify)))
+        return tuple(results), tuple(skipped)
+
+    def _rerun(self, verify: VerifyCommand) -> int:
+        """Run one verification command in the worktree under layer 3, and return its exit code.
+
+        Raises:
+            _StepFailed, _Stopped, KeyboardInterrupt: As for :meth:`_reruns`.
+        """
+        self._check_stop()
+        with _ChildPaths() as child:
+            env = command.child_env(
+                os.environ,
+                push_url=child.push_url,
+                gh_config_dir=child.gh_config_dir,
+                aws_empty_file=child.aws_empty_file,
+            )
+            ran = _run_process(
+                verify.cmd,
+                cwd=_present(self.worktree),
+                env=env,
+                timeout_seconds=self.timeout,
+                kill_grace_seconds=self.grace,
+                stop=self.stop,
+            )
+        _present(self.reruns).append(_Rerun(verify.cmd, None, ran))
+        if ran.ending == "interrupted":
+            raise KeyboardInterrupt
+        if ran.ending == "stopped":
+            raise _Stopped
+        if ran.exit_code is not None and (ran.ending == "exited" or ran.exit_code != 0):
+            return ran.exit_code
+        raise _StepFailed(
+            "the re-run of a verification command",
+            ran,
+            f"{_detail(ran)}\nthe re-run has no exit code to record (exit code {ran.exit_code}), so it counts as "
+            "neither passed nor failed",
+        )
 
 
 class _Report:
@@ -2355,6 +2594,7 @@ class _Report:
         if note:
             fence = _fence(note)
             lines += ["- 補足:", "", fence + "text", *note.splitlines(), fence]
+        lines += self.run.report_sections()
         data = {
             "observations": None if observations is None else observations.to_json(),
             "report_flags": [flag.to_json() for flag in flags],
@@ -3587,6 +3827,20 @@ def _how(result: ProcessResult) -> str:
     if result.exit_code is None:
         return "not reaped"
     return f"exit {result.exit_code}"
+
+
+def _rerun_ending(result: ProcessResult, timeout_seconds: float) -> str:
+    """How a re-run verification command ended, for the Handoff_Report."""
+    code = _exit_text(result.exit_code)
+    if result.ending == "not_started":
+        return f"起動できなかった（{_one_line(result.start_error or '')}）"
+    if result.ending == "timed_out":
+        return f"上限の {timeout_seconds:g} 秒を超えて止めた（終了コード {code}）"
+    if result.ending == "stopped":
+        return f"停止の依頼で止めた（終了コード {code}）"
+    if result.ending == "interrupted":
+        return f"ハーネスの中断で止めた（終了コード {code}）"
+    return f"終了コード {code}"
 
 
 def _detail(result: ProcessResult) -> str:
