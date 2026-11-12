@@ -1284,7 +1284,35 @@
         "docs/en/deployment-guide.md",
         "docs/ja/deployment-guide.md"
       ],
-      "note": "RuleNotification in event-driven.yaml targets SecurityAlertTopic and had no topic policy. HubAlertTopic in hub-aggregation.yaml has the same shape and was not tested."
+      "note": "RuleNotification in event-driven.yaml targets SecurityAlertTopic and had no topic policy. HubNotificationRule in hub-aggregation.yaml targets HubAlertTopic, which had none either; see E-041 for the encryption key."
+    },
+    {
+      "id": "E-041",
+      "claim": "An EventBridge rule on a custom event bus delivers nothing to an SNS topic encrypted with the AWS managed key aws/sns, even when the topic policy allows events.amazonaws.com to publish. It delivers to a topic encrypted with a customer managed key whose key policy and topic policy allow events.amazonaws.com.",
+      "subject": "Amazon EventBridge rule target on an SNS topic with server-side encryption, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-use-resource-based.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "The Amazon SNS permissions section covers the topic policy only. It does not mention topic encryption, so this entry rests on the observation."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. A rule on a custom event bus (pattern: source prefix fsxn.cyber-resilience, detail-type MalwareDetected) with an SNS topic target. Topic encrypted with alias/aws/sns and a topic policy allowing events.amazonaws.com with aws:SourceAccount: four put-events calls were accepted, nothing reached a subscribed SQS queue, and the rule's FailedInvocations metric showed 2. Topic encrypted with a customer managed key (key policy: account root administers, events.amazonaws.com may call kms:Decrypt and kms:GenerateDataKey* under aws:SourceAccount) with the same topic policy: delivered on the first event.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether EventBridge can publish to a topic encrypted with aws/sns. The design uses a customer managed key, which works whichever way the answer goes."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "Tested with the rule and the topic in one account. Events forwarded from another account to the bus were not tested."
     }
   ]
 }
