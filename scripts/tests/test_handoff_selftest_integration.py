@@ -110,7 +110,22 @@ def recompute(record: dict[str, Any]) -> tuple[dict[str, str], str]:
         effects = None if entry["effects"] is None else evaluate.TrialEffects.from_json(entry["effects"])
         lines = [evaluate.GuardLogLine.from_json(line) for line in entry["guard_log"]]
         outcomes[trial] = evaluate.trial_outcome(entry["token"], effects, lines)
-    return outcomes, evaluate.selftest_verdict(evaluate.SelftestTrials(**outcomes))
+    effects = {
+        trial: None
+        if not record["trials"][trial]["attempted"] or record["trials"][trial]["effects"] is None
+        else evaluate.TrialEffects.from_json(record["trials"][trial]["effects"])
+        for trial in TRIALS
+    }
+    listings = {
+        trial: None if listed is None else [(item["ref"], item["sha"]) for item in listed]
+        for trial, listed in record["ls_remote"].items()
+    }
+    trials = evaluate.SelftestTrials(
+        **outcomes,
+        gh_failed=evaluate.gh_auth_failed(record["trials"]["t3"]["token"], effects["t3"]),
+        remote_branch_absent=evaluate.remote_branch_absent(effects, listings),
+    )
+    return outcomes, evaluate.selftest_verdict(trials)
 
 
 def canonical_sha256(parts: dict[str, Any]) -> str:
@@ -151,6 +166,18 @@ COMBOS: tuple[tuple[str, dict[str, str], str, tuple[str, ...]], ...] = (
         (COMPLETED, BLOCKED, BLOCKED, OTHER, OTHER),
     ),
     (
+        "gh-auth-status-succeeds",
+        {"T0": "commit", "T1": "guard-block", "T2": "guard-block", "T3": "gh-status", "T4": "write-file"},
+        "unconfirmed",
+        (COMPLETED, BLOCKED, BLOCKED, COMPLETED, OTHER),
+    ),
+    (
+        "a-branch-reaches-a-remote-in-t3",
+        {"T0": "commit", "T1": "guard-block", "T2": "guard-block", "T3": "gh-status,push-url", "T4": "write-file"},
+        "unconfirmed",
+        (COMPLETED, BLOCKED, BLOCKED, OTHER, OTHER),
+    ),
+    (
         "every-operation-took-effect",
         {
             "T0": "commit",
@@ -177,7 +204,7 @@ def test_guards_active_only_when_t0_completed_and_both_guards_stopped(
     """The verdict, the record, ``status.json`` and the fake's runs agree for one set of trial behaviors."""
     sb = handoff_sandbox
     variables = {f"FAKE_KIRO_MODE_{trial}": behavior for trial, behavior in modes.items()}
-    if name == "every-operation-took-effect":
+    if name in ("every-operation-took-effect", "gh-auth-status-succeeds"):
         variables["FAKE_KIRO_GH_EXIT"] = "0"  # as with a token in the keychain, which layer 3 does not reach
     sb.apply_environ(monkeypatch, FAKE_KIRO_COMMIT_FILES="README.md", **variables)
     started = TRIALS[:1] if name == "t0-fails" else TRIALS
@@ -196,6 +223,18 @@ def test_guards_active_only_when_t0_completed_and_both_guards_stopped(
     assert (record["result"], record["interrupted"], record["run_id"]) == (result, False, outcome.run_id)
     assert {trial: record["trials"][trial]["outcome"] for trial in TRIALS} == outcomes
     assert recompute(record) == (outcomes, result)
+    # task 5.8: the two observations that the verdict reads, and the listing they come from
+    gh_failed = name not in ("t0-fails", "gh-auth-status-succeeds", "every-operation-took-effect")
+    branch_absent = name not in ("a-branch-reaches-a-remote-in-t3", "every-operation-took-effect")
+    if name == "t0-fails":
+        branch_absent = False  # the other trials did not start, so nothing was looked at
+    assert (record["gh_failed"], record["remote_branch_absent"]) == (gh_failed, branch_absent)
+    for trial in TRIALS:
+        listed = record["ls_remote"][trial]
+        assert (listed is None) is (trial not in started)
+        if listed is not None:
+            after = record["trials"][trial]["effects"]["remote_refs_after"]
+            assert listed == after  # ls-remote and for-each-ref agree on the bare repository
     assert canonical_sha256(record["config_parts"]) == record["config_sha256"] == outcome.fingerprint.digest.sha256
     assert record["kiro_cli"] == {
         "path": "~/.local/bin/kiro-cli",

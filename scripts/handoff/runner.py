@@ -163,7 +163,8 @@ repository, and starts each trial's ``kiro-cli`` the way an item's starts (the e
 ``command.child_env``, a process group, ``timeout_seconds``), with ``HANDOFF_GUARD_LOG`` added. The
 pure core builds the argv (``command.build_selftest_invocation``) and decides each outcome
 (``evaluate.trial_outcome``) and the result (``evaluate.selftest_verdict``); the runner makes the
-repositories, reads the effects with its own git, and writes the record
+repositories, reads the effects with its own git, lists each trial's bare repository with
+``git ls-remote`` after the trials (task 5.8), and writes the record
 ``.private/handoff/selftest/<run ID>.json``, the output of each trial next to it, and ``selftest``
 of ``status.json``. :func:`kiro_fingerprint` gives the ``kiro-cli`` version and ``config_sha256``
 that a result is tied to.
@@ -1368,6 +1369,10 @@ class Harness:
     ) -> tuple[PublishOutcome, ...]:
         """Publish the ``succeeded`` items that one approval lists: push, confirm, open a draft pull request.
 
+        This is the publishing run that Requirement 23.4 excepts from its ban on pushes and pull
+        requests and that Requirement 28.15 approves: the maintainer approved the batch in this
+        session and ``approval`` lists it. No item outside the list is pushed or opened.
+
         Only the argv of ``command.build_publish_plan`` is run (no ``kiro-cli``, in the harness's
         own environment). Before a push, the commit messages and the added lines of the diff
         are scanned with ``scan.check_publish``, and the default branch is fetched again to check
@@ -1531,8 +1536,15 @@ class Harness:
            git, the guard log is read, and ``evaluate.trial_outcome`` decides. A T0 that is
            not ``completed`` ends the trials; so does a trial whose repositories could not be
            made. A trial that did not start counts as ``failed_otherwise``.
-        7. ``evaluate.selftest_verdict``, the record, and ``selftest`` of ``status.json``:
-           ``result``, ``at``, ``kiro_cli_version``, ``record`` and ``config_sha256``.
+        7. After the last trial, ``git ls-remote`` on each trial's bare repository (task 5.8), and
+           ``evaluate.gh_auth_failed`` on T3. ``evaluate.selftest_verdict`` decides: T0
+           ``completed``, T1 and T2 ``blocked_by_guard`` (so T2's push did not take effect),
+           ``gh auth status`` failed in T3 (a non-zero ``gh-exit`` was observed), and no remote
+           holds a ref other than before. A success of the push or of ``gh auth status``, or a
+           branch on a remote, gives ``unconfirmed`` (Requirements 28.16, 28.17). The record
+           keeps ``gh_failed``, ``remote_branch_absent`` and ``ls_remote`` of each trial. Then
+           the record and ``selftest`` of ``status.json``: ``result``, ``at``,
+           ``kiro_cli_version``, ``record`` and ``config_sha256``.
 
         Up to step 5 nothing is written, and an error leaves ``status.json`` and an earlier
         result as they were. A ``KeyboardInterrupt`` during the trials stops the running
@@ -3414,13 +3426,40 @@ class _Selftest:
             _write_file(record_path, _record_bytes({**record, "trials": trials}), self.directory)
             raise
 
+        listings = self._ls_remote_all(run_dir, trials)
+        effects = {
+            trial: None
+            if trials[trial]["effects"] is None
+            else evaluate.TrialEffects.from_json(trials[trial]["effects"])
+            for trial in evaluate.SELFTEST_TRIALS
+        }
+        gh_failed = evaluate.gh_auth_failed(tokens["t3"], effects["t3"])
+        branch_absent = evaluate.remote_branch_absent(effects, listings)
         result = evaluate.selftest_verdict(
             evaluate.SelftestTrials(
-                t0=outcomes["t0"], t1=outcomes["t1"], t2=outcomes["t2"], t3=outcomes["t3"], t4=outcomes["t4"]
+                t0=outcomes["t0"],
+                t1=outcomes["t1"],
+                t2=outcomes["t2"],
+                t3=outcomes["t3"],
+                t4=outcomes["t4"],
+                gh_failed=gh_failed,
+                remote_branch_absent=branch_absent,
             )
         )
         ended_at = _now()
-        record = {**header, "ended_at": ended_at, "result": result, "interrupted": False, "stopped": stopped}
+        record = {
+            **header,
+            "ended_at": ended_at,
+            "result": result,
+            "interrupted": False,
+            "stopped": stopped,
+            "gh_failed": gh_failed,
+            "remote_branch_absent": branch_absent,
+            "ls_remote": {
+                trial: None if listing is None else [{"ref": ref, "sha": sha} for ref, sha in listing]
+                for trial, listing in listings.items()
+            },
+        }
         _write_file(record_path, _record_bytes({**record, "trials": trials}), self.directory)
         relative = _rel(record_path, self.directory)
         self.harness._record_selftest(
@@ -3434,8 +3473,12 @@ class _Selftest:
         )
         detail = ""
         if result != evaluate.GUARDS_ACTIVE:
-            seen = ", ".join(f"{trial.upper()} {outcomes[trial]}" for trial in ("t0", "t1", "t2"))
-            detail = f"{seen} (guards_active needs T0 completed, T1 and T2 blocked_by_guard)"
+            seen = ", ".join(f"{trial.upper()} {outcomes[trial]}" for trial in ("t0", "t1", "t2", "t3"))
+            detail = (
+                f"{seen}, gh auth status failed: {gh_failed}, no branch on the remotes: {branch_absent} "
+                "(guards_active needs T0 completed, T1 and T2 blocked_by_guard, "
+                "gh auth status failed in T3, and no branch on any trial's remote)"
+            )
             if stopped is not None:
                 detail += f"; {stopped}"
         _LOG.info("selftest %s: %s (%s)", run_id, result, relative)
@@ -3601,6 +3644,40 @@ class _Selftest:
             remote_refs_after=self._remote_refs(paths.remote),
             status_paths=tuple(path for _, path in evaluate.parse_status_z(status.stdout.decode("utf-8", "replace"))),
         )
+
+    def _ls_remote_all(
+        self, run_dir: str, trials: dict[str, dict[str, Any]]
+    ) -> dict[str, tuple[tuple[str, str], ...] | None]:
+        """``git ls-remote`` on each trial's bare repository after all trials (Requirement 28.16).
+
+        The listing is made with the harness's own git on the bare repository's path, not on the
+        trial's clone, whose ``origin`` ``kiro-cli`` could have changed.
+
+        Returns:
+            ``(ref, object ID)`` of every ref but ``HEAD``, by trial. ``None`` for a trial that
+            did not start or whose listing failed.
+        """
+        listings: dict[str, tuple[tuple[str, str], ...] | None] = {}
+        for trial in evaluate.SELFTEST_TRIALS:
+            listings[trial] = None
+            if not trials[trial]["attempted"]:
+                continue
+            remote = command.selftest_paths(run_dir, trial).remote
+            try:
+                listed = self._read(("git", "--no-optional-locks", "-C", remote, "ls-remote", remote), remote)
+            except _StepFailed:
+                continue
+            refs: list[tuple[str, str]] = []
+            for line in listed.stdout.decode("utf-8", "replace").splitlines():
+                sha, separator, ref = line.partition("\t")
+                if not separator:
+                    refs = []
+                    break
+                if ref != "HEAD":
+                    refs.append((ref, sha))
+            else:
+                listings[trial] = tuple(sorted(refs))
+        return listings
 
     def _remote_refs(self, remote: str) -> tuple[tuple[str, str], ...]:
         """``(ref, object ID)`` of every ref of a bare repository."""

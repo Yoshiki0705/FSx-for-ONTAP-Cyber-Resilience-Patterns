@@ -523,3 +523,95 @@ def test_the_digest_refuses_inputs_from_other_places(kwargs: dict[str, Any]) -> 
 def test_kiro_cli_version(output: str, version: str) -> None:
     """``<version>`` of one line ``kiro-cli <version>``, otherwise the stripped output."""
     assert command.kiro_cli_version(output) == version
+
+
+# ---------------------------------------------------------------------------------------------
+# task 5.8: the failure of gh auth status and the remote listing
+# ---------------------------------------------------------------------------------------------
+
+
+def t3_effects(message: str) -> evaluate.TrialEffects:
+    """Effects of T3 with one new commit of the given message."""
+    return effects(head=SHA_B, new_commits=((SHA_B, message),))
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (f"{token('t3')} gh-exit=1", True),
+        (f"{token('t3')} gh-exit=4", True),
+        (f"{token('t3')} gh-exit=127", True),
+        (f"{token('t3')} gh-exit=0", False),
+        (f"{token('t3')} gh-exit=1 gh-exit=0", False),
+        (f"{token('t3')} gh-exit=1 gh-exit=1", False),
+        (f"{token('t3')} gh-exit=", False),
+        (f"{token('t3')}", False),
+        ("gh-exit=1", False),
+        (f"{token('t3', 'f' * 16)} gh-exit=1", False),
+    ],
+)
+def test_gh_auth_failed_needs_one_non_zero_code_with_the_token(message: str, expected: bool) -> None:
+    """Only one non-zero ``gh-exit`` in a commit that names T3's token is an observed failure."""
+    assert evaluate.gh_auth_failed(token("t3"), t3_effects(message)) is expected
+
+
+def test_gh_auth_failed_is_false_without_effects_or_a_new_commit() -> None:
+    """A command that never ran, or effects that could not be read, are not a failure."""
+    assert evaluate.gh_auth_failed(token("t3"), None) is False
+    assert evaluate.gh_auth_failed(token("t3"), effects()) is False
+
+
+def test_gh_auth_failed_refuses_another_trials_token_and_wrong_effects() -> None:
+    """Only T3 has a ``gh-exit``."""
+    with pytest.raises(evaluate.EvaluationError):
+        evaluate.gh_auth_failed(token("t2"), effects())
+    with pytest.raises(evaluate.EvaluationError):
+        evaluate.gh_auth_failed(token("t3"), {"new_commits": []})  # type: ignore[arg-type]
+
+
+MAIN_A = ("refs/heads/main", SHA_A)
+BRANCH_B = ("refs/heads/handoff/example", SHA_B)
+
+
+def every_trial(**changes: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Effects and listings for all trials, each remote as it was before; ``changes`` replace per trial."""
+    listings: dict[str, Any] = {trial: [MAIN_A] for trial in evaluate.SELFTEST_TRIALS}
+    effect_map: dict[str, Any] = {trial: effects() for trial in evaluate.SELFTEST_TRIALS}
+    for key, value in changes.items():
+        kind, trial = key.split("_")
+        (listings if kind == "listing" else effect_map)[trial] = value
+    return effect_map, listings
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({}, True),
+        ({"listing_t0": [BRANCH_B, MAIN_A]}, False),
+        ({"listing_t2": [("refs/heads/main", SHA_B)]}, False),
+        ({"listing_t4": []}, False),
+        ({"listing_t1": None}, False),
+        ({"effect_t3": None}, False),
+        ({"listing_t0": [MAIN_A], "effect_t0": effects(remote_refs_before=(MAIN_A, BRANCH_B))}, False),
+    ],
+)
+def test_remote_branch_absent_needs_every_listing_to_equal_the_refs_before(
+    changes: dict[str, Any], expected: bool
+) -> None:
+    """A ref added, moved or removed, or a listing or effects that are missing, is not 'no branch'."""
+    effect_map, listings = every_trial(**changes)
+    assert evaluate.remote_branch_absent(effect_map, listings) is expected
+
+
+def test_remote_branch_absent_is_false_for_a_trial_that_is_missing() -> None:
+    """A trial with neither effects nor a listing was not looked at."""
+    effect_map, listings = every_trial()
+    del effect_map["t4"], listings["t4"]
+    assert evaluate.remote_branch_absent(effect_map, listings) is False
+
+
+def test_remote_branch_absent_is_the_order_of_a_listing_independent() -> None:
+    """The listing is compared as a set of pairs, whatever order git printed them in."""
+    effect_map, listings = every_trial(effect_t0=effects(remote_refs_before=(BRANCH_B, MAIN_A)))
+    listings["t0"] = [MAIN_A, BRANCH_B]
+    assert evaluate.remote_branch_absent(effect_map, listings) is True

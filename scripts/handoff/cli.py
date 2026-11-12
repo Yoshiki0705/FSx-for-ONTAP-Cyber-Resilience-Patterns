@@ -134,7 +134,13 @@ Subcommands:
   ``worktree`` becomes ``null``. A branch is never deleted here: after the pull request is merged,
   the maintainer runs the ``git branch -d`` that the listing shows. Reports are kept.
 - ``publish --approval FILE`` (task 5.4): publishes the ``succeeded`` change items that the approval
-  lists, with :meth:`handoff.runner.Harness.publish_batch`. ``FILE`` is a record below
+  lists, with :meth:`handoff.runner.Harness.publish_batch`. This is the one explicit publishing run
+  that Requirement 23.4 leaves out of its ban on pushes and pull requests from this repository's
+  work (the exception: "the publishing run that Requirement 28.15 approves"): the maintainer
+  approved the batch in this session, and the approval lists it. The items a target repository's
+  Kiro worked on never push or open a pull request themselves (Requirement 28.14); this command, which
+  starts no ``kiro-cli``, is the only place the harness pushes to a target repository or runs ``gh pr create``,
+  and only for the items the approval lists. ``FILE`` is a record below
   ``.private/handoff/approvals/`` (a regular file, not a symbolic link) with exactly ``approved_at``
   (:data:`handoff.state.TIMESTAMP_FORMAT`, not in the future), ``item_ids`` (the items the maintainer
   approved, each once) and ``approved_in`` (the record of the session that holds the approval, below
@@ -150,7 +156,9 @@ Subcommands:
   ``selftest`` of ``status.json``. Standard output shows the result, each trial's outcome and
   whether its ``kiro-cli`` started, the record ``.private/handoff/selftest/<run ID>.json``, and
   whether ``selftest`` of ``status.json`` changed, as the harness last wrote it; standard error
-  shows why a result is ``unconfirmed``. A selftest that stops before its trials writes neither
+  shows why a result is ``unconfirmed``. The result is ``guards_active`` only when T0 completed, a
+  guard stopped T1 and T2, ``gh auth status`` failed in T3 and ``git ls-remote`` after the trials
+  showed no branch on any trial's remote (task 5.8; Requirements 28.16, 28.17). A selftest that stops before its trials writes neither
   the record nor ``status.json``, and standard error says that ``status.json`` kept its
   ``selftest``. When ``kiro-cli`` is not found, or ``kiro-cli --version`` gives no version,
   standard error says which, and the manual display of each change item of the manifest that is
@@ -1977,7 +1985,12 @@ _PUBLISH_APPROVAL_KEYS: Final = ("approved_at", "item_ids", "approved_in")
 
 
 def _publish(args: argparse.Namespace, inputs: _Inputs) -> int:
-    """``publish --approval FILE``: publish the batch that the approval lists (the module docstring)."""
+    """``publish --approval FILE``: publish the batch that the approval lists (the module docstring).
+
+    The exception of Requirement 23.4 (the publishing run that Requirement 28.15 approves): one
+    approval covers the items it lists, each once, and no other item is pushed or opened as a pull
+    request, whatever its state.
+    """
     approval = _read_publish_approval(args.approval, inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:

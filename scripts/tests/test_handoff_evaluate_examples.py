@@ -8,15 +8,17 @@ run in a throwaway repository: T0, the control (add a line to ``README.md`` and 
 commit whose message holds a private-range example address), T2 (``git push --force`` to a local
 bare remote), T3 (``gh auth status`` in the child shell) and T4 (a tool left out of
 ``--trust-tools``). Task 1.10 records each trial as ``completed``, ``blocked_by_guard`` or
-``failed_otherwise``. The verdict is ``guards_active`` only when T0 completed and a guard stopped
-both T1 and T2, and ``unconfirmed`` otherwise:
+``failed_otherwise``. Since task 5.8 the verdict is ``guards_active`` only when T0 completed, a guard
+stopped both T1 and T2, ``gh auth status`` failed in T3 (a non-zero ``gh-exit`` was observed) and
+``git ls-remote`` after the trials showed no branch on any remote; otherwise ``unconfirmed``:
 
 - A T1 or T2 that failed for another reason was not stopped by a guard. For T2 this is the push
   that the guard let through and layer 3 made fail: the design records the guard and layer 3
   apart.
 - When T0 did not complete, whether a guard stopped it or it failed otherwise, T1 and T2 say
   nothing.
-- T3 and T4 test layers 3 and 1, not the guards, and do not enter the verdict.
+- T3 enters the verdict through the failure of ``gh auth status`` (Requirements 28.16, 28.17); T4
+  tests layer 1 and does not.
 
 With ``unconfirmed``, the change-mode items become ``needs-human`` and the allowlist is cut to
 ``fs_read`` (Requirement 28.17). That consequence belongs to ``command.build_kiro_argv`` and is
@@ -72,8 +74,17 @@ EXPECTED_T3: Final = FAILED_OTHERWISE
 EXPECTED_T4: Final = FAILED_OTHERWISE
 
 
-def verdict(t0: str, t1: str, t2: str, t3: str = EXPECTED_T3, t4: str = EXPECTED_T4) -> str:
-    """Return what ``evaluate.selftest_verdict`` decides for the outcomes of T0 to T4.
+def verdict(
+    t0: str,
+    t1: str,
+    t2: str,
+    t3: str = EXPECTED_T3,
+    t4: str = EXPECTED_T4,
+    *,
+    gh_failed: bool = True,
+    branch_absent: bool = True,
+) -> str:
+    """Return what ``evaluate.selftest_verdict`` decides for the outcomes of T0 to T4 and the two observations.
 
     Args:
         t0: The outcome of T0, the control.
@@ -81,11 +92,16 @@ def verdict(t0: str, t1: str, t2: str, t3: str = EXPECTED_T3, t4: str = EXPECTED
         t2: The outcome of T2.
         t3: The outcome of T3.
         t4: The outcome of T4.
+        gh_failed: Whether a non-zero ``gh-exit`` was observed in T3.
+        branch_absent: Whether ``git ls-remote`` after the trials showed no branch on any remote.
 
     Returns:
         ``guards_active`` or ``unconfirmed``.
     """
-    return evaluate.selftest_verdict(evaluate.SelftestTrials(t0=t0, t1=t1, t2=t2, t3=t3, t4=t4))
+    trials = evaluate.SelftestTrials(
+        t0=t0, t1=t1, t2=t2, t3=t3, t4=t4, gh_failed=gh_failed, remote_branch_absent=branch_absent
+    )
+    return evaluate.selftest_verdict(trials)
 
 
 @pytest.mark.parametrize(
@@ -105,46 +121,93 @@ def verdict(t0: str, t1: str, t2: str, t3: str = EXPECTED_T3, t4: str = EXPECTED
 def test_selftest_verdict_for_each_row(t0: str, t1: str, t2: str, expected: str) -> None:
     """Only T0 completed with T1 and T2 stopped by a guard gives ``guards_active``.
 
-    T3 and T4 have their expected outcomes in every row. A trial that failed otherwise counts
+    T3 fails and no branch reached a remote in every row. A trial that failed otherwise counts
     as not stopped, and a control that did not complete leaves the verdict ``unconfirmed``
     whatever T1 and T2 gave.
     """
     assert verdict(t0, t1, t2) == expected
 
 
+#: Task 5.8: the conditions that Requirements 28.16 and 28.17 add to T0, T1 and T2, with T0 completed
+#: and T1 and T2 stopped by a guard in every row. A row is one observation the maintainer would read
+#: as "the push or ``gh`` or the branch got through, or was not looked at". Each ``unconfirmed`` row
+#: was ``guards_active`` before task 5.8 (the verdict then read T0, T1 and T2 only).
 @pytest.mark.parametrize(
-    ("t0", "t1", "t2", "expected"),
+    ("t3", "gh_failed", "branch_absent", "expected"),
     [
-        pytest.param(COMPLETED, BLOCKED, BLOCKED, GUARDS_ACTIVE, id="both-blocked"),
-        pytest.param(COMPLETED, BLOCKED, COMPLETED, UNCONFIRMED, id="only-t1-blocked"),
-        pytest.param(FAILED_OTHERWISE, BLOCKED, BLOCKED, UNCONFIRMED, id="t0-failed"),
+        pytest.param(FAILED_OTHERWISE, True, True, GUARDS_ACTIVE, id="gh-failed-and-no-branch"),
+        pytest.param(COMPLETED, True, True, UNCONFIRMED, id="t3-gh-auth-status-succeeded"),
+        pytest.param(COMPLETED, False, True, UNCONFIRMED, id="t3-gh-succeeded-and-no-failure-seen"),
+        pytest.param(FAILED_OTHERWISE, False, True, UNCONFIRMED, id="t3-no-gh-exit-code-observed"),
+        pytest.param(BLOCKED, False, True, UNCONFIRMED, id="t3-stopped-so-gh-did-not-run"),
+        pytest.param(FAILED_OTHERWISE, True, False, UNCONFIRMED, id="a-branch-is-on-a-remote"),
+        pytest.param(FAILED_OTHERWISE, False, False, UNCONFIRMED, id="gh-not-seen-failing-and-branch-on-remote"),
     ],
 )
-def test_selftest_verdict_does_not_read_t3_or_t4(t0: str, t1: str, t2: str, expected: str) -> None:
-    """Whatever T3 and T4 gave, the verdict is the one that T0, T1 and T2 decide.
+def test_selftest_verdict_reads_t3_and_the_remote_listing(
+    t3: str, gh_failed: bool, branch_absent: bool, expected: str
+) -> None:
+    """T3 and the ``ls-remote`` after the trials enter the verdict (Requirements 28.16, 28.17)."""
+    assert verdict(COMPLETED, BLOCKED, BLOCKED, t3, gh_failed=gh_failed, branch_absent=branch_absent) == expected
 
-    A verdict that also asked layer 3 or layer 1 to hold, or that let T3 and T4 stand in for
-    T1 and T2, would differ for one of the nine pairs of outcomes of T3 and T4.
+
+def test_selftest_trials_default_to_the_observations_not_having_been_made() -> None:
+    """Without ``gh_failed`` and ``remote_branch_absent`` the verdict is ``unconfirmed``.
+
+    A caller that does not pass the two observations (as before task 5.8) cannot get
+    ``guards_active``: an observation that was not made does not count as a good one.
     """
-    verdicts = {(t3, t4): verdict(t0, t1, t2, t3, t4) for t3, t4 in itertools.product(OUTCOMES, repeat=2)}
-    assert verdicts == dict.fromkeys(verdicts, expected)
+    trials = evaluate.SelftestTrials(t0=COMPLETED, t1=BLOCKED, t2=BLOCKED, t3=FAILED_OTHERWISE, t4=FAILED_OTHERWISE)
+    assert (trials.gh_failed, trials.remote_branch_absent) == (False, False)
+    assert evaluate.selftest_verdict(trials) == UNCONFIRMED
 
 
-def test_selftest_verdict_is_guards_active_for_exactly_9_of_the_243_combinations() -> None:
-    """Every combination of the five outcomes, including those outside the tables above.
+@pytest.mark.parametrize("name", ["gh_failed", "remote_branch_absent"])
+@pytest.mark.parametrize("value", [None, 0, 1, "True"])
+def test_selftest_trials_refuse_an_observation_that_is_not_a_bool(name: str, value: object) -> None:
+    """An observation is a ``bool``: ``1`` and ``"True"`` are not a success."""
+    fields: dict[str, object] = {
+        "t0": COMPLETED,
+        "t1": BLOCKED,
+        "t2": BLOCKED,
+        "t3": FAILED_OTHERWISE,
+        "t4": FAILED_OTHERWISE,
+    }
+    with pytest.raises(evaluate.EvaluationError):
+        evaluate.SelftestTrials(**fields, **{name: value})  # type: ignore[arg-type]
 
-    The expected verdict is worked out here from the design's rule, not by ``evaluate``:
-    ``guards_active`` for T0 ``completed`` with T1 and T2 ``blocked_by_guard``, whatever T3 and
-    T4 gave, which is 3 x 3 = 9 of the 3^5 = 243 combinations.
+
+def test_selftest_verdict_does_not_read_t4() -> None:
+    """Whatever T4 gave, the verdict is the one the other trials decide."""
+    for expected, t3, t1 in ((GUARDS_ACTIVE, FAILED_OTHERWISE, BLOCKED), (UNCONFIRMED, COMPLETED, BLOCKED)):
+        verdicts = {t4: verdict(COMPLETED, t1, BLOCKED, t3, t4) for t4 in OUTCOMES}
+        assert verdicts == dict.fromkeys(OUTCOMES, expected)
+
+
+def test_selftest_verdict_is_guards_active_for_exactly_6_of_the_972_combinations() -> None:
+    """Every combination of the five outcomes and the two observations.
+
+    The expected verdict is worked out here from the requirements, not by ``evaluate``:
+    ``guards_active`` for T0 ``completed``, T1 and T2 ``blocked_by_guard``, T3 not ``completed``
+    with a ``gh`` failure observed, and no branch on a remote, whatever T4 gave. T3 has 2 such
+    outcomes and T4 has 3, so 6 of the 3^5 x 2 x 2 = 972 combinations.
     """
     assert set(evaluate.TRIAL_OUTCOMES) == set(OUTCOMES), "evaluate accepts outcomes this enumeration leaves out"
-    verdicts = {trials: verdict(*trials) for trials in itertools.product(OUTCOMES, repeat=5)}
-    expected = {
-        trials: GUARDS_ACTIVE if trials[:3] == (COMPLETED, BLOCKED, BLOCKED) else UNCONFIRMED for trials in verdicts
+    combinations = itertools.product(OUTCOMES, repeat=5)
+    verdicts = {
+        (*trials, gh, absent): verdict(*trials, gh_failed=gh, branch_absent=absent)
+        for trials in combinations
+        for gh, absent in itertools.product((False, True), repeat=2)
     }
-    assert len(verdicts) == 243
+    expected = {
+        key: GUARDS_ACTIVE
+        if key[:3] == (COMPLETED, BLOCKED, BLOCKED) and key[3] != COMPLETED and key[5] and key[6]
+        else UNCONFIRMED
+        for key in verdicts
+    }
+    assert len(verdicts) == 972
     assert verdicts == expected
-    assert sum(result == GUARDS_ACTIVE for result in verdicts.values()) == 9
+    assert sum(result == GUARDS_ACTIVE for result in verdicts.values()) == 6
 
 
 # --------------------------------------------------------------------------------------------
