@@ -76,10 +76,19 @@ Parameters:
     Default: ''
     Description: S3 bucket for Lambda code packages.
 
+  LambdaEnvKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Lambda environment variables at rest.
+      If empty, Lambda uses its default AWS managed key (aws/lambda).
+      The identity that deploys the stack needs kms:CreateGrant and kms:Encrypt on this key.
+
 Conditions:
   DeploySecurityHub: !Equals [!Ref EnableSecurityHub, 'true']
   DeploySiemForwarder: !Equals [!Ref EnableSiemForwarder, 'true']
   DeployComplianceCollector: !Equals [!Ref EnableComplianceCollector, 'true']
+  HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
 
 Resources:
 
@@ -132,6 +141,7 @@ Resources:
       MemorySize: 128
       Architectures: [arm64]
       Role: !GetAtt SecurityHubPublisherRole.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           PRODUCT_ARN: !Sub 'arn:${AWS::Partition}:securityhub:${AWS::Region}:${AWS::AccountId}:product/${AWS::AccountId}/${ProjectName}'
