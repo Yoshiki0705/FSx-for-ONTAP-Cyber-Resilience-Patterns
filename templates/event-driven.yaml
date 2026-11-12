@@ -710,6 +710,34 @@ Resources:
       TreatMissingData: notBreaching
 
   # ---------------------------------------------------------------
+  # Quarantine workflow failure alarm
+  # ---------------------------------------------------------------
+  # Counts executions that end in FAILED. States.Runtime errors are not caught
+  # by any Catch in the definition, so a failure of that kind shows up here and
+  # in the execution history only.
+  QuarantineExecutionsFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-quarantine-executions-failed-${Environment}'
+      AlarmDescription: >-
+        A quarantine workflow execution ended in FAILED. The volume may still be
+        quarantined. Open the state machine execution history to find the failed
+        state.
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref QuarantineStateMachine
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+      TreatMissingData: notBreaching
+
+  # ---------------------------------------------------------------
   # IAM Roles
   # ---------------------------------------------------------------
 

@@ -155,6 +155,16 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - キーの月額料金は確認していません。キーはスタックと一緒に削除され、削除までに 30 日の待機期間があります。
 - `hub-aggregation.yaml` の `HubAlertTopic` も `aws/sns` で、トピックポリシーがありません。変更も試験もしていません。
 
+## 隔離ワークフローの失敗アラーム
+
+`event-driven.yaml` は `QuarantineExecutionsFailedAlarm` を作ります。隔離ステートマシンの `ExecutionsFailed` 指標（名前空間 `AWS/States`、ディメンション `StateMachineArn`）を監視し、5 分以内に失敗した実行が 1 件あると ALARM になって `SecurityAlertTopic` に通知します。`NotifyFailure` に届かずに失敗した実行（たとえば、定義のどの `Catch` も処理しない `States.Runtime` エラー）もここで数えられ、失敗した状態は実行履歴で確認できます。
+
+- データポイントがない場合は正常として扱います（`notBreaching`）。
+- 監視するのは `ExecutionsFailed` だけです。`ExecutionsTimedOut` と `ExecutionsAborted` は監視しません。定義に実行全体のタイムアウトはなく、24 時間の承認待ちは `EscalateTimeout` が捕捉して通知します。
+- Step Functions の CloudWatch 指標はベストエフォートで配信されるため、データポイントが遅れる、または届かないことがあります（[Step Functions の指標](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)）。
+
+2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、1 回実行して測りました。状態が `Fail` だけのステートマシンと、同じ形のアラーム（期間 60 秒）を使っています。実行は `FAILED` で終わり、指標の Sum は 1 になり、アラームは実行の 104 秒後に `ALARM` になり、購読したキューに通知が配信されました。未測定のものは、このテンプレートのデプロイ、実際の隔離ワークフローの失敗、期間 300 秒での動作です。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い
