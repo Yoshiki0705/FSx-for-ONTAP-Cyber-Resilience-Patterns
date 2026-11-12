@@ -59,6 +59,9 @@ FAKE_VERSION = "0.0.0-fake"
 OTHER_VERSION = "9.9.9-fake"
 #: The agent configuration that ``agents.change`` names in the control with an approved agent.
 AGENT = "handoff-change"
+#: The history reasons that ``run`` gives a held change item (the selftest's design note, and task
+#: 2.3), written out rather than taken from ``cli`` so that a changed name is caught.
+HELD_STALE, HELD_UNCONFIRMED, HELD_NOT_WIRED = "selftest_stale", "selftest_unconfirmed", "change_mode_not_wired"
 T0 = "2026-11-11T00:00:00Z"
 
 #: The selftest of an earlier harness, which a selftest that stops before its trials keeps.
@@ -469,7 +472,7 @@ def test_run_holds_a_change_item_as_selftest_stale_when_the_version_or_a_hook_fi
 
     assert done.returncode == 1, (done.stdout, done.stderr)
     status = read_status(sb)
-    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, cli.SELFTEST_STALE)]
+    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, HELD_STALE)]
     assert status["selftest"] == recorded  # run does not touch the selftest
     runs = sb.invocations()[seen:]
     assert subcommands(runs) == ["--version"]  # the version was asked, and neither whoami nor chat ran
@@ -500,7 +503,7 @@ def test_run_holds_a_change_item_as_selftest_unconfirmed_without_a_guards_active
 
     assert done.returncode == 1, (done.stdout, done.stderr)
     status = read_status(sb)
-    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, cli.SELFTEST_UNCONFIRMED)]
+    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, HELD_UNCONFIRMED)]
     assert status["selftest"] == before
     assert sb.invocations()[seen:] == []  # held whatever the version, so kiro-cli is not started
     line = held_line(done.stdout, CHANGE)
@@ -535,10 +538,10 @@ def test_run_passes_the_selftest_check_when_the_version_and_config_sha256_agree(
 
     assert done.returncode == 1, (done.stdout, done.stderr)
     status = read_status(sb)
-    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, cli.CHANGE_MODE_HELD)]
+    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, HELD_NOT_WIRED)]
     assert not any(reason.startswith("selftest_") for *_, reason in history(status, CHANGE))
     assert subcommands(sb.invocations()[seen:]) == ["--version"]  # the check asked and compared
-    assert f"（{cli.CHANGE_MODE_HELD}）" in held_line(done.stdout, CHANGE)
+    assert f"（{HELD_NOT_WIRED}）" in held_line(done.stdout, CHANGE)
     assert "selftest_" not in done.stdout and details(done.stderr, CHANGE) == [], done.stderr
 
 
@@ -554,7 +557,7 @@ def test_a_query_item_of_the_same_run_is_not_held_for_the_selftest(handoff_sandb
     assert done.returncode == 1, (done.stdout, done.stderr)
     status = read_status(sb)
     assert status["items"][QUERY]["state"] == state.SUCCEEDED, status["items"][QUERY]
-    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, cli.SELFTEST_STALE)]
+    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, HELD_STALE)]
     runs = sb.invocations()[seen:]
     assert sorted(subcommands(runs)) == ["--version", "chat", "whoami"]
     (chat,) = [run["start"] for run in runs if run["start"]["subcommand"] == "chat"]
