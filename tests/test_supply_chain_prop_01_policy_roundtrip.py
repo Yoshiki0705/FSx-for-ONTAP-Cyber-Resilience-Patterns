@@ -23,6 +23,7 @@ def test_policy_file_round_trip(policy: Policy) -> None:
     event(f"include_rules={len(policy.automerge_include)}")
 
     text = render_policy(policy)
+    assert render_policy(policy) == text  # same input, same bytes (21.7)
     parsed = parse_policy(text)
 
     assert parsed == policy
