@@ -420,6 +420,59 @@ def test_version_prints_the_fake_version(handoff_sandbox: HandoffSandbox, fake_k
     assert done.stdout.startswith(b"kiro-cli ")
 
 
+#: ``--version`` per case: the variables, the exit code, standard output, and the version that the harness reads.
+VERSION_CASES: dict[str, tuple[dict[str, str], int, str, str | None]] = {
+    "default": ({}, 0, "kiro-cli 0.0.0-fake\n", "0.0.0-fake"),
+    "other-version": ({"FAKE_KIRO_VERSION": "2.0.0-other"}, 0, "kiro-cli 2.0.0-other\n", "2.0.0-other"),
+    "version-fail": ({"FAKE_KIRO_MODE": "version-fail"}, 1, "", None),
+    "version-fail-wins": ({"FAKE_KIRO_MODE": "version-fail", "FAKE_KIRO_VERSION": "2.0.0-other"}, 1, "", None),
+    "empty-version": ({"FAKE_KIRO_VERSION": ""}, 2, "", None),
+    "version-with-a-space": ({"FAKE_KIRO_VERSION": "2.0 beta"}, 2, "", None),
+}
+
+
+@pytest.mark.parametrize(
+    ("variables", "code", "stdout", "version"), list(VERSION_CASES.values()), ids=list(VERSION_CASES)
+)
+def test_version_follows_fake_kiro_version_and_version_fail(
+    handoff_sandbox: HandoffSandbox,
+    fake_kiro_cli_module: ModuleType,
+    variables: dict[str, str],
+    code: int,
+    stdout: str,
+    version: str | None,
+) -> None:
+    """``FAKE_KIRO_VERSION`` replaces the version, ``version-fail`` ends ``--version`` with 1, a malformed value is refused."""
+    sandbox = handoff_sandbox
+    env, _ = child_environment(sandbox, **variables)
+    done = run_fake([str(sandbox.kiro_cli), "--version"], cwd=sandbox.root, env=env)
+    assert (done.returncode, done.stdout.decode("ascii")) == (code, stdout), done.stderr
+    if code == 0:
+        assert done.stderr == b""
+        assert command.kiro_cli_version(stdout) == version  # what the harness ties a selftest to
+    elif code == 1:
+        assert done.stderr == fake_kiro_cli_module.VERSION_FAIL_TEXT.encode("ascii")
+    else:
+        assert b"FAKE_KIRO_VERSION must be printable ASCII without white space" in done.stderr
+    run = only_run(sandbox)
+    assert (run["start"]["subcommand"], run["end"]["exit_code"]) == ("--version", code)
+
+
+def test_version_fail_and_fake_kiro_version_leave_whoami_and_chat_as_they_were(
+    handoff_sandbox: HandoffSandbox, fake_kiro_cli_module: ModuleType
+) -> None:
+    """Both change ``--version`` only: ``whoami`` and ``chat`` answer as without them, and ``chat`` runs no behavior."""
+    sandbox = handoff_sandbox
+    env, _ = child_environment(sandbox, FAKE_KIRO_MODE="version-fail", FAKE_KIRO_VERSION="2.0.0-other")
+    whoami = run_fake([str(sandbox.kiro_cli), "whoami"], cwd=sandbox.root, env=env)
+    chat = run_fake(chat_argv(sandbox, "--trust-tools=fs_read"), cwd=sandbox.root, env=env)
+    assert (whoami.returncode, whoami.stdout) == (0, fake_kiro_cli_module.WHOAMI_TEXT.encode("ascii"))
+    assert (chat.returncode, chat.stdout) == (0, fake_kiro_cli_module.DEFAULT_ANSWER.encode("ascii"))
+    runs = sandbox.invocations()
+    assert [run["start"]["behaviors"] for run in runs] == [["version-fail"], ["version-fail"]]
+    assert [(run["end"]["exit_code"], run["end"]["results"]) for run in runs] == [(0, []), (0, [])]
+
+
 def test_noise_writes_a_mebibyte_that_is_not_utf8_to_each_stream(
     handoff_sandbox: HandoffSandbox, fake_kiro_cli_module: ModuleType
 ) -> None:

@@ -15,7 +15,8 @@ standard library only and no syntax newer than Python 3.8.
 
 Invocations. Anything else is a usage error (exit 2):
 
-- ``kiro-cli --version`` prints ``kiro-cli 0.0.0-fake``.
+- ``kiro-cli --version`` prints ``kiro-cli 0.0.0-fake``, or ``kiro-cli <FAKE_KIRO_VERSION>``,
+  and exits 0, or exits 1 with ``version-fail``.
 - ``kiro-cli whoami`` prints a made-up account and exits 0, or exits 1 with ``whoami-fail``.
 - ``kiro-cli chat --no-interactive [--trust-tools=<names> | --trust-all-tools | -a]
   [--agent <name> | --agent=<name>] [--] <prompt>`` runs the behaviors of
@@ -42,10 +43,12 @@ to as the guard wrapper of the selftest would (design note of task 5.2).
 
 ``FAKE_KIRO_MODE``
     Behaviors separated by commas, run in the order given. None by default.
-    ``whoami-fail`` applies to ``whoami``; the others apply to ``chat``. An unknown name is
-    a usage error.
+    ``whoami-fail`` applies to ``whoami`` and ``version-fail`` to ``--version``; the others
+    apply to ``chat``. An unknown name is a usage error.
 
     - ``whoami-fail``: ``whoami`` writes an error to standard error and exits 1.
+    - ``version-fail``: ``--version`` writes an error to standard error and nothing to
+      standard output, and exits 1, as a ``kiro-cli`` whose version cannot be read.
     - ``noise``: writes ``FAKE_KIRO_NOISE_BYTES`` bytes (1 MiB by default) to standard
       output and as many to standard error, in alternating chunks, so a reader that drains
       one stream before the other blocks once the other pipe is full. Both payloads hold
@@ -117,6 +120,10 @@ to as the guard wrapper of the selftest would (design note of task 5.2).
     that starts with ``FAKE_KIRO_MODE_`` is a usage error, so that a misspelt trial fails.
 ``FAKE_KIRO_GH_EXIT``
     The code of ``gh-status``: an integer from 0 to 255. Unset by default.
+``FAKE_KIRO_VERSION``
+    The version that ``--version`` prints after ``kiro-cli``: one or more printable ASCII
+    characters without white space. ``0.0.0-fake`` by default, a version that no real
+    release has. A test of a selftest that no longer counts changes it.
 ``HANDOFF_GUARD_LOG``
     Absolute path of the guard log that the guard behaviors append to. Another value is a
     usage error of a ``chat`` that runs a guard behavior. Each entry is one JSON object per
@@ -141,9 +148,9 @@ push URL override (temporary paths in the tests); whether ``GH_CONFIG_DIR``,
 and whether ``AWS_EC2_METADATA_DISABLED`` is ``true``. No other value is written: not the
 AWS variables, not tokens, not ``HOME``.
 
-Exit codes: 0 or ``FAKE_KIRO_EXIT_CODE``; 1 for ``whoami-fail``; 2 for a usage error; 3 when
-a behavior fails (a git command other than the push fails, or a file cannot be written);
-4 for an unexpected error, with the traceback on standard error.
+Exit codes: 0 or ``FAKE_KIRO_EXIT_CODE``; 1 for ``whoami-fail`` and ``version-fail``; 2 for a
+usage error; 3 when a behavior fails (a git command other than the push fails, or a file
+cannot be written); 4 for an unexpected error, with the traceback on standard error.
 """
 
 from __future__ import annotations
@@ -164,8 +171,15 @@ from typing import Any, Callable, Mapping, NamedTuple, Sequence
 #: Version of the record's events.
 SCHEMA_VERSION = 1
 
-#: What ``--version`` writes.
-VERSION_TEXT = "kiro-cli 0.0.0-fake\n"
+#: The version of ``--version`` when ``FAKE_KIRO_VERSION`` is unset, and what it then writes.
+DEFAULT_VERSION = "0.0.0-fake"
+VERSION_TEXT = f"kiro-cli {DEFAULT_VERSION}\n"
+
+#: The form of ``FAKE_KIRO_VERSION``: printable ASCII without white space.
+VERSION_FORM = re.compile(r"[!-~]+")
+
+#: What ``--version`` writes to standard error with ``version-fail``.
+VERSION_FAIL_TEXT = "fake kiro-cli: the version cannot be read\n"
 
 #: What ``whoami`` writes when it succeeds. The account is made up.
 WHOAMI_TEXT = "Logged in as fake-user (fake kiro-cli)\n"
@@ -194,11 +208,13 @@ SWITCH_BRANCH = "fake-kiro-switched"
 TAIL_CHARS = 2000
 
 EXIT_NOT_LOGGED_IN = 1
+EXIT_NO_VERSION = 1
 EXIT_USAGE = 2
 EXIT_BEHAVIOR_FAILED = 3
 EXIT_INTERNAL = 4
 
 WHOAMI_BEHAVIORS = ("whoami-fail",)
+VERSION_BEHAVIORS = ("version-fail",)
 SELFTEST_BEHAVIORS = ("empty-commit", "gh-status", "write-file", "write-file-anyway")
 GUARD_BEHAVIORS = ("guard-block", "guard-allow", "guard-block-other")
 CHAT_BEHAVIORS = (
@@ -291,6 +307,7 @@ class Settings(NamedTuple):
             ``token_variables``.
         guard_log: ``HANDOFF_GUARD_LOG`` as given, or ``None``. Checked by
             :func:`chat_problem` for a ``chat`` that runs a guard behavior.
+        version: ``FAKE_KIRO_VERSION``, or :data:`DEFAULT_VERSION`.
     """
 
     behaviors: tuple[str, ...]
@@ -303,6 +320,7 @@ class Settings(NamedTuple):
     gh_exit: int
     gh_exit_source: str
     guard_log: str | None
+    version: str
 
 
 class Output:
@@ -418,7 +436,10 @@ def _main(argv: list[str], environ: Mapping[str, str]) -> int:
     if error is not None or settings is None:
         return _finish(record, output, EXIT_USAGE, [], f"usage: {error}")
     if subcommand == "--version":
-        output.write("stdout", VERSION_TEXT.encode("ascii"))
+        if "version-fail" in settings.behaviors:
+            output.write("stderr", VERSION_FAIL_TEXT.encode("ascii"))
+            return _finish(record, output, EXIT_NO_VERSION, [], None)
+        output.write("stdout", f"kiro-cli {settings.version}\n".encode("ascii"))
         return _finish(record, output, 0, [], None)
     if subcommand == "whoami":
         if "whoami-fail" in settings.behaviors:
@@ -432,7 +453,7 @@ def _main(argv: list[str], environ: Mapping[str, str]) -> int:
     context = Context(settings=settings, output=output, record=record, options=options or {}, token=token)
     results: list[dict[str, Any]] = []
     for behavior in settings.behaviors:
-        if behavior in WHOAMI_BEHAVIORS:
+        if behavior in WHOAMI_BEHAVIORS + VERSION_BEHAVIORS:
             continue
         result, failure = _CHAT_ACTIONS[behavior](context)
         results.append(result)
@@ -586,6 +607,9 @@ def read_settings(environ: Mapping[str, str], trial: str | None = None) -> tuple
         if not 0 <= gh_exit <= 255:
             return None, "FAKE_KIRO_GH_EXIT must be from 0 to 255"
         gh_exit_source = "FAKE_KIRO_GH_EXIT"
+    version = environ.get("FAKE_KIRO_VERSION", DEFAULT_VERSION)
+    if VERSION_FORM.fullmatch(version) is None:
+        return None, f"FAKE_KIRO_VERSION must be printable ASCII without white space, got {version!r}"
     return (
         Settings(
             behaviors=behaviors,
@@ -598,6 +622,7 @@ def read_settings(environ: Mapping[str, str], trial: str | None = None) -> tuple
             gh_exit=gh_exit,
             gh_exit_source=gh_exit_source,
             guard_log=environ.get(GUARD_LOG_VARIABLE),
+            version=version,
         ),
         None,
     )
@@ -614,7 +639,7 @@ def _behaviors(environ: Mapping[str, str], name: str) -> tuple[tuple[str, ...], 
         ``(behaviors, None)``, or ``((), error)`` when it names an unknown behavior.
     """
     behaviors = tuple(part.strip() for part in environ.get(name, "").split(",") if part.strip())
-    unknown = [part for part in behaviors if part not in WHOAMI_BEHAVIORS + CHAT_BEHAVIORS]
+    unknown = [part for part in behaviors if part not in WHOAMI_BEHAVIORS + VERSION_BEHAVIORS + CHAT_BEHAVIORS]
     if unknown:
         return (), f"unknown behavior in {name}: {', '.join(unknown)}"
     return behaviors, None
