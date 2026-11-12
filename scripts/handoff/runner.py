@@ -1349,8 +1349,15 @@ class Harness:
         item = self._context_item(context, item_id)
         if item.mode != "change":
             raise VerifyRefused(f"{item_id} is a {item.mode} item; verify observes change items only")
+        run = _ManualVerify(self, context, item, worktree, stop)
+        try:
+            run.admit()
+        except _Stopped:
+            return run.stopped()
+        # The checks only read; the records are added after them, so that a refusal changes nothing.
+        self.add_missing_items(context.manifest)
         with self._reserve(context.manifest, item):
-            return _ManualVerify(self, context, item, worktree, stop).run()
+            return run.run()
 
     def publish_batch(
         self,
@@ -2580,7 +2587,7 @@ class _ManualVerify(_ChangeRun):
 
     :meth:`Harness.verify_manual` uses it once. The observation is :meth:`_ChangeRun._observe` and the
     decision is :meth:`_QueryRun._evaluate`, as for a run of ``kiro-cli``; only the start differs:
-    the worktree and the base come from the maintainer's checkout, after the checks of :meth:`_admit`,
+    the worktree and the base come from the maintainer's checkout, after the checks of :meth:`admit`,
     and ``kiro-cli`` is replaced by a result with exit code 0, no time-out and no output.
 
     The main working tree is compared from just before this observation to just after it, so a change
@@ -2603,24 +2610,24 @@ class _ManualVerify(_ChangeRun):
         self.given = worktree
 
     def run(self) -> ItemOutcome:
-        """Check, move to ``running``, observe and record the final state.
+        """Move to ``running``, observe and record the final state, after :meth:`admit`.
 
         Returns:
             The outcome.
-
-        Raises:
-            VerifyRefused: A check failed; nothing changed.
         """
         try:
             return self._verify()
         except _Stopped:
-            _LOG.info("%s: stopped before the observation started; it stays queued", self.item.id)
-            return self._outcome(state.QUEUED, "stopped before the observation started", "")
+            return self.stopped()
+
+    def stopped(self) -> ItemOutcome:
+        """The outcome of a stop request that came before the move to ``running``: the item stays ``queued``."""
+        _LOG.info("%s: stopped before the observation started; it stays queued", self.item.id)
+        return self._outcome(state.QUEUED, "stopped before the observation started", "")
 
     def _verify(self) -> ItemOutcome:
-        """The steps of :meth:`run`."""
+        """The steps of :meth:`run` after :meth:`admit`."""
         item = self.item
-        self._admit()
         try:
             before = self._snapshot()
         except _StepFailed as failure:
@@ -2695,7 +2702,7 @@ class _ManualVerify(_ChangeRun):
         """The refusal for a failed check, which names the item."""
         return VerifyRefused(f"{self.item.id}: {why}; nothing was changed")
 
-    def _admit(self) -> None:
+    def admit(self) -> None:
         """Check the item and the worktree, then set ``worktree``, ``base_sha``, ``branch`` and ``plan``.
 
         Raises:
@@ -2704,13 +2711,13 @@ class _ManualVerify(_ChangeRun):
         """
         item, config = self.item, self.config
         record = self.harness.status["items"].get(item.id)
-        if record is None:
-            raise self._refuse("it has no record yet; it starts as queued when run or plan adds it")
-        if record["state"] != state.QUEUED:
-            raise self._refuse(
-                f"it is {record['state']}; only a queued item is observed (a failed or needs-human item that was "
-                f"handed over by hand goes back first: cli.py status set {item.id} queued --reason ...)"
-            )
+        # ``manual`` writes nothing, so an item handed over by hand may have no record; it counts as queued.
+        current = state.QUEUED if record is None else record["state"]
+        if current != state.QUEUED:
+            way_back = ""
+            if current in (state.FAILED, state.NEEDS_HUMAN):
+                way_back = f" (a {current} item that was handed over by hand goes back first: cli.py status set {item.id} queued --reason ...)"
+            raise self._refuse(f"it is {current}; only a queued item is observed{way_back}")
         given = self.given
         if not _is_normal_absolute(given):
             raise self._refuse(f"--worktree {given!r} is not an absolute path in normal form")
@@ -2736,7 +2743,7 @@ class _ManualVerify(_ChangeRun):
         self.worktree, self.plan, self.branch = real, plan, plan.branch
         try:
             self._branch_head("the branch of the worktree")
-            self.base_sha = self._base(record["base_sha"])
+            self.base_sha = self._base(None if record is None else record["base_sha"])
         except _StepFailed as failure:
             raise self._refuse(f"{failure.what}: {failure.detail}") from None
 
