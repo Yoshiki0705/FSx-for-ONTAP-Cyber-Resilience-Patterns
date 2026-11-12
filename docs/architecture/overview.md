@@ -304,8 +304,8 @@ graph TD
     STOR --> EVT
 ```
 
-`main.yaml` が nested stack として参照するのは上の 3 本。次の 8 本は個別にデプロイする: scanning、scanning-ha、observability、cost-scheduler、dr-replication、siem-integration、hub-aggregation、spoke-monitoring。
-`main.yaml` nests only the three stacks above. These 8 templates are deployed separately: scanning, scanning-ha, observability, cost-scheduler, dr-replication, siem-integration, hub-aggregation, spoke-monitoring.
+`main.yaml` が nested stack として参照するのは上の 3 本。次の 7 本は個別にデプロイする: scanning、scanning-ha、observability、cost-scheduler、siem-integration、hub-aggregation、spoke-monitoring。
+`main.yaml` nests only the three stacks above. These 7 templates are deployed separately: scanning, scanning-ha, observability, cost-scheduler, siem-integration, hub-aggregation, spoke-monitoring.
 
 ARP と FPolicy の設定用の Custom Resource ハンドラ（`solutions/ontap-native/lambda/security_config_handler.py`）はあるが、2026-10 時点でどのテンプレートからも参照されていない。設定は `docs/ontap-native/` の CLI / REST の手順で行う。
 A Custom Resource handler for ARP and FPolicy settings exists (`solutions/ontap-native/lambda/security_config_handler.py`), but as of 2026-10 no template references it. Configure these settings with the CLI / REST steps in `docs/ontap-native/`.

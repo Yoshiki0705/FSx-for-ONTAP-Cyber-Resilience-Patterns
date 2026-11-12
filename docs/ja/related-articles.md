@@ -29,7 +29,7 @@
 | アーキテクチャ（SNS → Lambda → ONTAP REST API） | イベント駆動型レスポンス | `solutions/event-driven-response/` |
 | ARP/AI 検知フロー | ストレージネイティブ（ARP） | `solutions/ontap-native/` |
 | NFS 用 NACL deny | ネットワークレイヤー | `templates/network.yaml` |
-| Snapshot 作成 & 復旧検証 | データ保護 | `templates/dr-replication.yaml` |
+| SnapMirror ラグ監視 | データ保護 | [`deployment-guide.md`](deployment-guide.md) の「SnapMirror ラグ監視」 |
 | NIST CSF 2.0 機能マップ | フレームワークマッピング | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
 | DII Storage Workload Security との比較 | イベント駆動型レスポンス（コンパニオンリポジトリ） | [自動応答ガイドの FAQ](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/ja/automated-response-guide.md#faq) |
 

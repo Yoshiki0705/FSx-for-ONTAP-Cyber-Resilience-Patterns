@@ -418,13 +418,9 @@ echo "All resources deleted."
 | `LogGroupKmsKeyArn` | `''` | Step Functions のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 | `LambdaEnvKmsKeyArn` | `''` | Lambda 関数（隔離アクション、イベント変換）の環境変数を暗号化する KMS キー ARN。空のときは Lambda の既定のキーのまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 
-### dr-replication.yaml
+### SnapMirror ラグ監視（テンプレートなし）
 
-DLQ とアラームの構成は [デプロイガイド](ja/deployment-guide.md) を参照。
-
-| Parameter | Default | 説明 | 変更タイミング |
-|-----------|---------|------|--------------|
-| `SecurityAlertTopicArn` | — | Event-Driven Stack の出力値。DLQ アラームの通知先 | **必須: スタック作成時に指定** |
+SnapMirror ラグ監視は、このリポジトリのテンプレートではなく、Observability リポジトリの Terraform モジュールで行います。設定と通知先は [デプロイガイド](ja/deployment-guide.md) の「SnapMirror ラグ監視」を参照。
 
 ### siem-integration.yaml
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the deployment of 12 CloudFormation templates that compose the
+This guide covers the deployment of 11 CloudFormation templates that compose the
 FSx for ONTAP Cyber Resilience Patterns reference architecture. Templates are designed
 to be deployed individually (à la carte) or as a coordinated set.
 
@@ -59,35 +59,63 @@ Two deployment paths are supported:
 | # | Template | Description | Deploy Time | Dependencies |
 |---|----------|-------------|-------------|--------------|
 | 6 | `scanning-ha.yaml` | Auto Scaling Groups for scanner HA (Multi-AZ) | ~5 min | network |
-| 7 | `dr-replication.yaml` | SnapMirror lag monitoring, cross-region health checks | ~3 min | storage |
-| 8 | `cost-scheduler.yaml` | Stop/start scanner EC2 during off-hours (non-prod) | ~2 min | scanning |
+| 7 | `cost-scheduler.yaml` | Stop/start scanner EC2 during off-hours (non-prod) | ~2 min | scanning |
+
+SnapMirror lag monitoring is not a template in this repository. See [SnapMirror Lag Monitoring](#snapmirror-lag-monitoring).
 
 ### Phase 3 — Enterprise / Multi-Account
 
 | # | Template | Description | Deploy Time | Dependencies |
 |---|----------|-------------|-------------|--------------|
-| 9 | `hub-aggregation.yaml` | Central EventBridge bus for aggregated security events | ~2 min | None (hub account) |
-| 10 | `spoke-monitoring.yaml` | Cross-account EventBridge forwarding (StackSet-ready) | ~2 min | hub-aggregation |
-| 11 | `siem-integration.yaml` | Security Hub, SIEM forwarder (Splunk/QRadar/CEF), compliance collector | ~5 min | event-driven |
-| 12 | `main.yaml` | Root nested stack (orchestrates network + storage + event-driven) | ~35 min | S3 bucket with templates |
+| 8 | `hub-aggregation.yaml` | Central EventBridge bus for aggregated security events | ~2 min | None (hub account) |
+| 9 | `spoke-monitoring.yaml` | Cross-account EventBridge forwarding (StackSet-ready) | ~2 min | hub-aggregation |
+| 10 | `siem-integration.yaml` | Security Hub, SIEM forwarder (Splunk/QRadar/CEF), compliance collector | ~5 min | event-driven |
+| 11 | `main.yaml` | Root nested stack (orchestrates network + storage + event-driven) | ~35 min | S3 bucket with templates |
 
 ---
 
-## Lambda Concurrency and Dead-Letter Queues (dr-replication / siem-integration)
+## Lambda Concurrency and Dead-Letter Queue (siem-integration)
 
-Two EventBridge-triggered Lambda functions outside `event-driven.yaml` cap their concurrency and keep failed events in their own SQS queue. `dr-replication.yaml` and `siem-integration.yaml` are not nested in `main.yaml`, so deploy them as separate stacks.
+The EventBridge-triggered Lambda function in `siem-integration.yaml` caps its concurrency and keeps failed events in its own SQS queue. `siem-integration.yaml` is not nested in `main.yaml`, so deploy it as a separate stack.
 
 | Function | Template | Reserved concurrency | Dead-letter queue | Alarm |
 |----------|----------|----------------------|-------------------|-------|
-| `LagMonitorLambda` | `dr-replication.yaml` | 1 (fixed) | `LagMonitorDlq` | `LagMonitorDlqAlarm` |
 | `SecurityHubPublisherLambda` | `siem-integration.yaml` | `SecurityHubPublisherReservedConcurrency` (default 10) | `SecurityHubPublisherDlq` | `SecurityHubPublisherDlqAlarm` |
 
-- Each queue is encrypted with the AWS managed key `alias/aws/sqs`, keeps messages for 14 days, and is deleted with its stack.
-- Each execution role may call `sqs:SendMessage` only on its own queue.
-- Each alarm fires when 1 or more messages are visible in the queue (5-minute period) and notifies the SNS topic in `SecurityAlertTopicArn`. A message in the queue means the function failed after Lambda's retries; the event stays there for 14 days for inspection.
+- The queue is encrypted with the AWS managed key `alias/aws/sqs`, keeps messages for 14 days, and is deleted with its stack.
+- The execution role may call `sqs:SendMessage` only on this queue.
+- The alarm fires when 1 or more messages are visible in the queue (5-minute period) and notifies the SNS topic in `SecurityAlertTopicArn`. A message in the queue means the function failed after Lambda's retries; the event stays there for 14 days for inspection.
 - `SecurityHubPublisherReservedConcurrency` (Number, default 10, minimum 1): Lambda keeps 100 executions of the account's concurrency unreserved, so the value can be at most the account's unreserved concurrency minus 100. See [Lambda reserved concurrency](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html). In an account with the default limit of 1,000 executions and no other reservations, 900 is the upper bound.
 - `EventTransformerLambda` in `event-driven.yaml` reads from SQS queues. For SQS event sources, AWS places the dead-letter queue on the source queue instead of the function, and both source queues already have a `RedrivePolicy`. The template records this as a Checkov skip for `CKV_AWS_116`.
 - Not measured: these changes were checked with cfn-lint, Checkov and unit tests only, and have not been deployed.
+
+## SnapMirror Lag Monitoring
+
+This repository has no template for SnapMirror lag monitoring. Use the Terraform module [`terraform/fsxn-ontap-custom-metrics`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/tree/main/terraform/fsxn-ontap-custom-metrics) in the Observability repository. It runs a VPC Lambda function that reads `GET /api/snapmirror/relationships` on the destination file system, publishes the `FSxONTAP/SnapMirror` metrics (including `SnapMirrorLagSecondsMax` and `SnapMirrorUnhealthyCount`), and creates CloudWatch alarms for lag, unhealthy relationships and a stopped collector. The module README lists the metrics, alarms and IAM permissions.
+
+### Settings to choose
+
+| Setting | Value | Note |
+|---------|-------|------|
+| Where to deploy | The DR Region, against the destination file system | The collector reads the destination side, and its metrics and alarms are created in the Region where the module runs |
+| `file_system_id` | Destination file system ID | |
+| `enable_snapmirror_collector` | `true` (module default) | Set `enable_qtree_collector = false` if you do not want the qtree collector |
+| `snapmirror_lag_threshold_seconds` | RPO in minutes × 2 × 60 | 1,800 seconds for a 15-minute RPO. The module default is 10,800 seconds and accepts 60 to 2,592,000 |
+| `notification_email` | Responder address | The module creates an SNS topic in the same Region and subscribes this address |
+
+### Notification target
+
+A CloudWatch alarm was rejected when it named an SNS topic in another Region [E-038]. Test on 2026-11-12 in one account: `PutMetricAlarm` for an alarm in `us-west-2` with a topic in `ap-northeast-1` returned a `ValidationError`, while the same setup with the topic in `us-west-2` delivered the notification to a subscribed SQS queue. So the `SecurityAlertTopic` created by `event-driven.yaml` in the primary Region cannot be the target of the DR-side alarms. Subscribe responders to the topic the module creates in the DR Region as well. Other Region pairs were not tested.
+
+### Replacing the removed `dr-replication.yaml`
+
+The `LagMonitorLambda` in the removed `dr-replication.yaml` was a placeholder: it logged an invocation and returned, and published no metric. Its alarm read `SnapMirrorLagMinutes`, which nothing published, and treated missing data as normal, so it could not fire. If you deployed that stack, deploy the module first and confirm that the `CollectorSucceeded` metric is 1 in the `FSxONTAP/SnapMirror` namespace. Then delete the old stack. Doing it in the other order leaves a period with no lag alarm. The removed template is in the git history of this repository.
+
+### Not measured
+
+- The module README records one sample run on 2026-10-08 in `ap-northeast-1`, with a relationship between two volumes in one SVM. SnapMirror between two file systems (cluster peering, reading the destination across clusters) is listed there as not yet tested. Run the module in a non-production account first.
+- An uninitialized relationship reports `healthy: true` with no `lag_time`, so neither SnapMirror alarm fires for it (observed once, in the module README's sample run).
+- Neither the module nor the notification-target test was run against this repository's stacks.
 
 ## VPC Endpoint Conflict Matrix
 
@@ -175,7 +203,7 @@ The stacks create no KMS keys of their own. With the default parameters, encrypt
 | Parameter | Templates | Applies to |
 |-----------|-----------|------------|
 | `LogGroupKmsKeyArn` | `network.yaml`, `event-driven.yaml`, `main.yaml` | VPC Flow Logs log group (created only when the stack creates the VPC) and the Step Functions log group |
-| `LambdaEnvKmsKeyArn` | `event-driven.yaml`, `dr-replication.yaml`, `siem-integration.yaml`, `main.yaml` (passed to the Event-Driven stack only) | Environment variables of the quarantine action, event transformer, SnapMirror lag monitor and Security Hub publisher Lambda functions |
+| `LambdaEnvKmsKeyArn` | `event-driven.yaml`, `siem-integration.yaml`, `main.yaml` (passed to the Event-Driven stack only) | Environment variables of the quarantine action, event transformer and Security Hub publisher Lambda functions |
 
 Key requirements for `LogGroupKmsKeyArn`, from the [CloudWatch Logs documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html):
 

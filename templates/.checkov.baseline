@@ -1,15 +1,3 @@
 {
-    "failed_checks": [
-        {
-            "file": "/dr-replication.yaml",
-            "findings": [
-                {
-                    "resource": "AWS::Lambda::Function.LagMonitorLambda",
-                    "check_ids": [
-                        "CKV_AWS_117"
-                    ]
-                }
-            ]
-        }
-    ]
+    "failed_checks": []
 }
