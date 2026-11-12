@@ -117,6 +117,44 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - 未初期化のリレーションシップは、`lag_time` がなく `healthy: true` を返すため、どちらの SnapMirror アラームも鳴りません（モジュールの README の実行例で 1 回観測）。
 - このリポジトリのスタックに対して、モジュールも通知先の確認も実行していません。
 
+## セキュリティアラートトピックの暗号化
+
+`event-driven.yaml` は、`SecurityAlertTopic` を AWS マネージドキー `aws/sns` ではなく、お客様管理キー（`AlertTopicKey`、キーローテーション有効）で暗号化します。試験では、`aws/sns` で暗号化したトピックを指定した CloudWatch アラームのアクションが失敗しました [E-039]。このトピックに通知するアラームは 5 つです。`event-driven.yaml` の DLQ アラーム、`observability.yaml` の 3 つ、`siem-integration.yaml` の DLQ アラームです。この試験の結果からは、トピックが `aws/sns` のままだと、これらのアラームは通知できなかったと考えています。スタックにはトピックポリシーもなく、既定のポリシーだけのトピックには EventBridge ルールが何も配信しませんでした [E-040]。そのため `RuleNotification` ルールも配信できていなかったと考えています。
+
+### スタックが作るもの
+
+| リソース | 目的 |
+|----------|------|
+| `AlertTopicKey` とそのエイリアス | トピックを暗号化する。アカウントのルートがキーを管理し、同じアカウントの CloudWatch と EventBridge が `kms:Decrypt` と `kms:GenerateDataKey*` を呼べる |
+| `SecurityAlertTopicPolicy` | アカウントの所有者にトピックの管理を許可し、同じアカウントの CloudWatch と EventBridge に発行を許可する |
+| `StepFunctionsExecutionRole` への KMS 権限 | 隔離ワークフローが暗号化したトピックへアラートを発行できるようにする |
+| `siem-integration.yaml` の `ComplianceCollectorRole` への KMS 権限 | キーは別のスタックにあるため、SNS 経由の利用（`kms:ViaService`）に限定する |
+| 出力 `AlertTopicKeyArn` | 他の発行元向けのキー ARN |
+
+### 他の発行元に必要な権限
+
+トピックに `sns:Publish` する主体は、`AlertTopicKeyArn` に対する `kms:GenerateDataKey` と `kms:Decrypt` も必要です。`ComplianceCollectorRole` と同じ `kms:ViaService` 条件でも構いません。`sns:Publish` だけのロールは `KMSAccessDenied` になりました。
+
+### 実測した内容
+
+2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、各ケース 1 回ずつ実行しました。
+
+| ケース | 結果 |
+|--------|------|
+| `aws/sns` で暗号化したトピックへのアラーム | アクションが失敗し、配信されない [E-039] |
+| 暗号化なしのトピックへのアラーム | 配信された [E-039] |
+| お客様管理キーで暗号化したトピックへのアラーム（上記のキーポリシー） | 配信された [E-039] |
+| 既定のトピックポリシーだけのトピックへの EventBridge ルール | 配信されず、`FailedInvocations` が 2 [E-040] |
+| `events.amazonaws.com` を許可したトピックポリシーへの EventBridge ルール（お客様管理キーの有無とも） | 配信された [E-040] |
+| `sns:Publish` だけのロール、次に `kms:ViaService` の権限を足したロール | `KMSAccessDenied`、次に配信された |
+
+### 未測定の項目
+
+- これらのテンプレートのデプロイは行っていません。上の各ケースは、同じキーポリシーとトピックポリシーを持つ単独のリソースで試しました。
+- 既存のトピックのキーを変更したとき、その場で更新されるかは確認していません。
+- キーの月額料金は確認していません。キーはスタックと一緒に削除され、削除までに 30 日の待機期間があります。
+- `hub-aggregation.yaml` の `HubAlertTopic` も `aws/sns` で、トピックポリシーがありません。変更も試験もしていません。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い

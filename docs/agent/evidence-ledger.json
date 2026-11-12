@@ -1229,6 +1229,62 @@
         "docs/ja/deployment-guide.md"
       ],
       "note": "The error text names the alarm's own Region as the only supported one. That wording is taken as the same-Region rule for this Region pair; it was not tested for other pairs."
+    },
+    {
+      "id": "E-039",
+      "claim": "A CloudWatch alarm action fails when it names an SNS topic encrypted with the AWS managed key aws/sns. The same alarm notifies a topic encrypted with a customer managed key whose key policy lets cloudwatch.amazonaws.com call kms:Decrypt and kms:GenerateDataKey*.",
+      "subject": "Amazon CloudWatch alarm actions and Amazon SNS server-side encryption, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_PutMetricAlarm.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "Gives the SNS action ARN form. The page does not mention topic encryption, so this entry rests on the observation, not on this page."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. Topic encrypted with alias/aws/sns and a topic policy allowing cloudwatch.amazonaws.com to publish: PutMetricAlarm succeeded, set-alarm-state to ALARM delivered nothing to a subscribed SQS queue, and the alarm action history recorded 'Failed to execute action'. The same setup on a topic without encryption delivered the notification ('Successfully executed action'). Topic encrypted with a customer managed key (key policy: account root administers, cloudwatch.amazonaws.com and events.amazonaws.com may call kms:Decrypt and kms:GenerateDataKey* under aws:SourceAccount) with the same topic policy: the notification was delivered and the history recorded a successful execution.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a CloudWatch alarm can notify a topic encrypted with aws/sns. The design uses a customer managed key, which works whichever way the answer goes."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "Five alarms in this repository notify the security alert topic: the dead-letter queue alarm in event-driven.yaml, three alarms in observability.yaml and the dead-letter queue alarm in siem-integration.yaml. Not tested: other Regions, and a deployment of these templates."
+    },
+    {
+      "id": "E-040",
+      "claim": "An EventBridge rule target on an SNS topic that has only the default topic policy delivers nothing. The rule delivers once the topic policy allows events.amazonaws.com to publish, with or without a customer managed key on the topic.",
+      "subject": "Amazon EventBridge rule target on an SNS topic, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-use-resource-based.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "The Amazon SNS permissions section shows a new topic's default policy and adds a statement that lets events.amazonaws.com publish. EventBridge targets use either an IAM execution role or a resource-based policy; this rule has no execution role, so it needs the topic policy."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. A rule on the default event bus with an SNS topic target and the default topic policy: put-events was accepted, nothing reached a subscribed SQS queue within about 100 seconds, and the rule's FailedInvocations metric showed 2. The same rule on an unencrypted topic whose policy allowed events.amazonaws.com to publish delivered on the first event, and so did a topic encrypted with a customer managed key whose key policy allowed events.amazonaws.com.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a topic needs an explicit policy for EventBridge. The behaviour is observed, and the topic policy is added either way."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "RuleNotification in event-driven.yaml targets SecurityAlertTopic and had no topic policy. HubAlertTopic in hub-aggregation.yaml has the same shape and was not tested."
     }
   ]
 }

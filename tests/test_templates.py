@@ -400,3 +400,82 @@ class TestOptionalKmsKeys:
         assert param in main["Parameters"]
         nested = [r for r in main["Resources"].values() if stack in str(r["Properties"]["TemplateURL"])]
         assert nested and nested[0]["Properties"]["Parameters"][param] == {"Ref": param}
+
+
+class TestAlertTopicDelivery:
+    """The security alert topic must accept alarms and EventBridge rules and stay encrypted.
+
+    A CloudWatch alarm cannot notify a topic encrypted with the AWS managed key aws/sns,
+    and the default topic policy lets no AWS service publish.
+    """
+
+    SERVICES = ["cloudwatch.amazonaws.com", "events.amazonaws.com"]
+
+    @pytest.fixture(scope="class")
+    def template(self) -> dict:
+        return _load_tagged("event-driven.yaml")
+
+    @staticmethod
+    def _statement(policy: dict, sid: str) -> dict:
+        return next(s for s in policy["Statement"] if s["Sid"] == sid)
+
+    def test_topic_uses_the_customer_managed_key(self, template: dict) -> None:
+        topic = template["Resources"]["SecurityAlertTopic"]["Properties"]
+        assert topic["KmsMasterKeyId"] == {"GetAtt": "AlertTopicKey.Arn"}
+
+    def test_key_rotates_and_lets_alarms_and_rules_publish(self, template: dict) -> None:
+        key = template["Resources"]["AlertTopicKey"]["Properties"]
+        assert key["EnableKeyRotation"] is True
+        statement = self._statement(key["KeyPolicy"], "AllowAlarmsAndRulesToPublish")
+        assert statement["Principal"]["Service"] == self.SERVICES
+        assert statement["Action"] == ["kms:Decrypt", "kms:GenerateDataKey*"]
+        assert statement["Condition"] == {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+        # No wildcard principal: only the account root administers the key.
+        assert self._statement(key["KeyPolicy"], "EnableAccountAdministration")["Principal"]["AWS"]["Sub"].endswith(
+            ":root"
+        )
+
+    def test_topic_policy_lets_alarms_and_rules_publish(self, template: dict) -> None:
+        policy = template["Resources"]["SecurityAlertTopicPolicy"]["Properties"]
+        assert policy["Topics"] == [{"Ref": "SecurityAlertTopic"}]
+        statement = self._statement(policy["PolicyDocument"], "AllowAlarmsAndRulesToPublish")
+        assert statement["Principal"]["Service"] == self.SERVICES
+        assert statement["Action"] == "sns:Publish"
+        assert statement["Resource"] == {"Ref": "SecurityAlertTopic"}
+        assert statement["Condition"] == {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+
+    def test_state_machine_role_can_use_the_key(self, template: dict) -> None:
+        policy = template["Resources"]["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]
+        grants = [s for s in policy["Statement"] if s["Action"] == ["kms:GenerateDataKey", "kms:Decrypt"]]
+        assert len(grants) == 1
+        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}]
+
+    def test_compliance_role_can_use_the_key_only_through_sns(self) -> None:
+        siem = _load_tagged("siem-integration.yaml")
+        policy = siem["Resources"]["ComplianceCollectorRole"]["Properties"]["Policies"][0]["PolicyDocument"]
+        grants = [s for s in policy["Statement"] if "kms:Decrypt" in s["Action"]]
+        assert len(grants) == 1
+        assert sorted(grants[0]["Action"]) == ["kms:Decrypt", "kms:GenerateDataKey"]
+        assert grants[0]["Condition"] == {
+            "StringEquals": {"kms:ViaService": {"Sub": "sns.${AWS::Region}.amazonaws.com"}}
+        }
+
+    def test_key_arn_is_exported_for_other_publishers(self, template: dict) -> None:
+        output = template["Outputs"]["AlertTopicKeyArn"]
+        assert output["Value"] == {"GetAtt": "AlertTopicKey.Arn"}
+        assert "Export" in output
+
+    def test_no_alarm_notifies_a_topic_encrypted_with_the_aws_managed_key(self) -> None:
+        for path in sorted(TEMPLATES_DIR.glob("*.yaml")):
+            resources = _load_tagged(path.name).get("Resources", {})
+            aws_managed = {
+                name
+                for name, r in resources.items()
+                if r["Type"] == "AWS::SNS::Topic" and r["Properties"].get("KmsMasterKeyId") == "alias/aws/sns"
+            }
+            for name, r in resources.items():
+                if r["Type"] != "AWS::CloudWatch::Alarm":
+                    continue
+                for action in r["Properties"].get("AlarmActions", []):
+                    target = action.get("Ref") if isinstance(action, dict) else None
+                    assert target not in aws_managed, f"{path.name}: {name} notifies {target}, encrypted with aws/sns"

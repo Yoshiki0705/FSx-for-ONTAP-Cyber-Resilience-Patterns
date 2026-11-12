@@ -117,6 +117,44 @@ The `LagMonitorLambda` in the removed `dr-replication.yaml` was a placeholder: i
 - An uninitialized relationship reports `healthy: true` with no `lag_time`, so neither SnapMirror alarm fires for it (observed once, in the module README's sample run).
 - Neither the module nor the notification-target test was run against this repository's stacks.
 
+## Security Alert Topic Encryption
+
+`event-driven.yaml` encrypts `SecurityAlertTopic` with a customer managed key (`AlertTopicKey`, key rotation on) instead of the AWS managed key `aws/sns`. In a test, a CloudWatch alarm action that named a topic encrypted with `aws/sns` failed [E-039]. Five alarms notify this topic: the dead-letter queue alarm in `event-driven.yaml`, the three alarms in `observability.yaml`, and the dead-letter queue alarm in `siem-integration.yaml`. Going by that test, these alarms could not notify through the topic while it used `aws/sns`. The stack also had no topic policy, and in a test an EventBridge rule delivered nothing to a topic that has only the default policy [E-040], so the `RuleNotification` rule would not have delivered either.
+
+### What the stack creates
+
+| Resource | Purpose |
+|----------|---------|
+| `AlertTopicKey` and its alias | Encrypts the topic. The account root administers the key. CloudWatch and EventBridge in the same account may call `kms:Decrypt` and `kms:GenerateDataKey*` |
+| `SecurityAlertTopicPolicy` | Lets the account owner manage the topic, and lets CloudWatch and EventBridge in the same account publish |
+| KMS permission on `StepFunctionsExecutionRole` | Lets the quarantine workflow publish alerts to the encrypted topic |
+| KMS permission on `ComplianceCollectorRole` in `siem-integration.yaml` | The key lives in another stack, so the permission is limited to use through SNS (`kms:ViaService`) |
+| Output `AlertTopicKeyArn` | The key ARN for other publishers |
+
+### Permission another publisher needs
+
+An identity that calls `sns:Publish` on the topic also needs `kms:GenerateDataKey` and `kms:Decrypt` on `AlertTopicKeyArn`, or the same `kms:ViaService` condition as `ComplianceCollectorRole`. A role with only `sns:Publish` got `KMSAccessDenied`.
+
+### Measured results
+
+Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
+
+| Case | Result |
+|------|--------|
+| Alarm to a topic encrypted with `aws/sns` | Action failed, nothing delivered [E-039] |
+| Alarm to a topic with no encryption | Delivered [E-039] |
+| Alarm to a topic encrypted with a customer managed key, key policy as above | Delivered [E-039] |
+| EventBridge rule to a topic with only the default topic policy | Nothing delivered, `FailedInvocations` 2 [E-040] |
+| EventBridge rule to a topic whose policy allows `events.amazonaws.com`, with or without the customer managed key | Delivered [E-040] |
+| Role with `sns:Publish` only, then with the `kms:ViaService` permission added | `KMSAccessDenied`, then delivered |
+
+### Not measured
+
+- No deployment of these templates. The cases above used standalone resources with the same key policy and topic policy.
+- Whether changing the key of an existing topic updates it in place.
+- The key's monthly cost. The key is deleted with the stack after a 30-day waiting period.
+- `HubAlertTopic` in `hub-aggregation.yaml` also uses `aws/sns` and has no topic policy. It was not changed or tested.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints
