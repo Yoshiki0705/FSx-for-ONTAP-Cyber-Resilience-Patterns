@@ -147,6 +147,14 @@ def test_findings_cover_every_shape_and_both_ends_of_the_size_range() -> None:
     assert "size>=150" in seen, "a set of 150 or more findings was never drawn"
 
 
+def test_one_drawn_finding_spec_yields_the_q11_pair_on_its_own() -> None:
+    """A set from a single spec can only hold a pair if the generator builds one deliberately."""
+    drawn = _sample(sc.findings(max_size=1), 200)
+    with_pair = [v for v in drawn if sc.ghsa_malware_pairs(v)]
+    assert len(with_pair) >= 10, f"only {len(with_pair)} of 200 single-spec sets held a Q-11 pair"
+    assert all(len(v) <= 2 for v in drawn)
+
+
 def test_findings_reach_the_documented_maximum() -> None:
     largest = max(
         (len(v) for v in _sample(sc.findings(max_size=sc.MAX_COLLECTION), 60)),
