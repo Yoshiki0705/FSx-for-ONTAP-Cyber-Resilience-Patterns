@@ -196,7 +196,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Final, Literal, TypeAlias
 
-from handoff import command, evaluate, prompt, state
+from handoff import command, evaluate, prompt, scan, state
 from handoff.config import HandoffConfig, is_within, normalize_path, overlaps
 from handoff.executor import Executor
 from handoff.manifest import Item, Manifest, RequiredRef, VerifyCommand, rerun_skip_reason
@@ -226,6 +226,27 @@ STALE_LOCK_REMOVED: Final = "stale_lock_removed"
 
 #: The kind of the event recorded when ``cli.py cleanup --approved`` removed a worktree.
 WORKTREE_REMOVED: Final = "worktree_removed"
+#: The kind of the event recorded when :meth:`Harness.publish_batch` holds an item back (task 5.4).
+PUBLISH_HELD: Final = "publish_held"
+#: The kind of the event recorded when :meth:`Harness.publish_batch` ends (task 5.4).
+PUBLISH_BATCH: Final = "publish_batch"
+#: Reasons of a publish outcome besides ``published`` and the exclusion reasons of ``command.build_publish_plan``.
+PUBLISH_SCAN_FINDINGS: Final = "publish_scan_findings"
+PUBLISH_SCAN_FAILED: Final = "publish_scan_failed"
+PUBLISH_CONFLICTS: Final = "publish_conflicts"
+PUBLISH_SHA_MISMATCH: Final = "publish_sha_mismatch"
+PUBLISH_NOT_READ: Final = "publish_not_read"
+PUBLISH_PUSH_FAILED: Final = "publish_push_failed"
+PUBLISH_PR_FAILED: Final = "publish_pr_failed"
+PUBLISH_NO_REPOSITORY: Final = "publish_no_github_repository"
+#: The remote URLs of GitHub that :func:`github_repo_of` reads: ``OWNER/NAME`` is the path.
+_GITHUB_URL: Final = re.compile(
+    r"(?:https://(?:[^/@]+@)?github\.com/|ssh://git@github\.com/|git@github\.com:)"
+    r"([A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+?)(?:\.git)?/?"
+)
+_PULL_REQUEST_URL: Final = re.compile(r"/pull/([0-9]+)\s*\Z")
+#: Characters of the text of a pull request's checks kept in ``published.ci.output``.
+_CI_OUTPUT_LIMIT: Final = 2000
 
 #: The history reason of an item whose drawn prompt names this session as its executor: only
 #: rows 5 and 6 of the executor table apply, so the prompt is not passed to the target
@@ -553,6 +574,33 @@ class ItemOutcome:
     worktree: str | None
     exit_code: int | None
     timed_out: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PublishOutcome:
+    """What became of one item that :meth:`Harness.publish_batch` was asked to publish.
+
+    Attributes:
+        item_id: The item.
+        published: Whether its branch was pushed, the push was confirmed on the remote and the
+            draft pull request was opened.
+        reason: ``published``; or why not: an exclusion reason of ``command.build_publish_plan``,
+            or one of the ``PUBLISH_*`` reasons of this module.
+        detail: More for the maintainer, for local output. It can hold local paths.
+        held: Whether the item was held back (the ``hold`` of ``published`` in ``status.json``):
+            a scan finding, a conflict or a branch that is not what was pushed.
+        pr: The pull request number, or ``None``.
+        ci: The result of ``gh pr checks`` right after the pull request was opened
+            (``passing``, ``failing``, ``pending``, ``none`` or ``unreadable``), or ``None``.
+    """
+
+    item_id: str
+    published: bool
+    reason: str
+    detail: str
+    held: bool = False
+    pr: int | None = None
+    ci: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1256,6 +1304,50 @@ class Harness:
         with self._reserve(context.manifest, item):
             return _ChangeRun(self, context, item, stop).run()
 
+    def publish_batch(
+        self,
+        context: RunContext,
+        approval: command.PublishApproval,
+        *,
+        github_repos: Mapping[str, str] | None = None,
+    ) -> tuple[PublishOutcome, ...]:
+        """Publish the ``succeeded`` items that one approval lists: push, confirm, open a draft pull request.
+
+        Only the argv of ``command.build_publish_plan`` is run (no ``kiro-cli``, in the harness's
+        own environment). Before a push, the commit messages and the added lines of the diff
+        are scanned with ``scan.check_publish``, and the default branch is fetched again to check
+        for conflicts; an item with a finding or a conflict is not published and is held (see
+        below). After the push, ``git ls-remote origin refs/heads/handoff/<id>`` must print the
+        SHA of the local branch before the pull request is opened. The number goes to
+        ``published.pr`` and the result of ``gh pr checks`` to ``published.ci`` (IN-3).
+
+        A held item stays ``succeeded``: no transition leaves that state. ``published.hold`` holds
+        the reason and an event ``publish_held`` is added; the item is published by a new approval
+        once its cause is gone.
+
+        Args:
+            context: The checked inputs.
+            approval: The approval. It covers the items it lists and no other.
+            github_repos: ``OWNER/NAME`` by target repository for ``gh pr create --repo``,
+                for a repository whose ``origin`` URL does not name one; by default it is read
+                from ``remote.origin.url`` of the main working tree.
+
+        Returns:
+            One outcome per listed item, in the order listed.
+
+        Raises:
+            TypeError: An argument is not of its type.
+            RunnerError: ``handoff_dir`` is not in the harness tree, or the harness is closed.
+            KeyboardInterrupt: The harness was interrupted during a command.
+        """
+        if not isinstance(context, RunContext):
+            raise TypeError(f"context must be a RunContext, not {type(context).__name__}")
+        if not isinstance(approval, command.PublishApproval):
+            raise TypeError(f"approval must be a PublishApproval, not {type(approval).__name__}")
+        if not (is_within(self._handoff_dir, context.harness_tree) and self._handoff_dir != context.harness_tree):
+            raise RunnerError(f"{self._handoff_dir} is not in the harness tree {context.harness_tree}")
+        return _Publish(self, context, approval, dict(github_repos or {})).run()
+
     def draw_prompt(self, context: RunContext, item_id: str) -> PromptDraft:
         """Draw, scan and write one item's Handoff_Prompt as a run does, and start nothing else.
 
@@ -1426,6 +1518,20 @@ class Harness:
         with self._mutex:
             status = copy.deepcopy(self._status)
             status["selftest"] = entry
+            self._commit(status)
+
+    def _record_event(self, kind: str, detail: str) -> None:
+        """Add one entry to ``events`` and write the status."""
+        with self._mutex:
+            self._commit(state.record_event(self._status, at=_now(), kind=kind, detail=detail))
+
+    def _publish_record(self, item_id: str, published: Mapping[str, Any], *, event: tuple[str, str] | None) -> None:
+        """Replace ``published`` of an item's record, with an event if given, and write the status."""
+        with self._mutex:
+            status = copy.deepcopy(self._status)
+            _set_fields(status["items"][item_id], {"published": dict(published)})
+            if event is not None:
+                status = state.record_event(status, at=_now(), kind=event[0], detail=event[1])
             self._commit(status)
 
     def _context_item(self, context: RunContext, item_id: str) -> Item:
@@ -2415,6 +2521,350 @@ class _ChangeRun(_QueryRun):
             f"{_detail(ran)}\nthe re-run has no exit code to record (exit code {ran.exit_code}), so it counts as "
             "neither passed nor failed",
         )
+
+
+def github_repo_of(url: str) -> str | None:
+    """``OWNER/NAME`` of a GitHub remote URL, or ``None`` when the URL does not name a GitHub repository.
+
+    Reads the HTTPS, ``ssh://`` and scp-like forms of a github.com URL (``OWNER/NAME`` is the path), with
+    or without ``.git``. Any other host, and a local path, give ``None``.
+    """
+    found = _GITHUB_URL.fullmatch(url.strip())
+    return found.group(1) if found else None
+
+
+class _Publish:
+    """One approval's publication. :meth:`Harness.publish_batch` uses it once.
+
+    Two passes over ``command.build_publish_plan``. The first, with no pull-request specs, leaves
+    the approved items that passed every earlier check with the exclusion ``no_pull_request``;
+    those are the candidates. Each candidate is read, scanned and checked for conflicts, and gets a
+    spec (title, body file, repository) or an outcome that says why not. The second pass, with the
+    specs, gives the steps that are run.
+    """
+
+    def __init__(
+        self,
+        harness: Harness,
+        context: RunContext,
+        approval: command.PublishApproval,
+        github_repos: Mapping[str, str],
+    ) -> None:
+        """Keep the inputs.
+
+        Args:
+            harness: The harness, which owns the status.
+            context: The checked inputs.
+            approval: The approval.
+            github_repos: ``OWNER/NAME`` by target repository, overriding the ``origin`` URL.
+        """
+        self.harness = harness
+        self.context = context
+        self.config = context.config
+        self.approval = approval
+        self.directory = harness.handoff_dir
+        self.github_repos = github_repos
+        self.git_env = git_environment(os.environ)
+        self.outcomes: dict[str, PublishOutcome] = {}
+
+    def run(self) -> tuple[PublishOutcome, ...]:
+        """Plan, prepare, publish; return one outcome per listed item, in the order listed."""
+        status = copy.deepcopy(self.harness.status)
+        first = self._plan(status, {})
+        candidates: list[str] = []
+        for excluded in first.excluded:
+            if excluded.reason == "not_approved":
+                continue
+            if excluded.reason == "no_pull_request":
+                candidates.append(excluded.item_id)
+            else:
+                self.outcomes[excluded.item_id] = PublishOutcome(
+                    excluded.item_id, False, excluded.reason, excluded.detail
+                )
+        specs: dict[str, command.PullRequestSpec] = {}
+        for item_id in candidates:
+            prepared = self._prepare(status, item_id)
+            if isinstance(prepared, PublishOutcome):
+                self.outcomes[item_id] = prepared
+            else:
+                specs[item_id] = prepared
+        second = self._plan(status, specs)
+        for excluded in second.excluded:
+            if excluded.reason != "not_approved" and excluded.item_id not in self.outcomes:
+                self.outcomes[excluded.item_id] = PublishOutcome(
+                    excluded.item_id, False, excluded.reason, excluded.detail
+                )
+        for step in second.steps:
+            self.outcomes[step.item_id] = self._publish(step, specs[step.item_id])
+        result = tuple(self.outcomes[item_id] for item_id in self.approval.item_ids)
+        done = [outcome.item_id for outcome in result if outcome.published]
+        left = [outcome.item_id for outcome in result if not outcome.published]
+        detail = (
+            f"approved_at {self.approval.approved_at}; published: {', '.join(done) or 'none'}; "
+            f"not published: {', '.join(left) or 'none'}"
+        )
+        self.harness._record_event(PUBLISH_BATCH, detail)
+        return result
+
+    def _plan(self, status: state.StatusDoc, specs: Mapping[str, command.PullRequestSpec]) -> command.PublishPlan:
+        """``command.build_publish_plan`` with the specs prepared so far."""
+        return command.build_publish_plan(
+            self.config,
+            self.context.manifest,
+            status,
+            self.approval,
+            pull_requests=specs,
+            handoff_dir=self.directory,
+        )
+
+    def _prepare(self, status: state.StatusDoc, item_id: str) -> command.PullRequestSpec | PublishOutcome:
+        """Read, scan and conflict-check one candidate; give its spec, or the outcome that stops it."""
+        item = self.context.manifest.by_id[item_id]
+        record = status["items"][item_id]
+        plan = command.build_git_plan(self.config, item)
+        if record["worktree"] is None or record["base_sha"] is None:
+            return PublishOutcome(item_id, False, PUBLISH_NOT_READ, "its record has no worktree or base_sha")
+        worktree, base, main_tree = plan.worktree, record["base_sha"], plan.main_tree
+        try:
+            head = self._branch_head(worktree, plan.branch or "")
+            messages = [
+                text
+                for text in self._read(
+                    ("git", "-C", worktree, "log", "-z", "--no-show-signature", "--format=%B", f"{base}..{head}"),
+                    worktree,
+                    "the commit messages",
+                )
+                .stdout.decode("utf-8", "replace")
+                .split("\0")
+                if text.strip()
+            ]
+            subjects = _commit_subjects(
+                self._read(
+                    ("git", "-C", worktree, "log", "-z", "--no-show-signature", "--format=%H%x09%s", f"{base}..{head}"),
+                    worktree,
+                    "the commit subjects",
+                ).stdout
+            )
+            diff = self._read(
+                (
+                    *("git", "-C", worktree, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames"),
+                    *("--src-prefix=a/", "--dst-prefix=b/", base, head),
+                ),
+                worktree,
+                "the diff of the branch",
+            ).stdout.decode("utf-8", "replace")
+            changed = tuple(
+                sorted(
+                    {
+                        name
+                        for name in self._read(
+                            ("git", "-C", worktree, "diff", "--name-only", "--no-renames", "-z", base, head),
+                            worktree,
+                            "the files of the branch",
+                        )
+                        .stdout.decode("utf-8", "replace")
+                        .split("\0")
+                        if name
+                    }
+                )
+            )
+            try:
+                findings = scan.check_publish(messages, diff, self.context.deny.terms)
+            except scan.DiffParseError as error:
+                return self._hold(item_id, PUBLISH_SCAN_FAILED, f"the diff could not be scanned: {error}")
+            if findings:
+                shown = "; ".join(_finding_text(finding) for finding in findings[:20])
+                return self._hold(
+                    item_id,
+                    PUBLISH_SCAN_FINDINGS,
+                    f"{len(findings)} scan finding(s) in the commits or the diff: {shown}",
+                )
+            conflicts = self._conflicts(plan, base, changed)
+            if conflicts:
+                return self._hold(
+                    item_id,
+                    PUBLISH_CONFLICTS,
+                    f"the default branch changed the same file(s) since the base: {', '.join(conflicts)}",
+                )
+        except _StepFailed as error:
+            return PublishOutcome(item_id, False, PUBLISH_NOT_READ, f"{error.what}: {error.detail}")
+        except evaluate.EvaluationError as error:
+            return PublishOutcome(item_id, False, PUBLISH_NOT_READ, str(error))
+        repository = self._repository(item.repo, main_tree)
+        if repository is None:
+            return PublishOutcome(
+                item_id,
+                False,
+                PUBLISH_NO_REPOSITORY,
+                f"remote.origin.url of {main_tree} does not name a GitHub repository",
+            )
+        title = subjects[-1][1] if subjects else item_id
+        lines = [
+            f"Handoff item `{item_id}` for `{item.repo}`.",
+            "",
+            "Commits:",
+            *(f"- {subject}" for _, subject in subjects),
+        ]
+        lines += ["", "Opened as a draft by the Handoff_Harness after the maintainer's approval."]
+        body = posixpath.join(self.directory, "publish", f"{item_id}-pr-body.md")
+        _write_file(body, ("\n".join(lines) + "\n").encode("utf-8"), self.directory)
+        return command.PullRequestSpec(github_repo=repository, title=title, body_file=body)
+
+    def _publish(self, step: command.PublishStep, spec: command.PullRequestSpec) -> PublishOutcome:
+        """Run the push, confirm it on the remote, open the pull request and read its checks."""
+        item_id, approved_at = step.item_id, self.approval.approved_at
+        main_tree = self.config.repos[step.repo].main_tree
+        self.harness._publish_record(item_id, {"approved_at": approved_at, "pr": None}, event=None)
+        pushed = self._run(step.push)
+        if not pushed.ok:
+            return PublishOutcome(item_id, False, PUBLISH_PUSH_FAILED, _detail(pushed))
+        ref = f"refs/heads/{step.branch}"
+        try:
+            local = self._read(
+                ("git", "-C", step.push.cwd, "rev-parse", "--verify", ref), step.push.cwd, "the local branch"
+            )
+            listed = self._read(
+                ("git", "-C", main_tree, "ls-remote", command.REMOTE, ref), main_tree, "the remote branch"
+            )
+        except _StepFailed as error:
+            return self._hold(item_id, PUBLISH_SHA_MISMATCH, f"{error.what}: {error.detail}", approved_at=approved_at)
+        local_sha = local.stdout.decode("utf-8", "replace").strip()
+        remote_sha = _ls_remote_sha(listed.stdout, ref)
+        if remote_sha is None or remote_sha != local_sha:
+            return self._hold(
+                item_id,
+                PUBLISH_SHA_MISMATCH,
+                f"after the push, {ref} is {remote_sha or 'not on the remote'} there and {local_sha} here; "
+                "no pull request was opened",
+                approved_at=approved_at,
+            )
+        opened = self._run(step.pull_request, env=dict(os.environ))
+        if not opened.ok:
+            return PublishOutcome(item_id, False, PUBLISH_PR_FAILED, _detail(opened))
+        url = opened.stdout.decode("utf-8", "replace").strip().splitlines()[-1:] or [""]
+        found = _PULL_REQUEST_URL.search(url[0])
+        if found is None:
+            return PublishOutcome(item_id, False, PUBLISH_PR_FAILED, f"gh printed no pull request URL: {_clip(url[0])}")
+        number = int(found.group(1))
+        record: dict[str, Any] = {"approved_at": approved_at, "pr": number, "url": url[0].strip()}
+        self.harness._publish_record(item_id, record, event=None)
+        checks = self._run(
+            command.Command(("gh", "pr", "checks", str(number), "--repo", spec.github_repo), step.push.cwd),
+            env=dict(os.environ),
+        )
+        ci = _ci_result(checks)
+        record["ci"] = {
+            "result": ci,
+            "exit_code": checks.exit_code,
+            "output": checks.stdout.decode("utf-8", "replace")[:_CI_OUTPUT_LIMIT],
+        }
+        self.harness._publish_record(item_id, record, event=None)
+        return PublishOutcome(item_id, True, "published", f"draft pull request #{number}", pr=number, ci=ci)
+
+    def _hold(self, item_id: str, reason: str, detail: str, *, approved_at: str | None = None) -> PublishOutcome:
+        """Record that an item is held back and why; it stays ``succeeded``."""
+        hold = {"at": _now(), "reason": reason, "detail": _one_line(detail)[:500]}
+        self.harness._publish_record(
+            item_id,
+            {"approved_at": approved_at, "pr": None, "hold": hold},
+            event=(PUBLISH_HELD, f"{item_id}: {reason}"),
+        )
+        return PublishOutcome(item_id, False, reason, detail, held=True)
+
+    def _conflicts(self, plan: command.GitPlan, base: str, changed: tuple[str, ...]) -> tuple[str, ...]:
+        """Fetch the default branch again and list the changed files that it also changed since the base."""
+        self._read(plan.fetch.argv, plan.fetch.cwd, "the fetch of the conflict check")
+        parsed = self._read(plan.rev_parse.argv, plan.rev_parse.cwd, "origin/main after the fetch")
+        origin_main = parsed.stdout.decode("utf-8", "replace").strip()
+        if _OBJECT_ID.fullmatch(origin_main) is None:
+            raise _StepFailed("origin/main after the fetch", parsed, f"rev-parse printed {_clip(origin_main)}")
+        names = self._read(
+            (
+                "git",
+                "--no-optional-locks",
+                "-C",
+                plan.main_tree,
+                "diff",
+                "--name-only",
+                "--no-renames",
+                "-z",
+                base,
+                origin_main,
+            ),
+            plan.main_tree,
+            "files changed on the default branch",
+        ).stdout.decode("utf-8", "replace")
+        default_branch_files = tuple(sorted({name for name in names.split("\0") if name}))
+        return evaluate.conflicting_files(changed, default_branch_files, ())
+
+    def _branch_head(self, worktree: str, branch: str) -> str:
+        """The SHA of the worktree's ``HEAD``, which must be on ``handoff/<id>``."""
+        on = self._read(
+            ("git", "--no-optional-locks", "-C", worktree, "symbolic-ref", "-q", "HEAD"),
+            worktree,
+            "the branch of the worktree",
+            allowed=(0, 1),
+        )
+        current = on.stdout.decode("utf-8", "replace").strip() if on.exit_code == 0 else ""
+        if current != f"refs/heads/{branch}":
+            raise _StepFailed(
+                "the branch of the worktree", None, f"HEAD is {current or 'detached'}, not refs/heads/{branch}"
+            )
+        parsed = self._read(("git", "-C", worktree, "rev-parse", "--verify", "HEAD"), worktree, "HEAD of the worktree")
+        return parsed.stdout.decode("utf-8", "replace").strip()
+
+    def _repository(self, repo: str, main_tree: str) -> str | None:
+        """``OWNER/NAME`` for ``gh pr create --repo``: the given one, or the one that ``origin`` names."""
+        if repo in self.github_repos:
+            return self.github_repos[repo]
+        url = self._read(
+            ("git", "-C", main_tree, "config", "--get", "remote.origin.url"),
+            main_tree,
+            "the URL of origin",
+            allowed=(0, 1),
+        )
+        return github_repo_of(url.stdout.decode("utf-8", "replace"))
+
+    def _run(self, step: command.Command, *, env: Mapping[str, str] | None = None) -> ProcessResult:
+        """Run one command of the plan, in the harness's own environment (not ``child_env``)."""
+        result = _run_process(
+            step.argv,
+            cwd=step.cwd,
+            env=self.git_env if env is None else env,
+            timeout_seconds=self.config.timeout_seconds,
+            kill_grace_seconds=self.context.kill_grace_seconds,
+        )
+        if result.ending == "interrupted":
+            raise KeyboardInterrupt
+        return result
+
+    def _read(self, argv: tuple[str, ...], cwd: str, what: str, *, allowed: tuple[int, ...] = (0,)) -> ProcessResult:
+        """Run a command that only reads, and require one of the allowed exit codes."""
+        result = self._run(command.Command(argv, cwd))
+        if result.ending != "exited" or result.exit_code not in allowed:
+            raise _StepFailed(what, result, _detail(result))
+        return result
+
+
+def _finding_text(finding: scan.PublishFinding) -> str:
+    """Where a publish finding is and its kind, never the matched value."""
+    if isinstance(finding, scan.MessageFinding):
+        return f"commit message {finding.message_index} line {finding.line}: {finding.kind}"
+    return f"{finding.path} line {finding.line}: {finding.kind}"
+
+
+def _ci_result(checks: ProcessResult) -> str:
+    """The result of ``gh pr checks`` by its exit code: 0 passing, 8 pending, 1 failing (or no checks)."""
+    if checks.ending != "exited":
+        return "unreadable"
+    if checks.exit_code == 0:
+        return "passing"
+    if checks.exit_code == 8:
+        return "pending"
+    if checks.exit_code == 1:
+        text = (checks.stdout + checks.stderr).decode("utf-8", "replace")
+        return "none" if "no checks reported" in text else "failing"
+    return "unreadable"
 
 
 class _Report:
