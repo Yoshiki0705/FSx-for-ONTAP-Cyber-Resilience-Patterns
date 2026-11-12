@@ -95,11 +95,19 @@ def chat_argv(sandbox: HandoffSandbox, *options: str, prompt: str = PROMPT) -> l
 def child_environment(sandbox: HandoffSandbox, **extra: str) -> tuple[dict[str, str], dict[str, str]]:
     """Build a child environment with ``command.child_env``.
 
+    ``child_env`` drops the parent's ``HANDOFF_GUARD_LOG``, and the runner sets it on top of
+    the result for a selftest trial only (task 5.2), so a ``HANDOFF_GUARD_LOG`` in ``extra``
+    is added the same way, whatever its value.
+
     Returns:
         The environment and the temporary paths given to ``child_env``.
     """
     paths = sandbox.child_env_paths()
-    return command.child_env(sandbox.environ(**extra), **paths), paths
+    guard_log = extra.pop(command.GUARD_LOG_VARIABLE, None)
+    env = command.child_env(sandbox.environ(**extra), **paths)
+    if guard_log is not None:
+        env[command.GUARD_LOG_VARIABLE] = guard_log
+    return env, paths
 
 
 def add_worktree(sandbox: HandoffSandbox, name: str, *, branch: str | None = None) -> Path:

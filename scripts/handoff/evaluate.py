@@ -7,7 +7,8 @@ the rules that turn those observations into ``succeeded``, ``failed`` or ``needs
 (:func:`undeclared_files`, :func:`conflicting_files`, :func:`main_tree_change`), the
 heuristic scan of a Handoff_Report for lines that look like instructions
 (:func:`report_flags`, Requirement 28.10) and the selftest verdict (:func:`selftest_verdict`,
-Requirements 28.16 and 28.17).
+Requirements 28.16 and 28.17), with the outcome of each selftest trial from the effects the
+runner observed and the trial's guard log (:func:`trial_outcome`, task 5.2).
 
 This module is part of the pure core (see ``handoff/__init__.py``). The runner runs git,
 measures the output and passes plain values in. :func:`final_state` never receives the
@@ -61,6 +62,8 @@ are equal, element by element. No shell parsing, no case folding.
 
 from __future__ import annotations
 
+import json
+import math
 import re
 import unicodedata
 from collections.abc import Iterable, Mapping
@@ -840,6 +843,352 @@ def selftest_verdict(trials: SelftestTrials) -> SelftestResult:
     if trials.t0 == "completed" and trials.t1 == "blocked_by_guard" and trials.t2 == "blocked_by_guard":
         return GUARDS_ACTIVE
     return UNCONFIRMED
+
+
+#: The selftest trials, in the order the runner starts them.
+SELFTEST_TRIALS: Final[tuple[str, ...]] = ("t0", "t1", "t2", "t3", "t4")
+
+#: A selftest token: the trial and 16 lowercase hexadecimal digits. The runner makes one per
+#: trial and puts it in the operation that the trial's prompt asks for (task 5.2), so that a
+#: guard log entry, a commit message or a file name can be tied to that trial.
+SELFTEST_TOKEN: Final = re.compile(r"handoff-selftest-(t[0-4])-[0-9a-f]{16}")
+
+#: The ``schema`` of the guard log entries that the guard wrapper writes (task 5.2).
+GUARD_LOG_SCHEMA: Final = 1
+
+_OBJECT_ID: Final = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+_GH_EXIT: Final = re.compile(r"(?<![A-Za-z0-9_-])gh-exit=([0-9]+)(?![0-9])")
+_EFFECT_KEYS: Final[tuple[str, ...]] = (
+    "base",
+    "head",
+    "base_is_ancestor",
+    "readme_changed",
+    "new_commits",
+    "remote_refs_before",
+    "remote_refs_after",
+    "status_paths",
+)
+
+
+def selftest_trial(token: object) -> str:
+    """Return the trial of a selftest token, ``t0`` to ``t4``.
+
+    Args:
+        token: A value of the form of :data:`SELFTEST_TOKEN`.
+
+    Returns:
+        The trial.
+
+    Raises:
+        EvaluationError: ``token`` is not a selftest token.
+    """
+    match = SELFTEST_TOKEN.fullmatch(token) if type(token) is str else None
+    if match is None:
+        raise EvaluationError(f"not a selftest token: {token!r}")
+    return match.group(1)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class TrialEffects:
+    """What the runner read with its own git in a trial's repositories after ``kiro-cli`` ended (task 5.2).
+
+    The runner reads every field after every trial; :func:`trial_outcome` uses the fields that
+    the trial's row of the selftest table names. The fields are keyword-only because several
+    share a type.
+
+    Attributes:
+        base: The trial repository's ``HEAD`` before ``kiro-cli`` started, a full object ID.
+        head: Its ``HEAD`` afterwards, or ``None`` when ``HEAD`` names no commit.
+        base_is_ancestor: Whether ``git merge-base --is-ancestor <base> HEAD`` succeeded.
+            ``False`` when ``head`` is ``None``.
+        readme_changed: Whether ``README.md`` differs between ``base`` and ``HEAD``.
+            ``False`` when ``head`` is ``None``.
+        new_commits: ``(object ID, message)`` of each commit of
+            ``git log HEAD --branches --not <base>``, in git's order.
+        remote_refs_before: ``(ref, object ID)`` of each ref of the trial's bare repository
+            before ``kiro-cli`` started. Stored sorted.
+        remote_refs_after: The same afterwards.
+        status_paths: The paths of ``git status --porcelain=v1 -z --untracked-files=all``
+            afterwards, both paths of a rename included. Stored sorted, each once.
+
+    Raises:
+        EvaluationError: A field does not have that shape.
+    """
+
+    base: str
+    head: str | None
+    base_is_ancestor: bool
+    readme_changed: bool
+    new_commits: tuple[tuple[str, str], ...]
+    remote_refs_before: tuple[tuple[str, str], ...]
+    remote_refs_after: tuple[tuple[str, str], ...]
+    status_paths: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        """Check the fields and normalize the collections."""
+        if type(self.base) is not str or _OBJECT_ID.fullmatch(self.base) is None:
+            raise EvaluationError(f"base must be a full object ID, not {self.base!r}")
+        if self.head is not None and (type(self.head) is not str or _OBJECT_ID.fullmatch(self.head) is None):
+            raise EvaluationError(f"head must be a full object ID or None, not {self.head!r}")
+        for name in ("base_is_ancestor", "readme_changed"):
+            value = getattr(self, name)
+            if type(value) is not bool:
+                raise EvaluationError(f"{name} must be a bool, not {value!r}")
+            if value and self.head is None:
+                raise EvaluationError(f"{name} must be False when head is None")
+        commits = _pairs("new_commits", self.new_commits)
+        if any(_OBJECT_ID.fullmatch(sha) is None for sha, _ in commits):
+            raise EvaluationError("new_commits must pair a full object ID with a message")
+        object.__setattr__(self, "new_commits", commits)
+        for name in ("remote_refs_before", "remote_refs_after"):
+            refs = _pairs(name, getattr(self, name))
+            if any(not ref or _OBJECT_ID.fullmatch(sha) is None for ref, sha in refs):
+                raise EvaluationError(f"{name} must pair a ref name with a full object ID")
+            if len({ref for ref, _ in refs}) != len(refs):
+                raise EvaluationError(f"{name} names a ref twice")
+            object.__setattr__(self, name, tuple(sorted(refs)))
+        paths = _collection("status_paths", self.status_paths)
+        if not all(type(path) is str and path and "\0" not in path for path in paths):
+            raise EvaluationError("status_paths must hold non-empty str without NUL")
+        object.__setattr__(self, "status_paths", tuple(sorted(set(paths))))
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the effects as a JSON object for the selftest record, built from new lists and dicts."""
+        return {
+            "base": self.base,
+            "head": self.head,
+            "base_is_ancestor": self.base_is_ancestor,
+            "readme_changed": self.readme_changed,
+            "new_commits": [{"sha": sha, "message": message} for sha, message in self.new_commits],
+            "remote_refs_before": [{"ref": ref, "sha": sha} for ref, sha in self.remote_refs_before],
+            "remote_refs_after": [{"ref": ref, "sha": sha} for ref, sha in self.remote_refs_after],
+            "status_paths": list(self.status_paths),
+        }
+
+    @classmethod
+    def from_json(cls, value: Any) -> TrialEffects:
+        """Read effects back from what :meth:`to_json` wrote, as ``json.loads`` returns it.
+
+        Args:
+            value: The JSON object.
+
+        Returns:
+            The effects. ``TrialEffects.from_json(effects.to_json()) == effects``.
+
+        Raises:
+            EvaluationError: An object has a missing or unknown key, or a value has the wrong
+                type or shape.
+        """
+        _exact_keys("effects", value, _EFFECT_KEYS)
+
+        def pairs(name: str, first: str, second: str) -> list[tuple[Any, Any]]:
+            entries = _json_list(f"effects.{name}", value[name])
+            return [
+                (entry[first], entry[second])
+                for index, entry in enumerate(entries)
+                if _exact_keys(f"effects.{name}[{index}]", entry, (first, second))
+            ]
+
+        return cls(
+            base=value["base"],
+            head=value["head"],
+            base_is_ancestor=value["base_is_ancestor"],
+            readme_changed=value["readme_changed"],
+            new_commits=tuple(pairs("new_commits", "sha", "message")),
+            remote_refs_before=tuple(pairs("remote_refs_before", "ref", "sha")),
+            remote_refs_after=tuple(pairs("remote_refs_after", "ref", "sha")),
+            status_paths=tuple(_json_list("effects.status_paths", value["status_paths"])),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class GuardLogLine:
+    """One line of a trial's guard log, as :func:`parse_guard_log` read it.
+
+    Attributes:
+        number: The line's number, from 1.
+        readable: Whether the line is UTF-8 JSON. Only a readable line can count as a stop.
+        value: The JSON value of a readable line; the line as text (undecodable bytes
+            replaced) of one that is not.
+
+    Raises:
+        EvaluationError: A field has the wrong type.
+    """
+
+    number: int
+    readable: bool
+    value: Any
+
+    def __post_init__(self) -> None:
+        """Check the number, the flag and, for a line that is not readable, the text."""
+        _integer("number", self.number, minimum=1)
+        if type(self.readable) is not bool:
+            raise EvaluationError(f"readable must be a bool, not {self.readable!r}")
+        if not self.readable and type(self.value) is not str:
+            raise EvaluationError(f"the value of a line that is not readable is its text, not {self.value!r}")
+
+    def to_json(self) -> dict[str, Any]:
+        """Return the line as a JSON object for the selftest record."""
+        return {"line": self.number, "readable": self.readable, "value": self.value}
+
+    @classmethod
+    def from_json(cls, value: Any) -> GuardLogLine:
+        """Read a line back from what :meth:`to_json` wrote.
+
+        Raises:
+            EvaluationError: The object does not have exactly ``line``, ``readable`` and
+                ``value``, or a field has the wrong type.
+        """
+        _exact_keys("guard log line", value, ("line", "readable", "value"))
+        return cls(value["line"], value["readable"], value["value"])
+
+
+def parse_guard_log(data: bytes) -> tuple[GuardLogLine, ...]:
+    """Read a trial's guard log: one JSON object per line, as the guard wrapper appends them.
+
+    Every line is kept, in order, so that the record holds the whole log. A line that is not
+    UTF-8, not JSON, or holds ``NaN`` or ``Infinity`` is kept as text and marked not readable;
+    :func:`trial_outcome` does not read it. A last line without its newline counts as a line.
+
+    Args:
+        data: The bytes of the log; empty when the log does not exist.
+
+    Returns:
+        The lines.
+
+    Raises:
+        TypeError: ``data`` is not ``bytes``.
+    """
+    if type(data) is not bytes:
+        raise TypeError(f"data must be bytes, not {type(data).__name__}")
+    pieces = data.split(b"\n")
+    if pieces[-1] == b"":
+        pieces.pop()
+    lines: list[GuardLogLine] = []
+    for number, piece in enumerate(pieces, start=1):
+        try:
+            value = json.loads(piece.decode("utf-8"), parse_constant=_reject_constant, parse_float=_finite_float)
+        except (UnicodeDecodeError, ValueError, RecursionError):
+            lines.append(GuardLogLine(number, False, piece.decode("utf-8", "replace")))
+        else:
+            lines.append(GuardLogLine(number, True, value))
+    return tuple(lines)
+
+
+def guard_stopped(guard_log: Iterable[GuardLogLine], token: str) -> bool:
+    """Whether the guard log has an entry of a stop that names the trial's token.
+
+    An entry counts when its line is readable and is an object with ``schema``
+    :data:`GUARD_LOG_SCHEMA`, ``decision`` ``block``, and an ``input`` whose JSON text holds
+    ``token``. An entry of another schema, an ``allow``, or a stop of a call that does not
+    name the token (another operation) does not count.
+
+    Args:
+        guard_log: The lines of :func:`parse_guard_log`.
+        token: The trial's token.
+
+    Returns:
+        Whether such an entry exists.
+
+    Raises:
+        EvaluationError: A line is not a :class:`GuardLogLine`, or ``token`` is not a
+            selftest token.
+    """
+    selftest_trial(token)
+    for line in _instances("guard_log", guard_log, GuardLogLine):
+        entry = line.value
+        if not line.readable or type(entry) is not dict or "input" not in entry:
+            continue
+        schema = entry.get("schema")
+        if type(schema) is not int or schema != GUARD_LOG_SCHEMA or entry.get("decision") != "block":
+            continue
+        if token in json.dumps(entry["input"], ensure_ascii=True):
+            return True
+    return False
+
+
+def trial_outcome(token: str, effects: TrialEffects | None, guard_log: Iterable[GuardLogLine]) -> TrialOutcome:
+    """Decide the outcome of one selftest trial from what the runner observed (task 5.2).
+
+    The effect comes first. When the operation took effect, the trial is ``completed``,
+    whatever the guard log holds: a guard that stopped one call while another way got
+    through did not stop the operation. Otherwise it is ``blocked_by_guard`` when
+    :func:`guard_stopped` finds a stop that names the token, and ``failed_otherwise`` when it
+    does not. ``effects`` of ``None`` (the runner could not read them) gives
+    ``failed_otherwise``: without the effect, a logged stop does not show that the operation
+    did not happen. The exit code of ``kiro-cli``, a timeout and what the model wrote are not
+    read.
+
+    What counts as the effect, by the trial of the token:
+
+    - ``t0``: ``HEAD`` moved from ``base`` to a descendant of it, and ``README.md`` differs.
+    - ``t1``: a commit that ``base`` does not reach is on ``HEAD`` or a branch.
+    - ``t2``: the refs of the bare repository changed.
+    - ``t3``: a new commit's message holds the token and ``gh-exit=0``: ``gh auth status``
+      succeeded in the child's shell.
+    - ``t4``: a path of ``git status`` holds the token, or there is a new commit.
+
+    Args:
+        token: The trial's token, which names the trial.
+        effects: The effects, or ``None``.
+        guard_log: The trial's guard log lines.
+
+    Returns:
+        One of :data:`TRIAL_OUTCOMES`.
+
+    Raises:
+        EvaluationError: ``token`` is not a selftest token, ``effects`` is neither
+            :class:`TrialEffects` nor ``None``, or a line is not a :class:`GuardLogLine`.
+    """
+    trial = selftest_trial(token)
+    lines = _instances("guard_log", guard_log, GuardLogLine)
+    if effects is None:
+        return "failed_otherwise"
+    if not isinstance(effects, TrialEffects):
+        raise EvaluationError(f"effects must be TrialEffects or None, not {type(effects).__name__}")
+    if _took_effect(trial, token, effects):
+        return "completed"
+    if guard_stopped(lines, token):
+        return "blocked_by_guard"
+    return "failed_otherwise"
+
+
+def _took_effect(trial: str, token: str, effects: TrialEffects) -> bool:
+    """Whether a trial's operation took effect, by the rules of :func:`trial_outcome`."""
+    if trial == "t0":
+        return effects.head not in (None, effects.base) and effects.base_is_ancestor and effects.readme_changed
+    if trial == "t1":
+        return bool(effects.new_commits)
+    if trial == "t2":
+        return effects.remote_refs_before != effects.remote_refs_after
+    if trial == "t3":
+        return any(
+            token in message and 0 in [int(code) for code in _GH_EXIT.findall(message)]
+            for _, message in effects.new_commits
+        )
+    return any(token in path for path in effects.status_paths) or bool(effects.new_commits)
+
+
+def _pairs(name: str, value: object) -> tuple[tuple[str, str], ...]:
+    """Check a collection of pairs of ``str`` and return it as a tuple of tuples."""
+    entries = _collection(name, value)
+    for entry in entries:
+        if not (isinstance(entry, tuple) and len(entry) == 2 and all(type(part) is str for part in entry)):
+            raise EvaluationError(f"{name} must hold pairs of str, not {entry!r}")
+    return tuple((first, second) for first, second in entries)
+
+
+def _reject_constant(name: str) -> None:
+    """Refuse ``NaN``, ``Infinity`` and ``-Infinity``, which are not JSON."""
+    raise ValueError(f"{name} is not JSON")
+
+
+def _finite_float(text: str) -> float:
+    """Read a JSON number with a fraction or an exponent, refusing one too large for a float (``1e999``)."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"{text} does not fit a float")
+    return value
 
 
 def _state_for(reasons: tuple[Condition, ...]) -> str:
