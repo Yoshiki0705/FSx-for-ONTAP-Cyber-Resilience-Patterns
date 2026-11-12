@@ -31,23 +31,6 @@
                         "CKV_AWS_116",
                         "CKV_AWS_173"
                     ]
-                },
-                {
-                    "resource": "AWS::Logs::LogGroup.StepFunctionsLogGroup",
-                    "check_ids": [
-                        "CKV_AWS_158"
-                    ]
-                }
-            ]
-        },
-        {
-            "file": "/network.yaml",
-            "findings": [
-                {
-                    "resource": "AWS::Logs::LogGroup.FlowLogLogGroup",
-                    "check_ids": [
-                        "CKV_AWS_158"
-                    ]
                 }
             ]
         },

@@ -152,6 +152,23 @@ aws cloudformation create-stack \
 
 ARP と FPolicy は、スタックのデプロイ後に [ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。`svm-prod` のファイルアクセス監査も手作業で有効にする。手順は [持ち出し対応の runbook](../runbooks/data-exfiltration-response.md) にある。
 
+#### 任意: 自管理 KMS キーの指定
+
+スタックは KMS キーを作成しない。既定のパラメータでは暗号化は変わらず、CloudWatch Logs のロググループは CloudWatch Logs の既定の暗号化のままになる。キーの ARN を渡したときだけ、自管理キーで暗号化される。
+
+| パラメータ | テンプレート | 対象 |
+|-----------|-------------|------|
+| `LogGroupKmsKeyArn` | `network.yaml`、`event-driven.yaml`、`main.yaml` | VPC Flow Logs のロググループ（スタックが VPC を作るときだけ作成される）と Step Functions のロググループ |
+
+キーの要件。出典は [CloudWatch Logs のドキュメント](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html)。
+
+- 対称キーを使う。キーポリシーで、同じリージョンの CloudWatch Logs サービスプリンシパルを許可する。
+- スタックをデプロイする IAM プリンシパルに、そのキーへの `kms:DescribeKey` を付ける。ロググループへキーを関連付けるときに必要になる。
+- 既存のロググループに `KmsKeyId` を足す変更は、中断を伴わない更新になる（[`AWS::Logs::LogGroup`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-logs-loggroup.html)）。ドキュメントに書かれているのは、新しく取り込むデータがキーで暗号化されることまで。それ以前のデータが再暗号化されるかは書かれていない。
+- キーを無効化・削除した場合や、CloudWatch Logs がキーを使えなくなった場合、そのキーで暗号化したデータは読めなくなる。
+
+未確認: Step Functions の実行ロールと VPC Flow Logs のロールに、独自の KMS 権限が要るか。CloudWatch Logs のドキュメントは、`PutLogEvents` などを呼ぶプリンシパル向けの KMS 権限を挙げている。これらのテンプレートは cfn-lint と Checkov で検査しただけで、キーを指定したデプロイは実行していない。
+
 ### Step 3: スキャニングレイヤーのデプロイ
 
 ```bash

@@ -404,6 +404,7 @@ echo "All resources deleted."
 | `EnableNatGateway` | `false` | NAT Gateway 有効化 | スキャナー利用時 `true` |
 | `ClientCidr` | `10.0.0.0/16` | NFS/SMB クライアント許可 CIDR | 本番では制限 |
 | `UseExistingVpc` | `false` | 既存 VPC 利用 | 既存環境に追加時 `true` |
+| `LogGroupKmsKeyArn` | `''` | VPC Flow Logs のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 
 ### event-driven.yaml
 
@@ -414,6 +415,7 @@ echo "All resources deleted."
 | `EventTransformerS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `QuarantineActionS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `NotificationEmail` | `''` | アラートメール送信先 | 本番では設定推奨 |
+| `LogGroupKmsKeyArn` | `''` | Step Functions のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 
 ### observability.yaml
 

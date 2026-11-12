@@ -44,6 +44,13 @@ Parameters:
     Default: ''
     Description: Email for security alert notifications (passed to Event-Driven stack).
 
+  LogGroupKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting CloudWatch Logs log groups in the Network and Event-Driven stacks.
+      If empty, the log groups keep the default CloudWatch Logs encryption.
+
 # -------------------------------------------------------------------
 # Resources
 # -------------------------------------------------------------------
@@ -63,6 +70,7 @@ Resources:
         Environment: !Ref Environment
         AvailabilityZone1: !Ref AvailabilityZone1
         AvailabilityZone2: !Ref AvailabilityZone2
+        LogGroupKmsKeyArn: !Ref LogGroupKmsKeyArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -106,6 +114,7 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         NotificationEmail: !Ref NotificationEmail
+        LogGroupKmsKeyArn: !Ref LogGroupKmsKeyArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

@@ -152,6 +152,23 @@ aws cloudformation create-stack \
 
 ARP and FPolicy are set after the stacks are up, with the CLI / REST steps in the [ARP guide](../ontap-native/arp-configuration.md) and the [FPolicy guide](../ontap-native/fpolicy-configuration.md). File access auditing on `svm-prod` is enabled by hand as well; see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 
+#### Optional: Customer Managed KMS Keys
+
+The stacks create no KMS keys of their own. With the default parameters, encryption is unchanged: CloudWatch Logs log groups use the default CloudWatch Logs encryption. A customer managed key is used only when you pass a key ARN.
+
+| Parameter | Templates | Applies to |
+|-----------|-----------|------------|
+| `LogGroupKmsKeyArn` | `network.yaml`, `event-driven.yaml`, `main.yaml` | VPC Flow Logs log group (created only when the stack creates the VPC) and the Step Functions log group |
+
+Key requirements, from the [CloudWatch Logs documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html):
+
+- The key is symmetric. The key policy allows the CloudWatch Logs service principal of the same Region.
+- The identity that deploys the stack has `kms:DescribeKey` on the key, because associating a key with a log group requires it.
+- Setting `KmsKeyId` on an existing log group is an update with no interruption ([`AWS::Logs::LogGroup`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-logs-loggroup.html)). The documentation says newly ingested data uses the key. It does not say whether data ingested earlier is re-encrypted.
+- If the key is disabled or deleted, or CloudWatch Logs loses access to it, the data encrypted with it cannot be read.
+
+Not confirmed: whether the Step Functions execution role and the VPC Flow Logs role need KMS permissions of their own. The CloudWatch Logs page lists KMS permissions for principals that call `PutLogEvents`. These templates were checked with cfn-lint and Checkov only; no stack was deployed with a key.
+
 ### Step 3: Deploy Scanning Layer
 
 ```bash
