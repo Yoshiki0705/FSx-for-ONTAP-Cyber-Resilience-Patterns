@@ -184,5 +184,4 @@ clean: ## Remove generated files
 
 cross-repo-agent: test ## Run quality gates and emit cross-repo notifications for Kiro Bot
 	@mkdir -p docs/agent/notifications
-	@python3 ~/.kiro/hooks/scripts/cross_repo_agent.py run 2>/dev/null || true
-	@echo "cross-repo-agent: gates passed. Notifications written to docs/agent/notifications/ if any."
+	@echo "cross-repo-agent: gates passed."
