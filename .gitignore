@@ -55,3 +55,6 @@ htmlcov/
 
 # Lambda packaging build artifacts
 lambda-packages/
+
+# Local cross-repo agent notifications (reviewed by a human, not tracked)
+docs/agent/notifications/

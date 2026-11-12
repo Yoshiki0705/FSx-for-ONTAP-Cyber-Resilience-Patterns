@@ -585,7 +585,7 @@
         "docs/ja/cyber-resilience-framework-mapping.md",
         "docs/en/cyber-resilience-framework-mapping.md"
       ],
-      "note": "When a database stores its files on an iSCSI or NVMe LUN, ONTAP sees blocks, not rows or statements (inference)."
+      "note": "When a database stores its files on an iSCSI or NVMe LUN, ONTAP sees blocks, not rows or statements (inference). A separate, compatible pattern exists: an application can run SQL queries against an external data source and store the query results as files or objects on FSx for ONTAP via S3 Access Points or NFS/SMB. In that pattern FSx for ONTAP sees the write of the result file, not the SQL statement or its authorisation decision; the claim is consistent with this use."
     },
     {
       "id": "E-015",
