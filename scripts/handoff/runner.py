@@ -113,8 +113,19 @@ runs in this harness or is ``running`` in the status. So ``cli.py`` may run item
 repositories in worker threads. A ``KeyboardInterrupt`` reaches the main thread only; a worker
 thread is asked to stop with the ``stop`` event, which stops ``kiro-cli`` as an interrupt does.
 
-Not done here: the change mode, the selftest, the publish mode, re-running verification
-commands, and the conflict check (tasks 5.2 to 5.4).
+The selftest (task 5.2). :meth:`Harness.run_selftest` runs trials T0 to T4 of design section 20
+in throwaway repositories below ``<worktrees_root>/selftest/<run ID>/``, each with its own bare
+repository, and starts each trial's ``kiro-cli`` the way an item's starts (the environment of
+``command.child_env``, a process group, ``timeout_seconds``), with ``HANDOFF_GUARD_LOG`` added. The
+pure core builds the argv (``command.build_selftest_invocation``) and decides each outcome
+(``evaluate.trial_outcome``) and the result (``evaluate.selftest_verdict``); the runner makes the
+repositories, reads the effects with its own git, and writes the record
+``.private/handoff/selftest/<run ID>.json``, the output of each trial next to it, and ``selftest``
+of ``status.json``. :func:`kiro_fingerprint` gives the ``kiro-cli`` version and ``config_sha256``
+that a result is tied to.
+
+Not done here: the change mode, the publish mode, re-running verification commands, and the
+conflict check (tasks 5.3 and 5.4).
 """
 
 from __future__ import annotations
@@ -127,6 +138,7 @@ import math
 import os
 import posixpath
 import re
+import secrets
 import shlex
 import shutil
 import signal
@@ -237,10 +249,30 @@ RUNNER_GIT_DROPPED_PREFIXES: Final[tuple[str, ...]] = ("GIT_CONFIG_KEY_", "GIT_C
 #: ``KeyboardInterrupt`` of the harness, or not at all because it could not start.
 Ending: TypeAlias = Literal["exited", "timed_out", "stopped", "interrupted", "not_started"]
 
+#: The directory below ``.private/handoff/`` of the selftest records (``<run ID>.json``) and of
+#: the output of each trial's ``kiro-cli`` (``<run ID>/<trial>.stdout`` and ``.stderr``).
+SELFTEST_RECORD_DIR: Final = "selftest"
+
+#: The version of a selftest record.
+SELFTEST_RECORD_SCHEMA: Final = 1
+
+#: The local git settings of both repositories of a selftest trial, besides ``core.hooksPath``:
+#: a made-up committer, and no signing, so that the commits of T0 to T4 need nothing of this
+#: machine's git configuration.
+SELFTEST_GIT_SETTINGS: Final[tuple[tuple[str, str], ...]] = (
+    ("user.name", "handoff-selftest"),
+    ("user.email", "handoff-selftest@example.com"),
+    ("commit.gpgSign", "false"),
+)
+
+#: ``README.md`` of the one commit that each trial's repository starts with.
+_SELFTEST_README: Final = b"# Handoff_Harness selftest\n\nA throwaway repository of one selftest trial.\n"
+
 #: Lines of a process's standard error kept in the detail of a failed step.
 _STDERR_TAIL_LINES: Final = 20
 
 _BACKTICKS: Final = re.compile(r"`+")
+_OBJECT_ID: Final = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 
 
 class RunnerError(RuntimeError):
@@ -328,6 +360,14 @@ class GitCommandFailed(RunnerError):
 
     The message names the command, how it ended and the end of its standard error; it can hold
     local paths.
+    """
+
+
+class SelftestRefused(RunnerError):
+    """The selftest did not start: the configuration cannot build its trials (``cli.py`` exit code 2).
+
+    ``repos`` has a repository called ``selftest``, ``agents.change`` has no approval, or another
+    refusal of ``command.build_selftest_invocation``. Nothing was started or written.
     """
 
 
@@ -545,6 +585,98 @@ class ProcessResult:
         return self.ending == "timed_out"
 
 
+@dataclass(frozen=True, slots=True)
+class SelftestContext:
+    """What :meth:`Harness.run_selftest` needs besides the harness: the checked inputs of ``cli.py``.
+
+    Attributes:
+        config: The configuration that ``config.parse_config`` returned.
+        home: The absolute home directory, in normal form. ``kiro_cli`` is expanded with it,
+            and ``~/.kiro`` below it is read for ``config_sha256``.
+        harness_tree: This repository's main working tree, absolute and in normal form.
+            Protected like the main working trees of ``repos``.
+        session_worktrees_dir: The IDE sessions' worktree directory. Protected as well.
+        approved_agents: ``(name, mode)`` pairs whose approval passed the checks of ``cli.py``,
+            as for :attr:`RunContext.approved_agents`. The selftest reads the pair of
+            ``agents.change`` for the change mode only.
+        kill_grace_seconds: Seconds from SIGTERM to SIGKILL. A test may shorten it.
+    """
+
+    config: HandoffConfig
+    home: str
+    harness_tree: str
+    session_worktrees_dir: str
+    approved_agents: frozenset[tuple[str, str]] = frozenset()
+    kill_grace_seconds: float = KILL_GRACE_SECONDS
+
+    def __post_init__(self) -> None:
+        """Check the types and the forms of the fields."""
+        if not isinstance(self.config, HandoffConfig):
+            raise TypeError(f"config must be a HandoffConfig, not {type(self.config).__name__}")
+        for name in ("home", "harness_tree", "session_worktrees_dir"):
+            if not _is_normal_absolute(getattr(self, name)):
+                raise ValueError(f"{name} must be an absolute path in normal form, got {getattr(self, name)!r}")
+        agents = frozenset(self.approved_agents)
+        if not all(
+            type(pair) is tuple and len(pair) == 2 and all(type(part) is str for part in pair) for pair in agents
+        ):
+            raise TypeError("approved_agents must hold (name, mode) pairs of str only")
+        object.__setattr__(self, "approved_agents", agents)
+        grace = self.kill_grace_seconds
+        if type(grace) not in (int, float) or not math.isfinite(grace) or grace <= 0:
+            raise ValueError(f"kill_grace_seconds must be a finite number above 0, got {grace!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class KiroFingerprint:
+    """What a selftest result counts for: the ``kiro-cli`` version and ``config_sha256`` (task 5.2).
+
+    ``cli.py run`` compares both with ``selftest`` of ``status.json`` before it starts a change
+    item, and the selftest records them.
+
+    Attributes:
+        program: The ``kiro-cli`` that was asked: ``kiro_cli`` with ``~`` expanded.
+        version_output: What ``kiro-cli --version`` wrote to standard output, decoded.
+        version: ``command.kiro_cli_version`` of it. Not empty.
+        agent: The ``--agent`` name the digest covers, or ``None``.
+        digest: ``command.selftest_config_digest`` of the configuration, the agent
+            configuration and the hook files as they were read.
+    """
+
+    program: str
+    version_output: str
+    version: str
+    agent: str | None
+    digest: command.ConfigDigest
+
+
+@dataclass(frozen=True, slots=True)
+class SelftestOutcome:
+    """What :meth:`Harness.run_selftest` decided and where it wrote it.
+
+    Attributes:
+        result: ``guards_active`` or ``unconfirmed``, as ``evaluate.selftest_verdict`` decided.
+        run_id: The selftest's start, in ``command.SELFTEST_RUN_ID_FORMAT``.
+        record: The record, ``.private/handoff/selftest/<run ID>.json``.
+        run_dir: ``<worktrees_root>/selftest/<run ID>``, which holds the trials' repositories
+            and is kept.
+        outcomes: ``(trial, outcome)`` for T0 to T4 in order, as passed to
+            ``evaluate.SelftestTrials``: ``failed_otherwise`` for a trial that did not start.
+        started: The trials whose ``kiro-cli`` started, in order.
+        fingerprint: The version and the digest that the result is tied to.
+        detail: Why the result is ``unconfirmed``, in one line for local output, or empty.
+    """
+
+    result: str
+    run_id: str
+    record: str
+    run_dir: str
+    outcomes: tuple[tuple[str, str], ...]
+    started: tuple[str, ...]
+    fingerprint: KiroFingerprint
+    detail: str
+
+
 def load_deny_terms(customer_terms: str, extra_terms: str) -> DenyTerms:
     """Read the deny lists that each Handoff_Prompt body is scanned with (Requirement 28.23).
 
@@ -746,6 +878,81 @@ def _git_once(
     if result.ending != "exited" or result.exit_code not in allowed:
         raise GitCommandFailed(f"{what}: {_detail(result)}")
     return result
+
+
+def kiro_fingerprint(
+    config: HandoffConfig, *, home: str, agent: str | None, kill_grace_seconds: float = KILL_GRACE_SECONDS
+) -> KiroFingerprint:
+    """Ask ``kiro-cli --version`` and read the files of ``config_sha256`` (task 5.2).
+
+    ``kiro-cli --version`` runs in the environment of ``command.child_env``, as every
+    ``kiro-cli`` does, with the time limit ``timeout_seconds``. Then the files are read:
+    ``command.KIRO_AGENT_FILE`` for ``agent``, and each entry directly in
+    ``command.KIRO_HOOK_DIRS`` that is a regular file once symbolic links are followed (the
+    bytes that would run). A file that cannot be read counts with no SHA-256, and a directory
+    that does not exist has no files. Nothing is written.
+
+    Args:
+        config: The checked configuration.
+        home: The absolute home directory, in normal form.
+        agent: The name that the argv gives with ``--agent``, or ``None``.
+        kill_grace_seconds: Seconds from SIGTERM to SIGKILL.
+
+    Returns:
+        The version and the digest.
+
+    Raises:
+        KiroCliMissing: ``kiro_cli`` is not absolute after ``~`` expansion, ``kiro-cli`` cannot
+            be started, or ``--version`` did not exit 0 with a version: a result tied to no
+            version could not be compared later.
+        RunnerError: A directory of ``command.KIRO_HOOK_DIRS`` exists and cannot be listed.
+        KeyboardInterrupt: The harness was interrupted while ``kiro-cli`` ran.
+    """
+    try:
+        program = normalize_path(config.kiro_cli, home)
+    except ValueError as exc:
+        raise KiroCliMissing(f"kiro_cli of config.json: {exc}") from exc
+    with _ChildPaths() as child:
+        env = command.child_env(
+            os.environ, push_url=child.push_url, gh_config_dir=child.gh_config_dir, aws_empty_file=child.aws_empty_file
+        )
+        result = _run_process(
+            (program, "--version"),
+            cwd=child.directory,
+            env=env,
+            timeout_seconds=config.timeout_seconds,
+            kill_grace_seconds=kill_grace_seconds,
+        )
+    if result.ending == "interrupted":
+        raise KeyboardInterrupt
+    if result.ending == "not_started":
+        raise KiroCliMissing(f"{program} cannot be started ({result.start_error})")
+    output = result.stdout.decode("utf-8", "replace")
+    version = command.kiro_cli_version(output)
+    if not result.ok or not version:
+        raise KiroCliMissing(
+            f"`kiro-cli --version` {_how(result)} and printed {_clip(output)}: no version to tie a selftest to"
+        )
+    agent_file: bytes | None = None
+    if agent is not None:
+        agent_file = _read_or_none(normalize_path(command.KIRO_AGENT_FILE.format(name=agent), home))
+    hook_files: dict[str, bytes | None] = {}
+    for listed in command.KIRO_HOOK_DIRS:
+        directory = normalize_path(listed, home)
+        try:
+            names = sorted(os.listdir(directory))
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            raise RunnerError(f"{directory} cannot be listed ({exc.strerror or exc}), so config_sha256 is unknown")
+        for name in names:
+            path = posixpath.join(directory, name)
+            if os.path.isfile(path):
+                hook_files[path] = _read_or_none(path)
+    digest = command.selftest_config_digest(
+        config, home=home, agent=agent, agent_file=agent_file, hook_files=hook_files
+    )
+    return KiroFingerprint(program=program, version_output=output, version=version, agent=agent, digest=digest)
 
 
 class Harness:
@@ -1059,6 +1266,75 @@ class Harness:
             if isinstance(selftest, dict) and type(selftest.get("result")) is str:
                 return selftest["result"]
             return None
+
+    def run_selftest(self, context: SelftestContext) -> SelftestOutcome:
+        """Run the selftest of design section 20: trials T0 to T4 in throwaway repositories (task 5.2).
+
+        The steps, in order:
+
+        1. The run ID (the start in UTC), the tokens, and the five invocations of
+           ``command.build_selftest_invocation``. A refusal raises :class:`SelftestRefused`.
+        2. The record and the output directory of the run ID must not exist in
+           ``.private/handoff/selftest/`` (:class:`UnsafeLocation`).
+        3. :func:`kiro_fingerprint`: ``kiro-cli --version`` and the files of ``config_sha256``.
+        4. ``kiro-cli whoami`` once, in the environment of ``command.child_env``
+           (:class:`LoginRequired`, :class:`KiroCliMissing`).
+        5. Free space below ``worktrees_root`` (:class:`DiskSpaceLow`), and the places
+           resolved with ``os.path.realpath``: ``<worktrees_root>/selftest`` meets no main working
+           tree of ``repos``, this repository's main working tree or the IDE session worktree
+           directory, and the run's directory is new and below it (:class:`UnsafeLocation`).
+        6. The trials, in order. For each: a new bare repository and a clone with one commit on
+           ``main`` (T2: ``remote.origin.pushurl`` set to the bare repository and one more
+           commit, so that a push that reaches it changes a ref), the bare repository's refs,
+           then ``kiro-cli`` with the trial's argv in the environment of ``command.child_env``
+           plus ``HANDOFF_GUARD_LOG`` naming the trial's guard log. Its output is saved below
+           ``.private/handoff/selftest/<run ID>/``, the effects are read with the harness's own
+           git, the guard log is read, and ``evaluate.trial_outcome`` decides. A T0 that is
+           not ``completed`` ends the trials; so does a trial whose repositories could not be
+           made. A trial that did not start counts as ``failed_otherwise``.
+        7. ``evaluate.selftest_verdict``, the record, and ``selftest`` of ``status.json``:
+           ``result``, ``at``, ``kiro_cli_version``, ``record`` and ``config_sha256``.
+
+        Up to step 5 nothing is written, and an error leaves ``status.json`` and an earlier
+        result as they were. A ``KeyboardInterrupt`` during the trials stops the running
+        ``kiro-cli``, writes the record with ``result`` ``null``, does not change
+        ``status.json``, and goes on. The repositories are kept: every input of the decision
+        is in the record.
+
+        Args:
+            context: The checked inputs.
+
+        Returns:
+            The result and where it was written.
+
+        Raises:
+            TypeError: ``context`` is not a :class:`SelftestContext`.
+            RunnerError: The harness is closed, an item runs in it, or ``handoff_dir`` is not
+                in ``context.harness_tree``.
+            SelftestRefused: Step 1.
+            UnsafeLocation: Steps 2 and 5, or a file resolves outside ``.private/handoff``.
+            KiroCliMissing: Steps 3 and 4.
+            LoginRequired: Step 4.
+            DiskSpaceLow: Step 5.
+            KeyboardInterrupt: The harness was interrupted.
+        """
+        if not isinstance(context, SelftestContext):
+            raise TypeError(f"context must be a SelftestContext, not {type(context).__name__}")
+        if not (is_within(self._handoff_dir, context.harness_tree) and self._handoff_dir != context.harness_tree):
+            raise RunnerError(f"{self._handoff_dir} is not in the harness tree {context.harness_tree}")
+        with self._mutex:
+            if self._closed:
+                raise RunnerError("the harness is closed; open it again")
+            if self._active_repos:
+                raise RunnerError("an item runs in this harness; run the selftest on its own")
+        return _Selftest(self, context).run()
+
+    def _record_selftest(self, entry: dict[str, Any]) -> None:
+        """Replace ``selftest`` of the status with a new result, and write the status."""
+        with self._mutex:
+            status = copy.deepcopy(self._status)
+            status["selftest"] = entry
+            self._commit(status)
 
     def _context_item(self, context: RunContext, item_id: str) -> Item:
         """Check the context and return the manifest's item, for :meth:`run_query_item` and :meth:`draw_prompt`.
@@ -1888,6 +2164,412 @@ class _Report:
         return lines
 
 
+class _Selftest:
+    """One selftest from its checks to its record. :meth:`Harness.run_selftest` uses it once."""
+
+    def __init__(self, harness: Harness, context: SelftestContext) -> None:
+        """Keep the inputs.
+
+        Args:
+            harness: The harness, which owns the status.
+            context: The checked inputs.
+        """
+        self.harness = harness
+        self.context = context
+        self.config = context.config
+        self.home = context.home
+        self.directory = harness.handoff_dir
+        self.git_env = git_environment(os.environ)
+        self.timeout = self.config.timeout_seconds
+        self.grace = context.kill_grace_seconds
+        self.partial: dict[str, Any] | None = None
+
+    def run(self) -> SelftestOutcome:
+        """Carry out the steps of :meth:`Harness.run_selftest`."""
+        moment = datetime.now(timezone.utc)
+        started_at = state.format_timestamp(moment)
+        run_id = moment.strftime(command.SELFTEST_RUN_ID_FORMAT)
+        approved = frozenset(name for name, mode in self.context.approved_agents if mode == "change")
+        try:
+            run_dir = command.selftest_run_dir(self.config, run_id)
+            tokens = {trial: command.selftest_token(trial, secrets.token_hex(8)) for trial in evaluate.SELFTEST_TRIALS}
+            invocations = {
+                trial: command.build_selftest_invocation(
+                    self.config, tokens[trial], run_dir=run_dir, home=self.home, approved_agents=approved
+                )
+                for trial in evaluate.SELFTEST_TRIALS
+            }
+        except command.CommandError as error:
+            raise SelftestRefused(f"the selftest was not started:\n{error}") from error
+        record_path = posixpath.join(self.directory, SELFTEST_RECORD_DIR, f"{run_id}.json")
+        for path in (record_path, posixpath.join(self.directory, SELFTEST_RECORD_DIR, run_id)):
+            _check_below(path, self.directory)
+            if os.path.lexists(path):
+                raise UnsafeLocation(f"{path} exists already; run the selftest again a second later")
+        fingerprint = kiro_fingerprint(
+            self.config, home=self.home, agent=invocations["t0"].agent, kill_grace_seconds=self.grace
+        )
+        self._check_login(fingerprint.program)
+        self._check_disk()
+        self._check_location(run_dir)
+
+        header: dict[str, Any] = {
+            "schema_version": SELFTEST_RECORD_SCHEMA,
+            "run_id": run_id,
+            "started_at": started_at,
+            "kiro_cli": {
+                "path": _tilde(fingerprint.program, self.home),
+                "version_output": fingerprint.version_output,
+                "version": fingerprint.version,
+            },
+            "config_sha256": fingerprint.digest.sha256,
+            "config_parts": fingerprint.digest.parts(),
+            "agent": fingerprint.agent,
+            "run_dir": _tilde(run_dir, self.home),
+        }
+        trials: dict[str, dict[str, Any]] = {}
+        outcomes: dict[str, evaluate.TrialOutcome] = {}
+        stopped: str | None = None
+        try:
+            for trial in evaluate.SELFTEST_TRIALS:
+                if stopped is not None:
+                    trials[trial] = self._entry(tokens[trial], invocations[trial], not_started=stopped)
+                    outcomes[trial] = "failed_otherwise"
+                    continue
+                trials[trial] = self._trial(trial, tokens[trial], invocations[trial], run_dir, run_id)
+                self.partial = None
+                outcomes[trial] = trials[trial]["outcome"]
+                if not trials[trial]["attempted"]:
+                    stopped = f"the repositories of {trial.upper()} could not be made"
+                elif trial == "t0" and outcomes[trial] != "completed":
+                    stopped = "T0 did not complete, so T1 to T4 would say nothing about the guards"
+        except KeyboardInterrupt:
+            for trial in evaluate.SELFTEST_TRIALS:
+                if trial not in trials:
+                    current = (
+                        self.partial if self.partial is not None and self.partial["token"] == tokens[trial] else None
+                    )
+                    trials[trial] = current or self._entry(
+                        tokens[trial], invocations[trial], not_started="the harness was interrupted"
+                    )
+                    self.partial = None
+            record = {**header, "ended_at": _now(), "result": None, "interrupted": True, "stopped": stopped}
+            _write_file(record_path, _record_bytes({**record, "trials": trials}), self.directory)
+            raise
+
+        result = evaluate.selftest_verdict(
+            evaluate.SelftestTrials(
+                t0=outcomes["t0"], t1=outcomes["t1"], t2=outcomes["t2"], t3=outcomes["t3"], t4=outcomes["t4"]
+            )
+        )
+        ended_at = _now()
+        record = {**header, "ended_at": ended_at, "result": result, "interrupted": False, "stopped": stopped}
+        _write_file(record_path, _record_bytes({**record, "trials": trials}), self.directory)
+        relative = _rel(record_path, self.directory)
+        self.harness._record_selftest(
+            {
+                "result": result,
+                "at": ended_at,
+                "kiro_cli_version": fingerprint.version,
+                "record": relative,
+                "config_sha256": fingerprint.digest.sha256,
+            }
+        )
+        detail = ""
+        if result != evaluate.GUARDS_ACTIVE:
+            seen = ", ".join(f"{trial.upper()} {outcomes[trial]}" for trial in ("t0", "t1", "t2"))
+            detail = f"{seen} (guards_active needs T0 completed, T1 and T2 blocked_by_guard)"
+            if stopped is not None:
+                detail += f"; {stopped}"
+        _LOG.info("selftest %s: %s (%s)", run_id, result, relative)
+        return SelftestOutcome(
+            result=result,
+            run_id=run_id,
+            record=record_path,
+            run_dir=run_dir,
+            outcomes=tuple((trial, outcomes[trial]) for trial in evaluate.SELFTEST_TRIALS),
+            started=tuple(trial for trial in evaluate.SELFTEST_TRIALS if trials[trial]["attempted"]),
+            fingerprint=fingerprint,
+            detail=detail,
+        )
+
+    def _trial(
+        self, trial: str, token: str, invocation: command.KiroInvocation, run_dir: str, run_id: str
+    ) -> dict[str, Any]:
+        """Make one trial's repositories, run its ``kiro-cli``, observe, and decide its outcome.
+
+        Returns:
+            The trial's entry of the record. ``attempted`` is false when the repositories could
+            not be made, and then ``preparation_error`` says why.
+        """
+        paths = command.selftest_paths(run_dir, trial)
+        entry = self._entry(token, invocation)
+        self.partial = entry
+        try:
+            base = self._prepare(paths)
+            refs_before = self._remote_refs(paths.remote)
+        except (_StepFailed, OSError) as failure:
+            entry["preparation_error"] = str(failure)
+            return entry
+        with _ChildPaths() as child:
+            env = command.child_env(
+                os.environ,
+                push_url=child.push_url,
+                gh_config_dir=child.gh_config_dir,
+                aws_empty_file=child.aws_empty_file,
+            )
+            env[command.GUARD_LOG_VARIABLE] = paths.guard_log
+            result = _run_process(
+                invocation.argv,
+                cwd=invocation.cwd,
+                env=env,
+                timeout_seconds=invocation.timeout_seconds,
+                kill_grace_seconds=self.grace,
+            )
+        entry.update(
+            attempted=result.pid is not None,
+            exit_code=result.exit_code,
+            ending=result.ending,
+            started_at=result.started_at,
+            ended_at=result.ended_at,
+            duration_seconds=round(result.duration_seconds, 3),
+            signals=list(result.signals),
+            start_error=result.start_error,
+            stdout=self._save(run_id, f"{trial}.stdout", result.stdout),
+            stderr=self._save(run_id, f"{trial}.stderr", result.stderr),
+        )
+        if result.ending == "interrupted":
+            raise KeyboardInterrupt
+        effects: evaluate.TrialEffects | None = None
+        try:
+            effects = self._effects(paths, base, refs_before)
+        except (_StepFailed, evaluate.EvaluationError) as failure:
+            entry["observation_error"] = str(failure)
+        lines, entry["guard_log_error"] = self._guard_log(paths.guard_log)
+        entry.update(
+            effects=None if effects is None else effects.to_json(),
+            guard_log=[line.to_json() for line in lines],
+            outcome=evaluate.trial_outcome(token, effects, lines),
+        )
+        return entry
+
+    def _entry(
+        self, token: str, invocation: command.KiroInvocation, *, not_started: str | None = None
+    ) -> dict[str, Any]:
+        """The record entry of a trial before anything of it ran."""
+        trust = [arg for arg in invocation.argv if arg.startswith(command.TRUST_TOOLS_OPTION)]
+        return {
+            "attempted": False,
+            "outcome": "failed_otherwise",
+            "token": token,
+            "argv": list(invocation.argv),
+            "cwd": _tilde(invocation.cwd, self.home),
+            "trust_tools": trust[0][len(command.TRUST_TOOLS_OPTION) :].split(",") if trust else [],
+            "agent": invocation.agent,
+            "not_started": not_started,
+            "preparation_error": None,
+            "exit_code": None,
+            "ending": None,
+            "started_at": None,
+            "ended_at": None,
+            "duration_seconds": None,
+            "signals": [],
+            "start_error": None,
+            "stdout": None,
+            "stderr": None,
+            "effects": None,
+            "observation_error": None,
+            "guard_log": [],
+            "guard_log_error": None,
+        }
+
+    def _prepare(self, paths: command.SelftestPaths) -> str:
+        """Make the trial's bare repository and its clone with one commit on ``main``; return that commit.
+
+        Raises:
+            _StepFailed: A git command failed.
+            OSError: A directory or ``README.md`` could not be created.
+        """
+        os.makedirs(paths.hooks, mode=0o700)
+        self._step(("git", "init", "-q", "--bare", "--initial-branch=main", paths.remote), paths.directory, "git init")
+        self._step(("git", "-C", paths.remote, "config", "core.hooksPath", paths.hooks), paths.remote, "git config")
+        self._step(("git", "init", "-q", "--initial-branch=main", paths.repo), paths.directory, "git init")
+        for key, value in (*SELFTEST_GIT_SETTINGS, ("core.hooksPath", paths.hooks)):
+            self._step(("git", "-C", paths.repo, "config", key, value), paths.repo, "git config")
+        with open(posixpath.join(paths.repo, "README.md"), "xb") as handle:
+            handle.write(_SELFTEST_README)
+        repo = ("git", "-C", paths.repo)
+        self._step((*repo, "add", "README.md"), paths.repo, "git add")
+        self._step((*repo, "commit", "-q", "-m", "chore: start the selftest repository"), paths.repo, "git commit")
+        self._step((*repo, "remote", "add", "origin", paths.remote), paths.repo, "git remote add")
+        self._step((*repo, "push", "-q", "origin", "main"), paths.repo, "git push to the trial's bare repository")
+        if paths.trial == "t2":
+            self._step((*repo, "config", "remote.origin.pushurl", paths.remote), paths.repo, "git config")
+            message = "chore: one commit ahead of origin"
+            self._step((*repo, "commit", "-q", "--allow-empty", "-m", message), paths.repo, "git commit")
+        head = self._head(paths.repo)
+        if head is None:
+            raise _StepFailed("HEAD of the trial's repository", None, "HEAD names no commit after the first commit")
+        return head
+
+    def _effects(
+        self, paths: command.SelftestPaths, base: str, refs_before: tuple[tuple[str, str], ...]
+    ) -> evaluate.TrialEffects:
+        """Read every effect of the selftest table with the harness's own git.
+
+        Raises:
+            _StepFailed: A git command failed or printed something unexpected.
+            handoff.evaluate.EvaluationError: The effects do not have their shape.
+        """
+        repo = paths.repo
+        head = self._head(repo)
+        ancestor = readme = False
+        if head is not None:
+            merged = self._read(("git", "-C", repo, "merge-base", "--is-ancestor", base, head), repo, (0, 1))
+            ancestor = merged.exit_code == 0
+            diff = self._read(("git", "-C", repo, "diff", "--quiet", base, head, "--", "README.md"), repo, (0, 1))
+            readme = diff.exit_code == 1
+        tips = ("HEAD",) if head is not None else ()
+        log = self._read(("git", "-C", repo, "log", "-z", "--format=%H%n%B", *tips, "--branches", "--not", base), repo)
+        status = self._read(
+            ("git", "--no-optional-locks", "-C", repo, "status", "--porcelain=v1", "-z", "--untracked-files=all"), repo
+        )
+        return evaluate.TrialEffects(
+            base=base,
+            head=head,
+            base_is_ancestor=ancestor,
+            readme_changed=readme,
+            new_commits=_log_commits(log.stdout),
+            remote_refs_before=refs_before,
+            remote_refs_after=self._remote_refs(paths.remote),
+            status_paths=tuple(path for _, path in evaluate.parse_status_z(status.stdout.decode("utf-8", "replace"))),
+        )
+
+    def _remote_refs(self, remote: str) -> tuple[tuple[str, str], ...]:
+        """``(ref, object ID)`` of every ref of a bare repository."""
+        argv = ("git", "--no-optional-locks", "-C", remote, "for-each-ref", "--format=%(refname)%00%(objectname)")
+        listed = self._read(argv, remote).stdout.decode("utf-8", "replace")
+        refs: list[tuple[str, str]] = []
+        for line in listed.splitlines():
+            ref, separator, sha = line.partition("\0")
+            if not separator:
+                raise _StepFailed(
+                    "the refs of the trial's bare repository", None, f"for-each-ref printed {_clip(line)}"
+                )
+            refs.append((ref, sha))
+        return tuple(refs)
+
+    def _head(self, repo: str) -> str | None:
+        """``git rev-parse --verify -q HEAD``: the commit, or ``None`` when ``HEAD`` names none."""
+        argv = ("git", "--no-optional-locks", "-C", repo, "rev-parse", "--verify", "-q", "HEAD")
+        result = self._read(argv, repo, (0, 1))
+        if result.exit_code != 0:
+            return None
+        return result.stdout.decode("utf-8", "replace").strip() or None
+
+    def _guard_log(self, path: str) -> tuple[tuple[evaluate.GuardLogLine, ...], str | None]:
+        """The lines of a trial's guard log, and why it could not be read, if so. A missing log has no line."""
+        try:
+            data = _read_bytes(path)
+        except FileNotFoundError:
+            return (), None
+        except OSError as exc:
+            return (), f"{path} cannot be read ({exc.strerror or exc}); no stop is counted"
+        return evaluate.parse_guard_log(data), None
+
+    def _save(self, run_id: str, name: str, data: bytes) -> dict[str, Any]:
+        """Write one stream of a trial's ``kiro-cli`` below ``.private/handoff/selftest/<run ID>/``."""
+        path = posixpath.join(self.directory, SELFTEST_RECORD_DIR, run_id, name)
+        _write_file(path, data, self.directory)
+        return {"bytes": len(data), "sha256": sha256(data).hexdigest(), "path": _rel(path, self.directory)}
+
+    def _step(self, argv: tuple[str, ...], cwd: str, what: str) -> None:
+        """Run a git command of a trial's preparation, which must exit 0."""
+        self._read(argv, cwd, (0,), what=what)
+
+    def _read(
+        self, argv: tuple[str, ...], cwd: str, allowed: tuple[int, ...] = (0,), *, what: str = "an observation"
+    ) -> ProcessResult:
+        """Run one of the harness's own git commands and require one of the allowed exit codes.
+
+        Raises:
+            _StepFailed: It did not exit with an allowed code; the detail names the command.
+            KeyboardInterrupt: The harness was interrupted while it ran.
+        """
+        result = _run_process(
+            argv, cwd=cwd, env=self.git_env, timeout_seconds=self.timeout, kill_grace_seconds=self.grace
+        )
+        if result.ending == "interrupted":
+            raise KeyboardInterrupt
+        if result.ending != "exited" or result.exit_code not in allowed:
+            raise _StepFailed(what, result, _detail(result))
+        return result
+
+    def _check_login(self, program: str) -> None:
+        """``kiro-cli whoami`` once, in the environment of ``command.child_env``."""
+        with _ChildPaths() as child:
+            env = command.child_env(
+                os.environ,
+                push_url=child.push_url,
+                gh_config_dir=child.gh_config_dir,
+                aws_empty_file=child.aws_empty_file,
+            )
+            result = _run_process(
+                (program, "whoami"),
+                cwd=child.directory,
+                env=env,
+                timeout_seconds=self.timeout,
+                kill_grace_seconds=self.grace,
+            )
+        if result.ending == "interrupted":
+            raise KeyboardInterrupt
+        if result.ending == "not_started":
+            raise KiroCliMissing(f"{program} cannot be started ({result.start_error})")
+        if not result.ok:
+            raise LoginRequired(
+                f"`kiro-cli whoami` {_how(result)}: log in to kiro-cli, then run the selftest again. "
+                "Nothing was written, and status.json keeps its earlier selftest"
+            )
+
+    def _check_disk(self) -> None:
+        """Free space below ``worktrees_root``, before anything is created."""
+        probe = _existing_ancestor(self.config.worktrees_root)
+        free = shutil.disk_usage(probe).free
+        if free < self.config.min_free_disk_bytes:
+            raise DiskSpaceLow(probe, free, self.config.min_free_disk_bytes)
+
+    def _check_location(self, run_dir: str) -> None:
+        """Compare the places after resolving symbolic links, then create the run's directory.
+
+        ``<worktrees_root>/selftest`` must resolve strictly below ``worktrees_root`` and meet no
+        protected tree, and the run's directory must be new and resolve strictly below it.
+        """
+        root = self.config.worktrees_root
+        selftest_root = posixpath.dirname(run_dir)
+        root_real, selftest_real, run_real = (os.path.realpath(path) for path in (root, selftest_root, run_dir))
+        protected = [(f"the main working tree of {name}", repo.main_tree) for name, repo in self.config.repos.items()]
+        protected.append(("this repository's main working tree", self.context.harness_tree))
+        protected.append(("the IDE session worktree directory", self.context.session_worktrees_dir))
+        problems: list[str] = []
+        for label, path in sorted(protected):
+            real = os.path.realpath(path)
+            if overlaps(selftest_real, real):
+                problems.append(f"{selftest_root} resolves to {selftest_real}, which meets {label} ({real})")
+        if not is_within(selftest_real, root_real) or is_within(root_real, selftest_real):
+            problems.append(f"{selftest_root} resolves to {selftest_real}, not strictly below {root_real}")
+        if not is_within(run_real, selftest_real) or is_within(selftest_real, run_real):
+            problems.append(f"{run_dir} resolves to {run_real}, not strictly below {selftest_real}")
+        if os.path.lexists(run_dir):
+            problems.append(f"{run_dir} exists already; run the selftest again a second later")
+        if problems:
+            raise UnsafeLocation("; ".join(problems))
+        os.makedirs(selftest_root, exist_ok=True)
+        try:
+            os.mkdir(run_dir, 0o700)
+        except FileExistsError as exc:
+            raise UnsafeLocation(f"{run_dir} exists already; run the selftest again a second later") from exc
+
+
 class _ChildPaths:
     """The temporary paths of ``command.child_env``, in one new directory that is removed afterwards.
 
@@ -2448,6 +3130,15 @@ def _read_bytes(path: str, *, limit: int | None = None) -> bytes:
         return handle.read() if limit is None else handle.read(limit)
 
 
+def _read_or_none(path: str) -> bytes | None:
+    """Read a file, following symbolic links, or return ``None`` when it cannot be read."""
+    try:
+        with open(path, "rb") as handle:
+            return handle.read()
+    except OSError:
+        return None
+
+
 def _read_template(path: str, directory: str) -> str:
     """Read an item's template as UTF-8.
 
@@ -2638,6 +3329,29 @@ def _ls_remote_sha(output: bytes, ref: str) -> str | None:
         if tab and name == ref:
             shas.add(sha.strip())
     return shas.pop() if len(shas) == 1 else None
+
+
+def _log_commits(output: bytes) -> tuple[tuple[str, str], ...]:
+    """``(object ID, message)`` of each commit of ``git log -z --format=%H%n%B``, in git's order.
+
+    Raises:
+        _StepFailed: A commit does not start with an object ID.
+    """
+    commits: list[tuple[str, str]] = []
+    for chunk in output.decode("utf-8", "replace").split("\0"):
+        chunk = chunk.lstrip("\n")
+        if not chunk:
+            continue
+        sha, _, message = chunk.partition("\n")
+        if _OBJECT_ID.fullmatch(sha) is None:
+            raise _StepFailed("the new commits of the trial's repository", None, f"git log printed {_clip(chunk)}")
+        commits.append((sha, message.rstrip("\n")))
+    return tuple(commits)
+
+
+def _record_bytes(record: Mapping[str, Any]) -> bytes:
+    """A selftest record as the bytes of its file: JSON, ASCII only, keys sorted, ending with a newline."""
+    return (json.dumps(record, ensure_ascii=True, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("ascii")
 
 
 def _how(result: ProcessResult) -> str:
