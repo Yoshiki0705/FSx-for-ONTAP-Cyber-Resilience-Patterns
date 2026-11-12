@@ -322,14 +322,22 @@ class TestAsyncLambdaDeadLetterQueue:
 
 
 class TestSqsSourcedLambdaDlqSkip:
-    """CKV_AWS_116 is skipped only for the two Lambdas that no asynchronous invocation reaches."""
+    """CKV_AWS_116 is skipped only for the two Lambdas that no asynchronous invocation reaches.
+
+    EventTransformerLambda also skips CKV_AWS_117: it calls only the EventBridge public API.
+    """
 
     def test_skip_only_on_event_transformer_and_quarantine(self) -> None:
         res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
-        skipped = [n for n, r in res.items() if r.get("Metadata", {}).get("checkov", {}).get("skip")]
-        assert sorted(skipped) == ["EventTransformerLambda", "QuarantineLambda"]
-        for n in skipped:
-            assert [s["id"] for s in res[n]["Metadata"]["checkov"]["skip"]] == ["CKV_AWS_116"]
+        skipped = {
+            n: [s["id"] for s in r["Metadata"]["checkov"]["skip"]]
+            for n, r in res.items()
+            if r.get("Metadata", {}).get("checkov", {}).get("skip")
+        }
+        assert skipped == {
+            "EventTransformerLambda": ["CKV_AWS_116", "CKV_AWS_117"],
+            "QuarantineLambda": ["CKV_AWS_116"],
+        }
 
     def test_quarantine_has_no_event_source_mapping(self) -> None:
         res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
