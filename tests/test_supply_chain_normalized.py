@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import copy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from hypothesis import event, given, settings
 from hypothesis import strategies as st
-from supply_chain.models import Component, Repo
+from supply_chain.models import Component, Finding, Repo
 from supply_chain.normalized import (
     NormalizedFindingsError,
     component_from_purl,
@@ -118,6 +118,27 @@ def test_dedupe_ignores_repo_case() -> None:
     assert len(dedupe_findings(a + b)) == 1
 
 
+def test_dedupe_of_malicious_findings_keeps_severity_none() -> None:
+    """``dedupe_findings`` is public: a MAL- pair given a severity still merges to None."""
+    when = datetime(2026, 11, 10, tzinfo=UTC)
+
+    def make(severity: str | None) -> Finding:
+        return Finding(
+            repo=Repo("example-owner", "example-repo"),
+            vuln_id="MAL-2026-1",
+            aliases=(),
+            component=component_from_purl("pkg:npm/a@1"),
+            cvss_severity=severity,  # type: ignore[arg-type]
+            fixed_version=None,
+            advisory_published_at=None,
+            layer="B",
+            first_observed_component_at=when,
+        )
+
+    (merged,) = dedupe_findings([make(None), make("CRITICAL")])
+    assert merged.cvss_severity is None
+
+
 def test_component_reused_from_sbom_and_built_from_purl_otherwise() -> None:
     known = Component(purl="pkg:pypi/x@1.2.3", name="x", version="1.2.3", direct="direct")
     result = findings_from_normalized(doc(entry(), entry(purl="pkg:npm/%40scope/pkg@4.5.6")), components=[known])
@@ -144,6 +165,8 @@ def test_times_are_utc_and_first_observed_defaults_to_generated_at() -> None:
     result = findings_from_normalized(doc(entry(advisory_published_at="2026-11-01T09:00:00+09:00")))
     finding = result.findings[0]
     assert finding.advisory_published_at == datetime(2026, 11, 1, tzinfo=UTC)
+    assert finding.advisory_published_at is not None
+    assert finding.advisory_published_at.utcoffset() == timedelta(0)
     assert finding.first_observed_component_at == result.generated_at
     later = datetime(2026, 11, 11, tzinfo=UTC)
     assert (

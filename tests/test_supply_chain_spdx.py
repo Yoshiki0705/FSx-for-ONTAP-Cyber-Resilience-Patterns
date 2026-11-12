@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +88,10 @@ def test_tool_name_with_hyphen_and_missing_version() -> None:
 def test_created_with_offset_is_converted_to_utc_and_naive_is_unknown() -> None:
     doc = sbom()
     doc["creationInfo"]["created"] = "2026-11-10T10:00:00+09:00"
-    assert parse_spdx(doc).created == datetime(2026, 11, 10, 1, 0, tzinfo=UTC)
+    created = parse_spdx(doc).created
+    assert created == datetime(2026, 11, 10, 1, 0, tzinfo=UTC)
+    assert created is not None
+    assert created.utcoffset() == timedelta(0)  # equality alone ignores the offset
     doc["creationInfo"]["created"] = "2026-11-10T10:00:00"
     assert parse_spdx(doc).created is None
     doc["creationInfo"]["created"] = "not a time"
