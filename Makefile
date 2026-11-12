@@ -1,3 +1,9 @@
+# Project venv binaries, called by path. Exporting PATH is not enough: macOS make 3.81
+# resolves simple recipe commands with its own PATH, not the exported one.
+VENV   := .venv/bin
+PYTHON := $(VENV)/python3
+PYTEST := $(VENV)/pytest
+
 .PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive
 
 # Default target
@@ -17,7 +23,7 @@ setup: ## Install development dependencies (creates .venv if not present)
 # Validation
 # -------------------------------------------------------------------
 lint: ## Run cfn-lint on all templates
-	cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
 
 guard: ## Run cfn-guard on all templates
 	@for tmpl in templates/*.yaml; do \
@@ -38,8 +44,8 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # Testing
 # -------------------------------------------------------------------
 test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak gates)
-	cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
-	pytest tests/ shared/tests/ -v --tb=short
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+	$(PYTEST) tests/ shared/tests/ -v --tb=short
 
 # A claim that a vendor cannot do something, used as a design premise, with nobody
 # having asked the vendor. Its own tests run first: this gate has been wrong four times
@@ -48,8 +54,8 @@ test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytes
 # empty ledger that blocked every commit on the day of adoption -- and a test found each
 # one. A gate never seen to fail is not evidence that it runs.
 check-evidence: ## Check evidence for claims that a vendor cannot do something
-	pytest scripts/tests/ --tb=short -q
-	python3 scripts/check_evidence_claims.py
+	$(PYTEST) scripts/tests/ --tb=short -q
+	$(PYTHON) scripts/check_evidence_claims.py
 
 # The writing-quality detector is a byte-for-byte copy of the Hub's tools/ai_style_rules.py;
 # criteria live at the Hub doc linked from AGENTS.md. Gating (--fail): exits non-zero on any
@@ -57,21 +63,21 @@ check-evidence: ## Check evidence for claims that a vendor cannot do something
 # test`. Warning-tier rules print counts and never gate. articles/* is the author's first-person
 # blog and is excluded by design.
 ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings print only
-	python3 tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
+	$(PYTHON) tools/ai_style_rules.py docs/ --exclude 'articles/*' --fail
 
 # Generic leak detection over every tracked file. Environment-specific values are read
 # from .sensitive-patterns.local (gitignored) when present; nothing real is tracked here.
 check-sensitive: ## Fail on account IDs, public IPs, emails, or home paths in tracked files
-	python3 scripts/check_sensitive_patterns.py --tracked
+	$(PYTHON) scripts/check_sensitive_patterns.py --tracked
 test-cov: ## Run tests with coverage report
-	pytest tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
+	$(PYTEST) tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
 
 # -------------------------------------------------------------------
 # Security
 # -------------------------------------------------------------------
 security: guard ## Run security checks (cfn-guard + gitleaks + checkov)
 	gitleaks detect --config .gitleaks.toml --no-git --source . --verbose
-	checkov -d templates/ --framework cloudformation --quiet || true
+	$(VENV)/checkov -d templates/ --framework cloudformation --quiet --baseline templates/.checkov.baseline
 
 # -------------------------------------------------------------------
 # Deploy
@@ -170,3 +176,12 @@ clean: ## Remove generated files
 	find . -type d -name '.pytest_cache' -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.pyc' -delete 2>/dev/null || true
 	rm -rf .mypy_cache/ htmlcov/ .coverage
+
+# -------------------------------------------------------------------
+# Cross-repo agent harness
+# -------------------------------------------------------------------
+.PHONY: cross-repo-agent
+
+cross-repo-agent: test ## Run quality gates for a local supervisor script
+	@mkdir -p docs/agent/notifications
+	@echo "cross-repo-agent: gates passed."

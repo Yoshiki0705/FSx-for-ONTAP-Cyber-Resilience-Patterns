@@ -404,6 +404,7 @@ echo "All resources deleted."
 | `EnableNatGateway` | `false` | NAT Gateway 有効化 | スキャナー利用時 `true` |
 | `ClientCidr` | `10.0.0.0/16` | NFS/SMB クライアント許可 CIDR | 本番では制限 |
 | `UseExistingVpc` | `false` | 既存 VPC 利用 | 既存環境に追加時 `true` |
+| `LogGroupKmsKeyArn` | `''` | VPC Flow Logs のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 
 ### event-driven.yaml
 
@@ -414,6 +415,19 @@ echo "All resources deleted."
 | `EventTransformerS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `QuarantineActionS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `NotificationEmail` | `''` | アラートメール送信先 | 本番では設定推奨 |
+| `LogGroupKmsKeyArn` | `''` | Step Functions のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
+| `LambdaEnvKmsKeyArn` | `''` | Lambda 関数（隔離アクション、イベント変換）の環境変数を暗号化する KMS キー ARN。空のときは Lambda の既定のキーのまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
+
+### SnapMirror ラグ監視（テンプレートなし）
+
+SnapMirror ラグ監視は、このリポジトリのテンプレートではなく、Observability リポジトリの Terraform モジュールで行います。設定と通知先は [デプロイガイド](ja/deployment-guide.md) の「SnapMirror ラグ監視」を参照。
+
+### siem-integration.yaml
+
+| Parameter | Default | 説明 | 変更タイミング |
+|-----------|---------|------|--------------|
+| `SecurityHubPublisherReservedConcurrency` | `10` | Security Hub 発行 Lambda の予約同時実行数 (最小 1)。上限は「アカウントの未予約枠 − 100」 | 同時実行枠が小さいアカウント、または同時発生イベントが多い環境 |
+| `SecurityAlertTopicArn` | — | Event-Driven Stack の出力値。DLQ アラームの通知先 | **必須: スタック作成時に指定** |
 
 ### observability.yaml
 

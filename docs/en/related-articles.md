@@ -29,7 +29,7 @@ These articles describe the automated response module (`ontap_response.py`) from
 | Architecture (SNS → Lambda → ONTAP REST API) | Event-driven response | `solutions/event-driven-response/` |
 | ARP/AI detection flow | Storage-native (ARP) | `solutions/ontap-native/` |
 | NACL deny for NFS | Network layer | `templates/network.yaml` |
-| Snapshot creation & recovery verification | Data protection | `templates/dr-replication.yaml` |
+| SnapMirror lag monitoring | Data protection | [`deployment-guide.md`](deployment-guide.md#snapmirror-lag-monitoring) |
 | NIST CSF 2.0 capability map | Framework mapping | [`cyber-resilience-framework-mapping.md`](cyber-resilience-framework-mapping.md) |
 | DII Storage Workload Security comparison | Event-driven response (companion repo) | [Automated response guide FAQ](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-guide.md#faq) |
 

@@ -131,9 +131,9 @@ When deploying both repos together for a complete cyber-resilience stack:
 
 ### 3. Verified Recovery After Incident
 
-**This repo** handles DR replication monitoring (`templates/dr-replication.yaml` — SnapMirror lag alarms).
+**Observability repo** provides SnapMirror lag monitoring as a Terraform module (`terraform/fsxn-ontap-custom-metrics`). Settings and the notification target are in this repo's [deployment guide](deployment-guide.md#snapmirror-lag-monitoring).
 
-**Observability repo** handles recovery point verification:
+**Observability repo** also handles recovery point verification:
 1. Clone the candidate Snapshot (FlexClone — instant, copy-on-write)
 2. Attach isolated S3 Access Point (VPC-scoped)
 3. Scan for ransomware-associated file extensions
@@ -156,7 +156,8 @@ The combined assessment of both repositories is the function coverage table in t
 | EMS event reference | — | [ems-detection-capabilities.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/ems-detection-capabilities.md) |
 | FPolicy operations | `solutions/event-driven-response/` | [fpolicy-operational-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/fpolicy-operational-guide.md) |
 | Full NIST CSF 2.0 map | [cyber-resilience-framework-mapping.md](cyber-resilience-framework-mapping.md) | [cyber-resilience-capability-map.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/cyber-resilience-capability-map.md) |
-| Recovery verification | `templates/dr-replication.yaml` | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
+| SnapMirror lag monitoring | [deployment-guide.md](deployment-guide.md#snapmirror-lag-monitoring) | [Terraform module `fsxn-ontap-custom-metrics`](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/tree/main/terraform/fsxn-ontap-custom-metrics) |
+| Recovery verification | — | [verified-recovery-point-guide.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/verified-recovery-point-guide.md) |
 | Security addendum | — | [automated-response-security-addendum.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/automated-response-security-addendum.md) |
 | Deployment prerequisites | `docs/quickstart-deployment.md` | [prerequisites.md](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/blob/main/docs/en/prerequisites.md) |
 

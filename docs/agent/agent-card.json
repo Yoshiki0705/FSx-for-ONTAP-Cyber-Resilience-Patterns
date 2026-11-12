@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "name": "fsxn-cyber-resilience-agent",
+  "repo": "fsxn-cyber-resilience-patterns",
+  "description": "Agent for the FSx for ONTAP Cyber Resilience Patterns repository. Owns documentation quality, evidence ledger, and cross-repo reference integrity for this Spoke.",
+  "skills": [
+    "quality_gate",
+    "evidence_ledger",
+    "cross_repo_notification"
+  ],
+  "quality_gates": [
+    "make lint",
+    "make test",
+    "make security"
+  ],
+  "cross_repo_targets": [
+    {
+      "repo": "fsxn-adoption-playbook",
+      "relationship": "hub",
+      "types": ["reference_update", "evidence_registration", "feedback"]
+    },
+    {
+      "repo": "FSx-for-ONTAP-Observability-integrations",
+      "relationship": "sibling_spoke",
+      "types": ["reference_update"]
+    },
+    {
+      "repo": "FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns",
+      "relationship": "sibling_spoke",
+      "types": ["reference_update"]
+    }
+  ],
+  "action_policy": {
+    "auto_allowed": ["lint", "test", "security_scan", "evidence_check"],
+    "human_required": ["branch_create", "commit", "pr_create", "push", "cross_repo_write"]
+  },
+  "notification_dir": "docs/agent/notifications"
+}

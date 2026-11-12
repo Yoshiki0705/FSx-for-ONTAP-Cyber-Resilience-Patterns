@@ -109,10 +109,19 @@ Parameters:
       AWS Managed Microsoft AD or AD Connector directory ID for existing environments.
       Used by storage stack for SVM AD join.
 
+  LogGroupKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting the CloudWatch Logs log group created by this stack.
+      If empty, the log group keeps the default CloudWatch Logs encryption (no customer managed key).
+      The key policy must allow the CloudWatch Logs service principal for the Region.
+
 # -------------------------------------------------------------------
 # Conditions
 # -------------------------------------------------------------------
 Conditions:
+  HasLogGroupKmsKey: !Not [!Equals [!Ref LogGroupKmsKeyArn, '']]
   CreateNatGateway: !Equals [!Ref EnableNatGateway, 'true']
   CreateNewVpc: !Equals [!Ref UseExistingVpc, 'false']
   HasActiveDirectory: !Not [!Equals [!Ref ExistingActiveDirectoryId, '']]
@@ -780,6 +789,7 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/vpc/flowlogs/${ProjectName}-${Environment}'
       RetentionInDays: 90
+      KmsKeyId: !If [HasLogGroupKmsKey, !Ref LogGroupKmsKeyArn, !Ref 'AWS::NoValue']
       Tags:
         - Key: Project
           Value: !Ref ProjectName

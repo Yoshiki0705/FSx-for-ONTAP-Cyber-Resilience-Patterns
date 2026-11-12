@@ -65,17 +65,18 @@ Each volume is tracked individually with its own learning start date and configu
 
 If ransomware reaches the primary file system or the credentials that manage it, the primary copy may be corrupted. A cross-region SnapMirror target provides:
 - A recovery point in another Region. It can be isolated from an account-level compromise only when the destination is in a separate AWS account with separate credentials (inference, unverified); a destination in the same account is managed with the same credentials. For that case, use SnapMirror / SnapVault to a separate account or an [AWS Backup logically air-gapped vault](../data-protection/aws-backup-logically-air-gapped-vault.md) (see "How to Choose an Isolation Option" in the guide)
-- Configurable RPO (15 minutes default)
+- An RPO that follows the SnapMirror transfer schedule you set
 - In-flight encryption via TLS cluster peering
 - Immutable if combined with SnapLock on the destination
 
 ### Lag Monitoring
 
-A Lambda runs every 5 minutes:
-1. Queries SnapMirror relationship status via ONTAP REST API
-2. Calculates current lag vs configured RPO
-3. Publishes `SnapMirrorLagMinutes` metric
-4. Alerts when lag > 2x RPO
+The Terraform module `terraform/fsxn-ontap-custom-metrics` in the [Observability repo](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations/tree/main/terraform/fsxn-ontap-custom-metrics) runs a Lambda function (every 5 minutes by default) that:
+1. Queries SnapMirror relationship status on the destination file system via the ONTAP REST API
+2. Publishes `SnapMirrorLagSecondsMax` and `SnapMirrorUnhealthyCount` to CloudWatch
+3. Alarms when the largest lag exceeds a threshold you set in seconds (module default 10,800), and when a relationship reports unhealthy
+
+Deploy it in the DR Region: its alarms and SNS topic are created in the Region where it runs. Settings and the notification target are in the [deployment guide](../en/deployment-guide.md#snapmirror-lag-monitoring).
 
 ## Cost Optimization: Scheduled Scanner Control
 

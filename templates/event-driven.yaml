@@ -43,11 +43,29 @@ Parameters:
     Type: String
     Description: S3 key for quarantine-action Lambda zip (from package-lambdas.sh manifest).
 
+  LogGroupKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting the CloudWatch Logs log group created by this stack.
+      If empty, the log group keeps the default CloudWatch Logs encryption (no customer managed key).
+      The key policy must allow the CloudWatch Logs service principal for the Region.
+
+  LambdaEnvKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Lambda environment variables at rest.
+      If empty, Lambda uses its default AWS managed key (aws/lambda).
+      The identity that deploys the stack needs kms:CreateGrant and kms:Encrypt on this key.
+
 # -------------------------------------------------------------------
 # Conditions
 # -------------------------------------------------------------------
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+  HasLogGroupKmsKey: !Not [!Equals [!Ref LogGroupKmsKeyArn, '']]
+  HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
 
 # -------------------------------------------------------------------
 # Resources
@@ -195,6 +213,7 @@ Resources:
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
                   "Next": "NotifyFailure"
                 }
               ]
@@ -209,9 +228,18 @@ Resources:
               },
               "ResultPath": "$.quarantine",
               "Next": "SendAlert",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
                   "Next": "NotifyFailure"
                 }
               ]
@@ -224,7 +252,23 @@ Resources:
                 "Subject": "CRITICAL: Security Event - Quarantine Executed",
                 "Message.$": "States.Format('Volume {} quarantined. Severity: {}', $.detail.volumeId, $.detail.severity)"
               },
-              "Next": "WaitForApproval"
+              "ResultPath": "$.alert",
+              "Next": "WaitForApproval",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ]
             },
             "WaitForApproval": {
               "Type": "Task",
@@ -237,11 +281,18 @@ Resources:
                 }
               },
               "TimeoutSeconds": 86400,
+              "ResultPath": "$.approval",
               "Next": "ApprovalDecision",
               "Catch": [
                 {
                   "ErrorEquals": ["States.Timeout"],
+                  "ResultPath": "$.error",
                   "Next": "EscalateTimeout"
+                },
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
                 }
               ]
             },
@@ -249,12 +300,21 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Variable": "$.approved",
-                  "BooleanEquals": true,
+                  "And": [
+                    { "Variable": "$.approval.approved", "IsPresent": true },
+                    { "Variable": "$.approval.approved", "BooleanEquals": true }
+                  ],
                   "Next": "RestoreAccess"
+                },
+                {
+                  "And": [
+                    { "Variable": "$.approval.approved", "IsPresent": true },
+                    { "Variable": "$.approval.approved", "BooleanEquals": false }
+                  ],
+                  "Next": "CreateFlexClone"
                 }
               ],
-              "Default": "CreateFlexClone"
+              "Default": "NotifyFailure"
             },
             "RestoreAccess": {
               "Type": "Task",
@@ -264,6 +324,21 @@ Resources:
                 "volumeId.$": "$.detail.volumeId",
                 "svmId.$": "$.detail.svmId"
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ],
               "End": true
             },
             "CreateFlexClone": {
@@ -274,6 +349,21 @@ Resources:
                 "volumeId.$": "$.detail.volumeId",
                 "snapshotId.$": "$.snapshot.Snapshot.SnapshotId"
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ],
               "End": true
             },
             "NotifyFailure": {
@@ -387,6 +477,15 @@ Resources:
   # ---------------------------------------------------------------
   QuarantineLambda:
     Type: AWS::Lambda::Function
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_116
+            comment: >-
+              This function is invoked only from Step Functions Task states that name its ARN
+              as Resource; the state waits for the function output, so no event is discarded
+              by an asynchronous invocation. A Lambda dead-letter queue receives only events
+              that an asynchronous invocation discards.
     Properties:
       FunctionName: !Sub '${ProjectName}-quarantine-action-${Environment}'
       Runtime: python3.12
@@ -397,6 +496,7 @@ Resources:
       Architectures:
         - arm64
       Role: !GetAtt QuarantineLambdaRole.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           FSX_SECRET_ARN: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}-fsxadmin-*'
@@ -426,6 +526,20 @@ Resources:
   # ---------------------------------------------------------------
   EventTransformerLambda:
     Type: AWS::Lambda::Function
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_116
+            comment: >-
+              This function is invoked only by SQS event source mappings, not asynchronously.
+              AWS documents that, for SQS event sources, the dead-letter queue belongs on the
+              source queue, and both source queues here have a RedrivePolicy.
+          - id: CKV_AWS_117
+            comment: >-
+              The only outbound call is events:PutEvents to an EventBridge bus, an AWS public API.
+              SQS is polled by the Lambda service, so no VPC path is needed to read the queues.
+              The function reaches no private VPC resource. Placing it in a VPC would require
+              an events interface endpoint or a NAT gateway, neither of which this stack creates.
     Properties:
       FunctionName: !Sub '${ProjectName}-event-transformer-${Environment}'
       Runtime: python3.12
@@ -436,6 +550,7 @@ Resources:
       Architectures:
         - arm64
       Role: !GetAtt EventTransformerLambdaRole.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           EVENT_BUS_NAME: !Ref SecurityEventBus
@@ -481,6 +596,7 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/stepfunctions/${ProjectName}-quarantine-${Environment}'
       RetentionInDays: 90
+      KmsKeyId: !If [HasLogGroupKmsKey, !Ref LogGroupKmsKeyArn, !Ref 'AWS::NoValue']
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -663,6 +779,12 @@ Outputs:
     Value: !Ref SecurityEventQueue
     Export:
       Name: !Sub '${ProjectName}-${Environment}-SecurityEventQueueUrl'
+
+  ApprovalQueueUrl:
+    Description: SQS Queue URL that receives the quarantine approval request and its task token
+    Value: !Ref ApprovalQueue
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ApprovalQueueUrl'
 
   SecurityEventQueueArn:
     Description: SQS Queue ARN
