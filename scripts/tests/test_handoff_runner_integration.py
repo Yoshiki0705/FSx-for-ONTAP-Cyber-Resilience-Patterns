@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from handoff import config as config_module
-from handoff import evaluate, runner, state
+from handoff import dag, evaluate, runner, state
 from handoff import manifest as manifest_module
 
 if TYPE_CHECKING:
@@ -832,6 +832,84 @@ def test_a_rerun_keeps_the_earlier_report(
     assert sorted(os.listdir(item_dir)) == ["report.1.md", "report.md"]
     assert (item_dir / "report.1.md").read_text(encoding="utf-8") == first_report
     assert report_section(report_text(sb), "## 標準出力") == "second run\n"
+
+
+# ---------------------------------------------------------------------------------------------
+# kiro-cli errors named from standard error (task 5.9, H13)
+# ---------------------------------------------------------------------------------------------
+
+USAGE_LIMIT_STDERR = (
+    "Error: Internal error (code -32603): Encountered an error in the response stream: "
+    "The monthly usage limit has been reached (request_id: example-request-id)\n"
+)
+PROFILE_STDERR = "Error: profileArn is required for this request\n"
+#: The reason of exit 1 with an empty standard output, as before task 5.9.
+EXIT_AND_EMPTY = "exit_code_nonzero, empty_output"
+KIRO_ERROR_KINDS = {"usage_limit": "kiro_cli_usage_limit", "profile_required": "kiro_cli_profile_required"}
+
+
+@pytest.mark.parametrize(
+    ("stderr", "label"), [(USAGE_LIMIT_STDERR, "usage_limit"), (PROFILE_STDERR, "profile_required")]
+)
+def test_a_known_kiro_cli_error_is_named_without_changing_the_final_state(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch, stderr: str, label: str
+) -> None:
+    """Exit 1, empty standard output, one known line on standard error: ``failed`` as before.
+
+    The label is added beside the reason: ``kiro_error`` of the outcome, an event, and a line and a key in the
+    Handoff_Report. The item stays ``failed`` until a maintainer moves it back, and the next selection skips it.
+    """
+    sb = handoff_sandbox
+    sb.apply_environ(monkeypatch, FAKE_KIRO_STDERR=stderr, FAKE_KIRO_ANSWER="", FAKE_KIRO_EXIT_CODE="1")
+    cfg = make_config(sb)
+    other = "a-hub-query-two"
+    manifest = make_manifest(cfg, query_item(), query_item(other, sync_point="b"))
+    ctx = make_context(sb, cfg, manifest)
+    with runner.Harness.open(str(sb.handoff_dir)) as harness:
+        harness.add_missing_items(manifest)
+        outcome = harness.run_query_item(ctx, ITEM)
+        selection = dag.select(manifest, harness.status, confirmed_refs=(), max_concurrency=3, item_ids=[ITEM, other])
+    assert (outcome.state, outcome.reason, outcome.exit_code) == ("failed", EXIT_AND_EMPTY, 1), outcome
+    assert outcome.kiro_error == label
+    status = read_status(sb)
+    record = status["items"][ITEM]
+    assert record["state"] == "failed" and record["history"][-1]["reason"] == EXIT_AND_EMPTY
+    assert [(event["kind"], ITEM in event["detail"]) for event in status["events"]] == [(KIRO_ERROR_KINDS[label], True)]
+    text = report_text(sb)
+    assert f"- `kiro-cli` のエラー: `{label}`。" in text and "発見的な検出" in text
+    data = json.loads(text.split("```json\n")[-1].split("\n```")[0])
+    assert data["kiro_cli_error"] == label
+    assert ITEM not in selection.selected and other in selection.selected
+
+
+def test_other_failures_get_no_kiro_error(handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exit 1 with other wording on standard error, or the known wording with exit 0, names nothing."""
+    sb = handoff_sandbox
+    sb.apply_environ(
+        monkeypatch, FAKE_KIRO_STDERR="Error: connection reset by peer\n", FAKE_KIRO_ANSWER="", FAKE_KIRO_EXIT_CODE="1"
+    )
+    failed = run_item(sb)
+    assert (failed.state, failed.reason, failed.kiro_error) == ("failed", EXIT_AND_EMPTY, None)
+    assert read_status(sb)["events"] == []
+    assert "`kiro-cli` のエラー" not in report_text(sb) and "kiro_cli_error" not in report_text(sb)
+    sb.apply_environ(monkeypatch, FAKE_KIRO_STDERR=USAGE_LIMIT_STDERR, FAKE_KIRO_ANSWER="ok\n", FAKE_KIRO_EXIT_CODE="0")
+    ok = "a-hub-query-ok"
+    succeeded = run_item(sb, query_item(), query_item(ok, sync_point="b"), item_id=ok)
+    assert (succeeded.state, succeeded.kiro_error) == ("succeeded", None)
+    assert read_status(sb)["events"] == []
+
+
+def test_the_wording_in_the_answer_is_not_matched(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The model's answer on standard output holds both wordings; standard error holds none; the exit is 1."""
+    sb = handoff_sandbox
+    answer = "The monthly usage limit has been reached. profileArn is required for this request.\n"
+    sb.apply_environ(monkeypatch, FAKE_KIRO_ANSWER=answer, FAKE_KIRO_EXIT_CODE="1")
+    outcome = run_item(sb)
+    assert (outcome.state, outcome.reason, outcome.kiro_error) == ("failed", "exit_code_nonzero", None)
+    assert read_status(sb)["events"] == []
+    assert "kiro_cli_error" not in report_text(sb)
 
 
 # ---------------------------------------------------------------------------------------------

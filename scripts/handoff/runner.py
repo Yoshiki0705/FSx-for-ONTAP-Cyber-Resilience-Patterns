@@ -197,7 +197,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Final, Literal, TypeAlias
 
-from handoff import command, evaluate, prompt, scan, state
+from handoff import command, evaluate, kiro_errors, prompt, scan, state
 from handoff.config import HandoffConfig, is_within, normalize_path, overlaps
 from handoff.executor import Executor
 from handoff.manifest import Item, Manifest, RequiredRef, VerifyCommand, rerun_skip_reason
@@ -226,6 +226,13 @@ MANUAL_VERIFY: Final = "manual_verify"
 #: The history reason of a ``running`` item whose harness ended without finishing it.
 HARNESS_INTERRUPTED: Final = "harness_interrupted"
 
+#: The kind of the event recorded for a run whose ``kiro-cli`` exited with a code other than 0 and whose
+#: standard error names a known error (task 5.9), by the label of ``kiro_errors``. A note for the maintainer:
+#: the final state and its reason are not changed by it (Property 28).
+KIRO_ERROR_EVENTS: Final = {
+    kiro_errors.USAGE_LIMIT: "kiro_cli_usage_limit",
+    kiro_errors.PROFILE_REQUIRED: "kiro_cli_profile_required",
+}
 #: The kind of the event recorded when a stale lock is removed.
 STALE_LOCK_REMOVED: Final = "stale_lock_removed"
 
@@ -575,6 +582,9 @@ class ItemOutcome:
         worktree: The worktree, when one was created (it is kept), or ``None``.
         exit_code: The exit code of ``kiro-cli`` (negative: the signal that ended it), or ``None``.
         timed_out: Whether ``kiro-cli`` passed ``timeout_seconds``.
+        kiro_error: ``usage_limit`` or ``profile_required`` when ``kiro-cli`` exited with a code other than 0
+            and its standard error held the wording of that error, otherwise ``None``. A heuristic label
+            (``handoff.kiro_errors``) kept next to ``reason``; it does not change ``state`` or ``reason``.
     """
 
     item_id: str
@@ -586,6 +596,7 @@ class ItemOutcome:
     worktree: str | None
     exit_code: int | None
     timed_out: bool
+    kiro_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -2045,6 +2056,12 @@ class _QueryRun:
         report.write(final=(to_state, reason), note=note, observations=observations, after=after, flags=flags)
         result = report.result
         _LOG.info("%s: %s (%s)", self.item.id, to_state, reason)
+        if report.kiro_error is not None:
+            self.harness._record_event(
+                KIRO_ERROR_EVENTS[report.kiro_error],
+                f"{self.item.id}: kiro-cli exited with code {result.exit_code} and its standard error held the "
+                f"wording of {report.kiro_error} (a heuristic match; the final state and reason are unchanged)",
+            )
         return ItemOutcome(
             item_id=self.item.id,
             state=to_state,
@@ -2055,6 +2072,7 @@ class _QueryRun:
             worktree=self.worktree,
             exit_code=result.exit_code,
             timed_out=result.timed_out,
+            kiro_error=report.kiro_error,
         )
 
     def _hold(self, reason: str, detail: str) -> ItemOutcome:
@@ -3174,6 +3192,13 @@ class _Report:
         self.before = before
         self.stdout_text = result.stdout.decode("utf-8", "replace")
         self.stderr_text = result.stderr.decode("utf-8", "replace")
+        #: A heuristic label from the standard error alone (never the standard output, which holds the
+        #: model's answer), and only for a ``kiro-cli`` that exited with a code other than 0.
+        self.kiro_error: str | None = (
+            kiro_errors.classify_stderr(self.stderr_text)
+            if result.ending == "exited" and result.exit_code not in (None, 0)
+            else None
+        )
         self._stdout_fence = _fence(self.stdout_text)
         self._stderr_fence = _fence(self.stderr_text)
         before_stdout = self._before_stdout(None)
@@ -3316,6 +3341,12 @@ class _Report:
             return lines
         lines.append(f"- 最終状態: `{final[0]}`（{_one_line(final[1])}）")
         lines.append(f"- 指示に見える行（report_flags）: {len(flags)} 件。行番号はこのファイルの行")
+        if self.kiro_error is not None:
+            lines.append(
+                f"- `kiro-cli` のエラー: `{self.kiro_error}`。標準エラー出力の文言への一致による発見的な検出で、"
+                "文言が変わると外れる。応答の形は少数の観測に基づく。最終状態と理由には影響していない。"
+                "利用枠の回復かプロファイルの設定を確認してから `status set <id> queued --reason ...` で戻す"
+            )
         if note:
             fence = _fence(note)
             lines += ["- 補足:", "", fence + "text", *note.splitlines(), fence]
@@ -3329,6 +3360,8 @@ class _Report:
             },
             **self.run.report_data(),
         }
+        if self.kiro_error is not None:
+            data["kiro_cli_error"] = self.kiro_error
         lines += ["", "```json", json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), "```"]
         return lines
 
@@ -3537,6 +3570,10 @@ class _Selftest:
             start_error=result.start_error,
             stdout=self._save(run_id, f"{trial}.stdout", result.stdout),
             stderr=self._save(run_id, f"{trial}.stderr", result.stderr),
+            # A heuristic label from the standard error (task 5.9); it takes no part in the outcome.
+            kiro_cli_error=kiro_errors.classify_stderr(result.stderr)
+            if result.ending == "exited" and result.exit_code not in (None, 0)
+            else None,
         )
         if result.ending == "interrupted":
             raise KeyboardInterrupt
@@ -3577,6 +3614,7 @@ class _Selftest:
             "start_error": None,
             "stdout": None,
             "stderr": None,
+            "kiro_cli_error": None,
             "effects": None,
             "observation_error": None,
             "guard_log": [],

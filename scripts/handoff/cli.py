@@ -1426,6 +1426,13 @@ class _RunLoop:
         _out(line)
         if outcome.detail:
             _err(f"{outcome.item_id}: {outcome.detail}")
+        if outcome.kiro_error is not None:
+            # The run goes on with the other items. Whether a usage limit should stop it is for the
+            # maintainer to decide after the review of 4.13 (task 5.9); this only says what was seen.
+            _err(
+                f"{outcome.item_id}: kiro-cli のエラーを標準エラー出力の文言から {outcome.kiro_error} と判定した"
+                "（発見的な検出）。他の項目の起動は止めていない"
+            )
 
     def _summary(self) -> None:
         """Show the state of every named item after the run, and why the ones left ``queued`` did not start."""

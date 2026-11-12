@@ -345,6 +345,21 @@ def test_a_selftest_that_stops_before_its_trials_keeps_status_json(
     assert [run["start"]["subcommand"] for run in sb.invocations()] == subcommands
 
 
+def test_a_known_kiro_cli_error_is_named_in_the_trial_entry_only(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """T0 exits 1 with the usage-limit wording: the entry carries the label, and the result is not ``guards_active``."""
+    sb = handoff_sandbox
+    stderr = "Error: Internal error: The monthly usage limit has been reached\n"
+    sb.apply_environ(monkeypatch, FAKE_KIRO_STDERR=stderr, FAKE_KIRO_ANSWER="", FAKE_KIRO_EXIT_CODE="1")
+    outcome = run_selftest(sb)
+    record = json.loads(Path(outcome.record).read_text(encoding="utf-8"))
+    assert outcome.result != evaluate.GUARDS_ACTIVE
+    assert record["trials"]["t0"]["exit_code"] == 1
+    assert record["trials"]["t0"]["kiro_cli_error"] == "usage_limit"
+    assert all(record["trials"][trial]["kiro_cli_error"] is None for trial in TRIALS if trial != "t0")
+
+
 # ---------------------------------------------------------------------------------------------
 # config_sha256: the approved agent and the hooks
 # ---------------------------------------------------------------------------------------------
