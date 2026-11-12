@@ -74,6 +74,11 @@ jobs:
           show-summary: 'fail'
           checkout: 'false'
 
+      # Findings recorded in templates/.checkov.baseline pass; a new finding fails the job.
+      # Checkov comes from requirements-dev.txt, the same pin that `make security` uses.
+      - name: Run Checkov (CloudFormation, baseline)
+        run: checkov -d templates/ --framework cloudformation --quiet --baseline templates/.checkov.baseline
+
       - name: Run ruff (Python linter)
         run: |
           ruff check solutions/ tests/ shared/ --output-format=github
