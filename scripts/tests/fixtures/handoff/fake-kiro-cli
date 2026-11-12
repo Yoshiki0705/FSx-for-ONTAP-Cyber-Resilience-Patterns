@@ -105,6 +105,10 @@ to as the guard wrapper of the selftest would (design note of task 5.2).
 ``FAKE_KIRO_ANSWER``
     Written to standard output at the end of a ``chat`` whose behaviors all ran. Default
     ``fake kiro-cli answer`` and a newline; empty writes nothing.
+``FAKE_KIRO_STDERR``
+    Written to standard error at the end of a ``chat`` whose behaviors all ran, before the
+    answer, as the one error line that a real ``kiro-cli`` writes (task 5.9). Empty by
+    default, which writes nothing. No newline is added.
 ``FAKE_KIRO_EXIT_CODE``
     Exit code of such a ``chat``: an integer from 0 to 255, 0 by default.
 ``FAKE_KIRO_SLEEP_SECONDS``
@@ -308,6 +312,7 @@ class Settings(NamedTuple):
         guard_log: ``HANDOFF_GUARD_LOG`` as given, or ``None``. Checked by
             :func:`chat_problem` for a ``chat`` that runs a guard behavior.
         version: ``FAKE_KIRO_VERSION``, or :data:`DEFAULT_VERSION`.
+        stderr: ``FAKE_KIRO_STDERR``, empty by default.
     """
 
     behaviors: tuple[str, ...]
@@ -321,6 +326,7 @@ class Settings(NamedTuple):
     gh_exit_source: str
     guard_log: str | None
     version: str
+    stderr: str = ""
 
 
 class Output:
@@ -459,6 +465,8 @@ def _main(argv: list[str], environ: Mapping[str, str]) -> int:
         results.append(result)
         if failure is not None:
             return _finish(record, output, EXIT_BEHAVIOR_FAILED, results, f"{behavior} failed: {failure}")
+    if settings.stderr:
+        output.write("stderr", settings.stderr.encode("utf-8", "surrogateescape"))
     if settings.answer:
         output.write("stdout", settings.answer.encode("utf-8", "surrogateescape"))
     return _finish(record, output, settings.exit_code, results, None)
@@ -623,6 +631,7 @@ def read_settings(environ: Mapping[str, str], trial: str | None = None) -> tuple
             gh_exit_source=gh_exit_source,
             guard_log=environ.get(GUARD_LOG_VARIABLE),
             version=version,
+            stderr=environ.get("FAKE_KIRO_STDERR", ""),
         ),
         None,
     )
