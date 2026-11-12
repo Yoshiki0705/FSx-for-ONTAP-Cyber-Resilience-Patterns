@@ -89,6 +89,15 @@ Resources:
   SecurityHubPublisherRole:
     Type: AWS::IAM::Role
     Condition: DeploySecurityHub
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_111
+            comment: >-
+              The Security Hub partner guide shows BatchImportFindings with product ARN resources,
+              but documents only the default product ARN (product/ACCOUNT/default) for custom
+              products. PRODUCT_ARN here uses the project name, and a scoped Resource for that
+              ARN has not been tested. Narrow Resource after testing it in a deployed account.
     Properties:
       RoleName: !Sub '${ProjectName}-securityhub-role-${Environment}'
       AssumeRolePolicyDocument:
