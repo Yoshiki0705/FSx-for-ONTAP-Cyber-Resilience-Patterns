@@ -61,6 +61,20 @@ def test_threshold_follows_definition_and_ignores_epss(
     event(f"kev={'missing' if kev is None else 'present'}")
     event(f"epss_swap={'different' if feeds_a.snapshot.epss != feeds_b.snapshot.epss else 'same'}")
 
+    # The shared generator puts a MAL- identifier only in ``vuln_id``. These variants move it into
+    # the aliases, or hide it (not a prefix, wrong case), so the "or an alias" and "starts with"
+    # parts of the definition are exercised too.
+    variants: list[Finding] = []
+    for finding in found:
+        if finding.vuln_id.startswith("MAL-"):
+            variants.append(dataclasses.replace(finding, vuln_id="GHSA-aaaa-bbbb-cccc", aliases=(finding.vuln_id,)))
+            variants.append(dataclasses.replace(finding, vuln_id="x" + finding.vuln_id))
+            variants.append(dataclasses.replace(finding, vuln_id=finding.vuln_id.lower()))
+    for variant in variants:
+        event(f"variant_malicious={any(i.startswith('MAL-') for i in _ids(variant))}")
+        got = meets_opening_threshold(variant, kev, policy.opening_threshold)
+        assert got is _expected(variant, kev, policy.opening_threshold)
+
     for finding in found:
         malicious = any(i.startswith("MAL-") for i in _ids(finding))
         listed = kev is not None and any(i in kev for i in _ids(finding))
