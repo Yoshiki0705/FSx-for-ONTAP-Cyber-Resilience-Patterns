@@ -147,13 +147,19 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 | EventBridge rule to a topic with only the default topic policy | Nothing delivered, `FailedInvocations` 2 [E-040] |
 | EventBridge rule to a topic whose policy allows `events.amazonaws.com`, with or without the customer managed key | Delivered [E-040] |
 | Role with `sns:Publish` only, then with the `kms:ViaService` permission added | `KMSAccessDenied`, then delivered |
+| Rule on a custom event bus to a topic encrypted with `aws/sns`, topic policy allowing `events.amazonaws.com` | Nothing delivered, `FailedInvocations` 2 [E-041] |
+| Rule on a custom event bus to a topic encrypted with a customer managed key, key policy and topic policy allowing `events.amazonaws.com` | Delivered [E-041] |
+
+### Hub alert topic
+
+`hub-aggregation.yaml` gets the same change for `HubAlertTopic`, which only the hub EventBridge rule (`HubNotificationRule`) publishes to: a customer managed key `HubAlertTopicKey` (rotation on, 30-day deletion window), a topic policy `HubAlertTopicPolicy`, and the output `HubAlertTopicKeyArn`. Only `events.amazonaws.com` of the hub account may publish, because the hub stack has no alarms. A topic encrypted with `aws/sns` received nothing from the rule even with a topic policy [E-041].
 
 ### Not measured
 
 - No deployment of these templates. The cases above used standalone resources with the same key policy and topic policy.
 - Whether changing the key of an existing topic updates it in place.
 - The key's monthly cost. The key is deleted with the stack after a 30-day waiting period.
-- `HubAlertTopic` in `hub-aggregation.yaml` also uses `aws/sns` and has no topic policy. It was not changed or tested.
+- The hub topic was tested with the rule and the topic in one account. Events forwarded from a spoke account to the hub bus were not tested.
 
 ## Quarantine Workflow Failure Alarm
 
