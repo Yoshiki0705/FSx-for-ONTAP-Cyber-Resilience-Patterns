@@ -1,10 +1,10 @@
-"""Run Handoff items: the I/O layer of the Handoff_Harness, for the query mode.
+"""Run Handoff items: the I/O layer of the Handoff_Harness, for the query and change modes.
 
 Task 2.2 of the phase 4 spec. Design section 20 describes what this module carries out: one
 harness at a time ("同時実行と排他"), the checks before an item starts (``kiro-cli whoami``
 and free disk space, H1 and H7), the worktree of decision D-15, the ``kiro-cli`` run and its
-timeout (H2), the Handoff_Report, the observations of "結果の確認" for a query item, and the
-status file (H12). Requirements 28.5, 28.6, 28.8, 28.13, 28.18, 28.19 and 28.22. The pure core
+timeout (H2), the Handoff_Report, the observations of "結果の確認" for a query item and a
+change item, and the status file (H12). Requirements 28.5, 28.6, 28.8, 28.13, 28.18, 28.19 and 28.22. The pure core
 builds every command and path and decides every state; this module starts the processes, reads
 and writes the files, and records what happened. With ``cli.py`` it is the I/O layer of
 ``handoff/__init__.py``.
@@ -15,9 +15,10 @@ deny lists with :func:`load_deny_terms`; checks the approvals of ``agents/approv
 against the agent configurations they name and passes those that pass as
 :attr:`RunContext.approved_agents`; opens the harness with :meth:`Harness.open`; adds the
 records of new items with :meth:`Harness.add_missing_items`; chooses items with
-``dag.select`` on :attr:`Harness.status`; holds a change item with :meth:`Harness.hold` until
-task 5 wires the change mode; runs each selected query item with
-:meth:`Harness.run_query_item`; and shows the outcomes. It stops starting items on
+``dag.select`` on :attr:`Harness.status`; holds a change item whose selftest does not count with
+:meth:`Harness.hold` (task 5.2); runs each selected query item with
+:meth:`Harness.run_query_item` and each other selected change item with
+:meth:`Harness.run_change_item`; and shows the outcomes. It stops starting items on
 :class:`LoginRequired`, :class:`DiskSpaceLow` and :class:`UnsafeLocation`, and turns to the
 manual mode on :class:`KiroCliMissing`. For its other subcommands it draws prompts with
 :meth:`Harness.draw_prompt` (``plan``, ``manual``), reads the status without the lock with
@@ -73,6 +74,25 @@ item from ``queued`` to ``needs-human`` with a short reason, unless the step say
    moved, the commits and the changed files are counted, and every changed file is undeclared.
    The report is written again with the observations and the final state.
 
+One change item (:meth:`Harness.run_change_item`, task 5.3) goes through the same steps, with the
+same lock, ``whoami``, ``command.child_env``, process group, timeout, report and stop request,
+and these differences. Step 6 makes the branch ``handoff/<id>`` with ``worktree add -b``, which
+fails when the branch exists already, so an earlier run's branch is never reset; the branch goes
+into the record with the worktree. ``command.build_kiro_invocation`` refuses a change item without
+a ``guards_active`` selftest, so such an item is held at step 2 (``cli.py run`` holds it earlier,
+task 5.2). Step 8 observes what design section 20 lists for the change mode, with ``base_sha`` in
+the place of ``origin/main`` (``origin/main`` of the main working tree can move while the item
+runs; the base cannot): the worktree's ``HEAD`` must still be on ``handoff/<id>`` (otherwise
+``observation_failed``, since only that branch is handed over), its commits and their subjects
+since the base (step 1), the files changed since the base (step 2), ``git status`` of the
+worktree (step 3), the changed files outside the declared ones (step 4), the handoff branch on
+the remote with ``git -C <main> ls-remote origin refs/heads/handoff/<id>`` (step 7) and the main
+working tree before and after (step 8). Steps 5 and 6, the conflict check and the re-run of the
+declared verification commands, are not carried out yet (task 5.3b, :data:`CHANGE_STEPS_NOT_DONE`):
+``conflicts`` is empty because no conflict was looked for, and no declared verification command
+gets a re-run result or a skip reason, so ``evaluate.final_state`` counts each one as
+``rerun_unaccounted``. The report and the outcome's detail say so.
+
 Processes. Every process is started with an argv, ``shell=False``, ``stdin`` from
 ``/dev/null`` and ``start_new_session=True``, so that it leads a process group of its own, and
 its standard output and standard error are read together (``Popen.communicate``), so a
@@ -124,8 +144,8 @@ repositories, reads the effects with its own git, and writes the record
 of ``status.json``. :func:`kiro_fingerprint` gives the ``kiro-cli`` version and ``config_sha256``
 that a result is tied to.
 
-Not done here: the change mode, the publish mode, re-running verification commands, and the
-conflict check (tasks 5.3 and 5.4).
+Not done here yet: the conflict check and the re-run of the verification commands of a change
+item (task 5.3b), and the publish mode (task 5.4).
 """
 
 from __future__ import annotations
@@ -197,6 +217,21 @@ AGENT_NOT_APPROVED: Final = "agent_not_approved"
 #: The history reason of an item whose worktree holds an agent configuration of the name given
 #: with ``--agent``, which kiro-cli would read instead of the approved global one (task 2.5).
 AGENT_SHADOWED: Final = "agent_shadowed"
+
+#: The steps of "結果の確認" (design section 20) that a change run does not carry out yet: 5, the
+#: conflict check, and 6, the re-run of the declared verification commands (task 5.3b). Their
+#: observations are passed as not done: ``conflicts`` is empty because no conflict was looked
+#: for, and no declared verification command gets a re-run result or a skip reason, so
+#: ``evaluate.final_state`` counts each one as ``rerun_unaccounted``.
+CHANGE_STEPS_NOT_DONE: Final[tuple[int, ...]] = (5, 6)
+
+#: What the Handoff_Report and the outcome's detail of an observed change run say about
+#: :data:`CHANGE_STEPS_NOT_DONE`.
+CHANGE_STEPS_NOT_DONE_NOTE: Final = (
+    "結果の確認の手順 5（衝突の確認）と手順 6（宣言した検証コマンドの再実行）は、まだ行っていない"
+    "（タスク 5.3b）。observations の conflicts が空なのは衝突を探していないため。宣言した検証コマンドには"
+    "再実行の結果も再実行しなかった理由もないので、1 つでもあれば rerun_unaccounted になる"
+)
 
 #: The directories of a workspace, relative to its root, where an agent configuration could take
 #: the place of the global one in ``~/.kiro/agents/``. kiro-cli's documentation names
@@ -270,6 +305,9 @@ _SELFTEST_README: Final = b"# Handoff_Harness selftest\n\nA throwaway repository
 
 #: Lines of a process's standard error kept in the detail of a failed step.
 _STDERR_TAIL_LINES: Final = 20
+
+#: The mode of a run, as the table of the Handoff_Report writes it.
+_REPORT_MODES: Final[Mapping[str, str]] = {"query": "照会（`query`）", "change": "変更（`change`）"}
 
 _BACKTICKS: Final = re.compile(r"`+")
 _OBJECT_ID: Final = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
@@ -468,7 +506,7 @@ class StaleLock:
 
 @dataclass(frozen=True, slots=True)
 class ItemOutcome:
-    """What became of one item that :meth:`Harness.run_query_item` was asked to run.
+    """What became of one item that :meth:`Harness.run_query_item` or :meth:`Harness.run_change_item` was asked to run.
 
     Attributes:
         item_id: The item.
@@ -1100,7 +1138,7 @@ class Harness:
     def hold(self, item_id: str, *, reason: str) -> None:
         """Move a ``queued`` item to ``needs-human`` without starting it.
 
-        ``cli.py`` holds a change item this way until the change mode is wired (task 5).
+        ``cli.py`` holds a change item this way when its selftest does not count (task 5.2).
 
         Args:
             item_id: An item of the status.
@@ -1160,9 +1198,41 @@ class Harness:
         """
         item = self._context_item(context, item_id)
         if item.mode != "query":
-            raise RunnerError(f"{item_id} is a {item.mode} item; this runner starts query items only")
+            raise RunnerError(f"{item_id} is a {item.mode} item; run_query_item starts query items only")
         with self._reserve(context.manifest, item):
             return _QueryRun(self, context, item, stop).run()
+
+    def run_change_item(self, context: RunContext, item_id: str, *, stop: threading.Event | None = None) -> ItemOutcome:
+        """Run one ``queued`` change item to its final state, in a worktree on ``handoff/<id>``.
+
+        The steps of :meth:`run_query_item`, with the differences that the module docstring lists
+        for a change item. The selftest's version and ``config_sha256`` are compared by ``cli.py``
+        before this is called (task 5.2); here, ``command.build_kiro_invocation`` refuses the item
+        without a ``guards_active`` selftest, and the item is held.
+
+        Args:
+            context: The checked inputs.
+            item_id: A change item of ``context.manifest`` whose record is ``queued``.
+            stop: As for :meth:`run_query_item`.
+
+        Returns:
+            What became of the item.
+
+        Raises:
+            TypeError: As for :meth:`run_query_item`.
+            RunnerError: As for :meth:`run_query_item`, with a change item in the place of a query
+                item. Nothing was started.
+            LoginRequired: As for :meth:`run_query_item`.
+            KiroCliMissing: As for :meth:`run_query_item`.
+            DiskSpaceLow: As for :meth:`run_query_item`.
+            UnsafeLocation: As for :meth:`run_query_item`.
+            KeyboardInterrupt: As for :meth:`run_query_item`.
+        """
+        item = self._context_item(context, item_id)
+        if item.mode != "change":
+            raise RunnerError(f"{item_id} is a {item.mode} item; run_change_item starts change items only")
+        with self._reserve(context.manifest, item):
+            return _ChangeRun(self, context, item, stop).run()
 
     def draw_prompt(self, context: RunContext, item_id: str) -> PromptDraft:
         """Draw, scan and write one item's Handoff_Prompt as a run does, and start nothing else.
@@ -1458,7 +1528,8 @@ class _StepFailed(Exception):
 class _QueryRun:
     """One query item from ``queued`` to its final state. :meth:`Harness.run_query_item` uses it once.
 
-    :meth:`Harness.draw_prompt` uses one for :meth:`draw` alone, for an item of either mode.
+    :meth:`Harness.draw_prompt` uses one for :meth:`draw` alone, for an item of either mode, and
+    :class:`_ChangeRun` builds on it for a change item.
     """
 
     def __init__(self, harness: Harness, context: RunContext, item: Item, stop: threading.Event | None) -> None:
@@ -1467,7 +1538,7 @@ class _QueryRun:
         Args:
             harness: The harness, which owns the status.
             context: The checked inputs.
-            item: The query item.
+            item: The item: a query item, or a change item for :class:`_ChangeRun`.
             stop: The stop request, or ``None``.
         """
         self.harness = harness
@@ -1484,6 +1555,7 @@ class _QueryRun:
         self.prompt_path: str | None = None
         self.worktree: str | None = None
         self.base_sha: str | None = None
+        self.branch: str | None = None
 
     def run(self) -> ItemOutcome:
         """Carry out the steps of the module docstring.
@@ -1666,7 +1738,7 @@ class _QueryRun:
             DISPATCHED,
             pid=None,
             worktree=_tilde(_present(self.worktree), self.context.home),
-            branch=None,
+            branch=self.branch,
             base_sha=self.base_sha,
             report=_rel(self.files.report, self.directory),
             observations=None,
@@ -1759,6 +1831,8 @@ class _QueryRun:
         fields: dict[str, Any] = {}
         if self.worktree is not None:
             fields = {"worktree": _tilde(self.worktree, self.context.home), "base_sha": self.base_sha}
+        if self.branch is not None:
+            fields["branch"] = self.branch
         self.harness._move(self.item.id, state.NEEDS_HUMAN, reason, **fields)
         _LOG.info("%s: needs-human (%s)", self.item.id, reason)
         return self._outcome(state.NEEDS_HUMAN, reason, detail)
@@ -1873,7 +1947,7 @@ class _QueryRun:
             if os.path.lexists(plan.worktree):
                 self.worktree, self.base_sha = plan.worktree, agreed
             return self._hold(f"git_worktree_add_failed ({_how(created)})", _detail(created))
-        self.worktree, self.base_sha = plan.worktree, agreed
+        self.worktree, self.base_sha, self.branch = plan.worktree, agreed, plan.branch
         return None
 
     def _git(self, step: command.Command) -> ProcessResult:
@@ -1973,6 +2047,135 @@ class _QueryRun:
             )
         except evaluate.EvaluationError as exc:
             raise _StepFailed("the observations", None, str(exc)) from exc
+
+    def report_data(self) -> dict[str, Any]:
+        """More keys for the JSON block of the Handoff_Report's observations; none for a query run."""
+        return {}
+
+
+class _ChangeRun(_QueryRun):
+    """One change item from ``queued`` to its final state. :meth:`Harness.run_change_item` uses it once.
+
+    The steps of :class:`_QueryRun`; the worktree is on ``handoff/<id>`` (``command.build_git_plan``)
+    and the observations are those of the change mode (the module docstring).
+    """
+
+    def __init__(self, harness: Harness, context: RunContext, item: Item, stop: threading.Event | None) -> None:
+        """Keep the inputs of the run, as :class:`_QueryRun` does.
+
+        Args:
+            harness: The harness, which owns the status.
+            context: The checked inputs.
+            item: The change item.
+            stop: The stop request, or ``None``.
+        """
+        super().__init__(harness, context, item, stop)
+        self.commits: tuple[tuple[str, str], ...] | None = None
+
+    def report_data(self) -> dict[str, Any]:
+        """The commits since the base, as ``{"sha", "subject"}`` objects; ``None`` when they were not read."""
+        if self.commits is None:
+            return {"commits": None}
+        return {"commits": [{"sha": sha, "subject": subject} for sha, subject in self.commits]}
+
+    def _end(
+        self,
+        report: _Report,
+        to_state: str,
+        reason: str,
+        *,
+        note: str | None = None,
+        observations: evaluate.Observations | None = None,
+        after: evaluate.MainTreeSnapshot | None = None,
+    ) -> ItemOutcome:
+        """Record the final state as :class:`_QueryRun` does; an observed run notes the steps not done."""
+        if observations is not None and note is None:
+            note = CHANGE_STEPS_NOT_DONE_NOTE
+        return super()._end(report, to_state, reason, note=note, observations=observations, after=after)
+
+    def _observe(
+        self, result: ProcessResult, before: evaluate.MainTreeSnapshot, after: evaluate.MainTreeSnapshot
+    ) -> evaluate.Observations:
+        """Build the observations of a change run (design section 20, "結果の確認", and the module docstring).
+
+        Raises:
+            _StepFailed: A git command failed, ``git log`` printed something else than commits, or
+                the worktree's ``HEAD`` is not on ``handoff/<id>``.
+        """
+        worktree, base, branch = _present(self.worktree), _present(self.base_sha), _present(self.branch)
+        ref = f"refs/heads/{branch}"
+        on = self._read(
+            ("git", "--no-optional-locks", "-C", worktree, "symbolic-ref", "-q", "HEAD"),
+            worktree,
+            "the branch of the worktree",
+            allowed=(0, 1),
+        )
+        current = on.stdout.decode("utf-8", "replace").strip() if on.exit_code == 0 else ""
+        if current != ref:
+            raise _StepFailed(
+                "the branch of the worktree",
+                None,
+                f"HEAD of the worktree {worktree} is {current or 'detached'}, not {ref}; only {branch} is handed over",
+            )
+        logged = self._read(
+            ("git", "-C", worktree, "log", "-z", "--no-show-signature", "--format=%H%x09%s", f"{base}..HEAD"),
+            worktree,
+            "the commits of the worktree",
+        )
+        self.commits = _commit_subjects(logged.stdout)
+        names = self._read(
+            ("git", "-C", worktree, "diff", "--name-only", "--no-renames", "-z", base, "HEAD"),
+            worktree,
+            "files changed in the worktree",
+        ).stdout.decode("utf-8", "replace")
+        changed = tuple(sorted({name for name in names.split("\0") if name}))
+        argv = ("git", "--no-optional-locks", "-C", worktree, "status", "--porcelain=v1", "-z")
+        dirty = bool(self._read(argv, worktree, "git status of the worktree").stdout)
+        listed = self._read(
+            ("git", "-C", self.main_tree, "ls-remote", command.REMOTE, ref),
+            self.main_tree,
+            "the handoff branch on the remote",
+        )
+        rerun, rerun_skipped = self._reruns()
+        try:
+            return evaluate.Observations(
+                exit_code=_present(result.exit_code),
+                timed_out=result.timed_out,
+                stdout_bytes=len(result.stdout),
+                commits=len(self.commits),
+                changed_files=changed,
+                undeclared_files=evaluate.undeclared_files(changed, self.item.declared_files),
+                dirty=dirty,
+                conflicts=self._conflicts(changed),
+                remote_branch_exists=bool(listed.stdout.strip()),
+                main_tree_change=evaluate.main_tree_change(before, after, self.item.declared_files),
+                rerun=rerun,
+                rerun_skipped=rerun_skipped,
+            )
+        except evaluate.EvaluationError as exc:
+            raise _StepFailed("the observations", None, str(exc)) from exc
+
+    def _conflicts(self, changed: tuple[str, ...]) -> tuple[str, ...]:
+        """Step 5, the conflict check: not carried out yet (task 5.3b), so no conflict is reported.
+
+        Args:
+            changed: The item's changed files, which the check will compare.
+
+        Returns:
+            Always empty. :data:`CHANGE_STEPS_NOT_DONE` names the step, and the report and the
+            outcome's detail say that it was not made.
+        """
+        return ()
+
+    def _reruns(self) -> tuple[tuple[evaluate.RerunResult, ...], tuple[evaluate.RerunSkip, ...]]:
+        """Step 6, the re-run of the declared verification commands: not carried out yet (task 5.3b).
+
+        Returns:
+            No re-run result and no skip reason, so ``evaluate.final_state`` counts every
+            declared verification command as ``rerun_unaccounted``, and an item that declares
+            one needs a human.
+        """
+        return (), ()
 
 
 class _Report:
@@ -2089,9 +2292,9 @@ class _Report:
             f"| 項目 ID | {_code(item.id)} |",
             f"| 対象リポジトリ | {_code(item.repo)} |",
             f"| Sync_Point | {_code(item.sync_point)} |",
-            "| モード | 照会（`query`） |",
+            f"| モード | {_REPORT_MODES[item.mode]} |",
             f"| cwd | {_code(self.invocation.cwd)} |",
-            "| ブランチ | なし（`--detach` の worktree） |",
+            f"| ブランチ | {'なし（`--detach` の worktree）' if run.branch is None else _code(run.branch)} |",
             f"| base_sha | {_code(run.base_sha or '')} |",
             f"| 開始 | {result.started_at} |",
             f"| 終了 | {result.ended_at} |",
@@ -2159,6 +2362,7 @@ class _Report:
                 "before": _snapshot_json(self.before),
                 "after": None if after is None else _snapshot_json(after),
             },
+            **self.run.report_data(),
         }
         lines += ["", "```json", json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), "```"]
         return lines
@@ -3346,6 +3550,26 @@ def _log_commits(output: bytes) -> tuple[tuple[str, str], ...]:
         if _OBJECT_ID.fullmatch(sha) is None:
             raise _StepFailed("the new commits of the trial's repository", None, f"git log printed {_clip(chunk)}")
         commits.append((sha, message.rstrip("\n")))
+    return tuple(commits)
+
+
+def _commit_subjects(output: bytes) -> tuple[tuple[str, str], ...]:
+    """``(object ID, subject)`` of each commit of ``git log -z --format=%H%x09%s``, in git's order.
+
+    The subject may hold a tab; the object ID cannot, so the first tab ends it.
+
+    Raises:
+        _StepFailed: An entry does not start with an object ID and a tab.
+    """
+    commits: list[tuple[str, str]] = []
+    for entry in output.decode("utf-8", "replace").split("\0"):
+        entry = entry.strip("\n")
+        if not entry:
+            continue
+        sha, tab, subject = entry.partition("\t")
+        if not tab or _OBJECT_ID.fullmatch(sha) is None:
+            raise _StepFailed("the commits of the worktree", None, f"git log printed {_clip(entry)}")
+        commits.append((sha, subject))
     return tuple(commits)
 
 
