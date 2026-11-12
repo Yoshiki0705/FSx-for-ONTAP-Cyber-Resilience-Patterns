@@ -208,8 +208,8 @@ def _table(rows: Sequence[tuple[str, object]]) -> str:
 
 
 def _state_block(state: Mapping[str, Any]) -> str:
-    # Backticks only occur inside JSON strings, where \u0060 is equivalent; this keeps the fence closed.
-    text = json.dumps(state, ensure_ascii=True, sort_keys=True).replace("`", "\\u0060")
+    # One line of JSON starting with "{" cannot contain a line that closes the fence.
+    text = json.dumps(state, ensure_ascii=True, sort_keys=True)
     return f"```json {STATE_FENCE_TAG}\n{text}\n```"
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -24,7 +25,7 @@ _alias_lists = st.lists(_vuln_ids, max_size=3, unique=True).map(tuple)
 _nasty = st.text(alphabet="ab|`\n\r\\<>-! 日本", min_size=1, max_size=20)
 _components = st.builds(
     Component,
-    purl=st.text(alphabet="abc/@:.0123456789", min_size=3, max_size=30).map(lambda s: "pkg:npm/" + s),
+    purl=st.text(alphabet="abc/@:.0123456789|`", min_size=3, max_size=30).map(lambda s: "pkg:npm/" + s),
     name=_nasty,
     version=st.text(alphabet="0123456789.", min_size=1, max_size=8),
 )
@@ -113,14 +114,14 @@ def test_body_has_marker_state_and_every_required_item(data: ib.FindingIssue) ->
     assert data.due_at.strftime("%Y-%m-%dT%H:%M:%SZ") in body
     assert data.detected_at.strftime("%Y-%m-%dT%H:%M:%SZ") in body
     if data.epss is None:
-        assert ib.EPSS_MISSING in body and state["epss"] is None
+        assert "未取得" in body and state["epss"] is None
     else:
         assert data.epss[1].isoformat() in body and data.epss[2] in body
         assert state["epss"] == {"score": data.epss[0], "date": data.epss[1].isoformat(), "model_version": data.epss[2]}
     if malicious:
-        assert ib.MALICIOUS_FIXED_TEXT in body
+        assert "該当なし（パッケージを取り除くか、記録に載っていないバージョンに変える）" in body
     elif data.fixed_version is None:
-        assert ib.NOT_FIXED_YET in body
+        assert "未判明" in body
     else:
         assert data.fixed_version in body
     if data.kev is not None:
@@ -132,7 +133,7 @@ def test_body_has_marker_state_and_every_required_item(data: ib.FindingIssue) ->
 
 def test_missing_values_are_written_not_omitted() -> None:
     body = ib.render_finding(_fi())
-    assert ib.NOT_FIXED_YET in body and ib.EPSS_MISSING in body
+    assert "未判明" in body and "未取得" in body
     assert "いいえ" in body  # not a malicious package
 
 
@@ -140,7 +141,7 @@ def test_malicious_issue_uses_the_design_wording_and_null_severity() -> None:
     data = _fi(vuln_id="MAL-2026-0001", aliases=("GHSA-aaaa-bbbb",), cvss_severity=None, fixed_version="9.9.9")
     body = ib.render_finding(data)
     state = ib.parse_state(body)
-    assert ib.MALICIOUS_FIXED_TEXT in body
+    assert "該当なし（パッケージを取り除くか、記録に載っていないバージョンに変える）" in body
     assert "9.9.9" not in body
     assert state is not None and state["malicious"] is True and state["cvss_severity"] is None
     assert body.splitlines()[0] == (
@@ -345,3 +346,17 @@ def test_summary_and_failure_round_trip_and_are_cut() -> None:
     fstate = ib.parse_state(failure)
     assert fstate is not None and fstate["messages"] == ["a|b", "c\nd"]
     assert json.dumps(fstate["messages_omitted"]) == "0"
+
+
+# Feature: cyber-resilience-phase4-supply-chain, Property 13: Issue 本文は必須の項目をすべて持つ
+@settings(max_examples=100, deadline=None)
+@given(finding_issues())
+def test_component_rows_keep_three_columns_whatever_the_text(data: ib.FindingIssue) -> None:
+    """**Validates: Requirements 8.3**"""
+    body = ib.render_finding(data)
+    rows = [ln for ln in body.splitlines() if ln.startswith("| pkg:")]
+    assert len(rows) == len(data.components)
+    for row in rows:
+        # Split on pipes that are not escaped by an odd run of backslashes.
+        cells = re.split(r"(?<!\\)(?:\\\\)*\|", row)
+        assert len(cells) == 5  # leading and trailing empty strings plus three cells
