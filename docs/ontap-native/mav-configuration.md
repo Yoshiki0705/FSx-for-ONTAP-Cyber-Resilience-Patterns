@@ -146,10 +146,19 @@ MAV 設定は CloudFormation Custom Resource (Lambda) で自動化可能。
 
 ## fsxadmin 権限での制約
 
-- MAV の有効化/無効化: 可能（ただし無効化自体が MAV の保護対象になりうる）
-- ルール作成/変更: 可能
-- 承認グループ管理: 可能
-- 承認実行: 他の管理者アカウントから行う必要あり（自己承認不可）
+FSx for ONTAP 9.18.1P6 で `fsxadmin` として確かめた結果を次に示す（1 環境、1 回の観測）[E-025]。他のロール、AWS 側の管理経路、他の版は確認していない。
+
+- MAV の有効化/無効化: 有効化は HTTP 403 で拒否された [E-025]。無効化は試していない
+- ルール作成/変更: 試していない。`fsxadmin` のロール定義に MAV のエントリはなく、CLI の一覧にも載らない [E-025]
+- 承認グループ管理: 作成は HTTP 403 で拒否された [E-025]
+- 承認実行: FSx for ONTAP では試していない。ONTAP では、要求した管理者以外の MAV 管理者が承認する（[NetApp の文書](https://docs.netapp.com/us-en/ontap/multi-admin-verify/manage-requests-task.html)）
+
+The results below were checked as `fsxadmin` on FSx for ONTAP 9.18.1P6 (one environment, one observation) [E-025]. Other roles, AWS-side management routes and other versions were not checked.
+
+- Enabling and disabling MAV: enabling was refused with HTTP 403 [E-025]. Disabling was not tried.
+- Creating and modifying rules: not tried. The `fsxadmin` role has no entry for MAV, and the CLI capability list does not show it [E-025].
+- Managing approval groups: creating one was refused with HTTP 403 [E-025].
+- Approving requests: not tried on FSx for ONTAP. In ONTAP, a MAV administrator other than the requester approves the request ([NetApp documentation](https://docs.netapp.com/us-en/ontap/multi-admin-verify/manage-requests-task.html)).
 
 ## 参照 / References
 
