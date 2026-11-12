@@ -73,6 +73,22 @@ Two deployment paths are supported:
 
 ---
 
+## Lambda Concurrency and Dead-Letter Queues (dr-replication / siem-integration)
+
+Two EventBridge-triggered Lambda functions outside `event-driven.yaml` cap their concurrency and keep failed events in their own SQS queue. `dr-replication.yaml` and `siem-integration.yaml` are not nested in `main.yaml`, so deploy them as separate stacks.
+
+| Function | Template | Reserved concurrency | Dead-letter queue | Alarm |
+|----------|----------|----------------------|-------------------|-------|
+| `LagMonitorLambda` | `dr-replication.yaml` | 1 (fixed) | `LagMonitorDlq` | `LagMonitorDlqAlarm` |
+| `SecurityHubPublisherLambda` | `siem-integration.yaml` | `SecurityHubPublisherReservedConcurrency` (default 10) | `SecurityHubPublisherDlq` | `SecurityHubPublisherDlqAlarm` |
+
+- Each queue is encrypted with the AWS managed key `alias/aws/sqs`, keeps messages for 14 days, and is deleted with its stack.
+- Each execution role may call `sqs:SendMessage` only on its own queue.
+- Each alarm fires when 1 or more messages are visible in the queue (5-minute period) and notifies the SNS topic in `SecurityAlertTopicArn`. A message in the queue means the function failed after Lambda's retries; the event stays there for 14 days for inspection.
+- `SecurityHubPublisherReservedConcurrency` (Number, default 10, minimum 1): Lambda keeps 100 executions of the account's concurrency unreserved, so the value can be at most the account's unreserved concurrency minus 100. See [Lambda reserved concurrency](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html). In an account with the default limit of 1,000 executions and no other reservations, 900 is the upper bound.
+- `EventTransformerLambda` in `event-driven.yaml` reads from SQS queues. For SQS event sources, AWS places the dead-letter queue on the source queue instead of the function, and both source queues already have a `RedrivePolicy`. The template records this as a Checkov skip for `CKV_AWS_116`.
+- Not measured: these changes were checked with cfn-lint, Checkov and unit tests only, and have not been deployed.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints

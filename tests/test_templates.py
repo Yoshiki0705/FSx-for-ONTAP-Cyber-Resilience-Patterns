@@ -253,6 +253,104 @@ class TestParameterFiles:
         assert env_param["ParameterValue"] == "dev"
 
 
+class TestLambdaReservedConcurrency:
+    """Event-triggered Lambdas outside event-driven.yaml must cap their concurrency (CKV_AWS_115)."""
+
+    def test_lag_monitor_reserves_one_execution(self) -> None:
+        lam = load_yaml(TEMPLATES_DIR / "dr-replication.yaml")["Resources"]["LagMonitorLambda"]
+        assert lam["Properties"]["ReservedConcurrentExecutions"] == 1
+
+    def test_security_hub_publisher_concurrency_is_a_parameter(self) -> None:
+        tpl = load_yaml(TEMPLATES_DIR / "siem-integration.yaml")
+        param = tpl["Parameters"]["SecurityHubPublisherReservedConcurrency"]
+        assert param["Type"] == "Number"
+        assert param["Default"] == 10
+        assert param["MinValue"] == 1
+        lam = tpl["Resources"]["SecurityHubPublisherLambda"]
+        # CfnLoader keeps only the tag payload, so compare the referenced name.
+        ref = lam["Properties"]["ReservedConcurrentExecutions"]
+        assert list(ref.values()) == ["SecurityHubPublisherReservedConcurrency"]
+
+
+def _values(node: object) -> list:
+    """Return the payload of a CfnLoader-parsed intrinsic function (it keeps only the payload)."""
+    assert isinstance(node, dict)
+    return list(node.values())
+
+
+class TestAsyncLambdaDeadLetterQueue:
+    """EventBridge-invoked Lambdas must send failed events to their own SQS queue (CKV_AWS_116)."""
+
+    CASES = [
+        ("dr-replication.yaml", "LagMonitorLambda", "LagMonitorRole", "LagMonitorDlq", "LagMonitorDlqAlarm"),
+        (
+            "siem-integration.yaml",
+            "SecurityHubPublisherLambda",
+            "SecurityHubPublisherRole",
+            "SecurityHubPublisherDlq",
+            "SecurityHubPublisherDlqAlarm",
+        ),
+    ]
+
+    @pytest.mark.parametrize(("file", "fn", "role", "queue", "alarm"), CASES)
+    def test_dead_letter_target_is_the_queue(self, file: str, fn: str, role: str, queue: str, alarm: str) -> None:
+        res = load_yaml(TEMPLATES_DIR / file)["Resources"]
+        assert _values(res[fn]["Properties"]["DeadLetterConfig"]["TargetArn"]) == [f"{queue}.Arn"]
+        assert res[queue]["Type"] == "AWS::SQS::Queue"
+        props = res[queue]["Properties"]
+        assert props["MessageRetentionPeriod"] == 1209600
+        assert props["KmsMasterKeyId"] == "alias/aws/sqs"
+
+    @pytest.mark.parametrize(("file", "fn", "role", "queue", "alarm"), CASES)
+    def test_role_can_send_only_to_the_queue(self, file: str, fn: str, role: str, queue: str, alarm: str) -> None:
+        res = load_yaml(TEMPLATES_DIR / file)["Resources"]
+        statements = [
+            st
+            for policy in res[role]["Properties"]["Policies"]
+            for st in policy["PolicyDocument"]["Statement"]
+            if "sqs:SendMessage" in ([st["Action"]] if isinstance(st["Action"], str) else st["Action"])
+        ]
+        assert len(statements) == 1
+        assert _values(statements[0]["Resource"]) == [f"{queue}.Arn"]
+
+    @pytest.mark.parametrize(("file", "fn", "role", "queue", "alarm"), CASES)
+    def test_queue_has_depth_alarm(self, file: str, fn: str, role: str, queue: str, alarm: str) -> None:
+        props = load_yaml(TEMPLATES_DIR / file)["Resources"][alarm]["Properties"]
+        assert props["MetricName"] == "ApproximateNumberOfMessagesVisible"
+        assert _values(props["Dimensions"][0]["Value"]) == [f"{queue}.QueueName"]
+        assert _values(props["AlarmActions"][0]) == ["SecurityAlertTopicArn"]
+
+
+class TestSqsSourcedLambdaDlqSkip:
+    """CKV_AWS_116 is skipped only for the two Lambdas that no asynchronous invocation reaches."""
+
+    def test_skip_only_on_event_transformer_and_quarantine(self) -> None:
+        res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
+        skipped = [n for n, r in res.items() if r.get("Metadata", {}).get("checkov", {}).get("skip")]
+        assert sorted(skipped) == ["EventTransformerLambda", "QuarantineLambda"]
+        for n in skipped:
+            assert [s["id"] for s in res[n]["Metadata"]["checkov"]["skip"]] == ["CKV_AWS_116"]
+
+    def test_quarantine_has_no_event_source_mapping(self) -> None:
+        res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
+        for r in res.values():
+            if r["Type"] == "AWS::Lambda::EventSourceMapping":
+                assert _values(r["Properties"]["FunctionName"]) != ["QuarantineLambda"]
+
+    def test_event_transformer_mappings_use_queues_with_redrive(self) -> None:
+        res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
+        mappings = [
+            r["Properties"]
+            for r in res.values()
+            if r["Type"] == "AWS::Lambda::EventSourceMapping"
+            and _values(r["Properties"]["FunctionName"]) == ["EventTransformerLambda"]
+        ]
+        assert len(mappings) == 2
+        for m in mappings:
+            queue = _values(m["EventSourceArn"])[0].split(".")[0]
+            assert "RedrivePolicy" in res[queue]["Properties"]
+
+
 # (template, resource logical ID, resource property, parameter)
 OPTIONAL_KMS_BINDINGS = [
     ("network.yaml", "FlowLogLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),

@@ -95,6 +95,26 @@ Resources:
                 Action:
                   - cloudwatch:PutMetricData
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt LagMonitorDlq.Arn
+
+  # Dead-letter queue for events that the asynchronous EventBridge invocation
+  # could not process after Lambda's retries.
+  LagMonitorDlq:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub '${ProjectName}-dr-lag-monitor-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days (maximum)
+      KmsMasterKeyId: alias/aws/sqs
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Layer
+          Value: data-protection
 
   LagMonitorLambda:
     Type: AWS::Lambda::Function
@@ -104,8 +124,11 @@ Resources:
       Handler: lag_monitor.handler
       Timeout: 60
       MemorySize: 128
+      ReservedConcurrentExecutions: 1  # one scheduled check at a time; the 5-minute rule never needs more
       Architectures: [arm64]
       Role: !GetAtt LagMonitorRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt LagMonitorDlq.Arn
       KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
@@ -183,6 +206,30 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  LagMonitorDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-dr-lag-monitor-dlq-${Environment}'
+      AlarmDescription: >
+        The DR lag monitor Lambda failed after retries and a failed event is waiting
+        in its dead-letter queue. SnapMirror lag is not being checked.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt LagMonitorDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
 # -------------------------------------------------------------------
 # Outputs
 # -------------------------------------------------------------------
@@ -194,3 +241,7 @@ Outputs:
   SnapMirrorLagAlarmArn:
     Description: SnapMirror lag alarm ARN
     Value: !GetAtt SnapMirrorLagAlarm.Arn
+
+  LagMonitorDlqUrl:
+    Description: Dead-letter queue URL for the DR lag monitor Lambda
+    Value: !Ref LagMonitorDlq
