@@ -539,6 +539,7 @@ aws secretsmanager delete-secret \
 
 ## 関連ドキュメント
 
+- [デプロイ後の通知経路の確認](alert-path-verification.md)
 - [既存 FSx for ONTAP 環境への統合](../deployment-guide-existing-fsxn.md)
 - [コスト・ライセンス詳細](../verification-environment-cost.md)
 - [アーキテクチャ概要](../architecture/overview.md)

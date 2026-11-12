@@ -541,6 +541,7 @@ aws secretsmanager delete-secret \
 
 ## Related Documentation
 
+- [Verifying the Alert Path After Deployment](alert-path-verification.md)
 - [Existing FSx for ONTAP Integration](../deployment-guide-existing-fsxn.md)
 - [Cost & License Details](../verification-environment-cost.md)
 - [Architecture Overview](../architecture/overview.md)

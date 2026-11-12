@@ -16,6 +16,7 @@ Amazon FSx for NetApp ONTAP 向けの多層サイバーレジリエンスパタ�
 |-------------|--------|---------|
 | アーキテクチャを理解する | [Architecture Overview](../architecture/overview.md) | 10 min |
 | 新規環境にデプロイする | [デプロイガイド](deployment-guide.md) | 45 min |
+| デプロイ後に通知経路を確認する | [通知経路の確認](alert-path-verification.md) | 未測定 |
 | 既存 FSx for ONTAP に追加する | [既存環境ガイド](../deployment-guide-existing-fsxn.md) | 30 min |
 | ARP アラートに対応する | [ARP Alert Triage Runbook](../runbooks/arp-alert-triage.md) | 5 min |
 | ランサムウェア復旧を実行する | [Recovery Runbook](../runbooks/ransomware-recovery.md) | 15 min |
