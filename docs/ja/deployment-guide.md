@@ -168,6 +168,30 @@ aws cloudformation create-stack \
 
 ARP と FPolicy は、スタックのデプロイ後に [ARP 設定ガイド](../ontap-native/arp-configuration.md) と [FPolicy 設定ガイド](../ontap-native/fpolicy-configuration.md) の CLI / REST の手順で設定する。`svm-prod` のファイルアクセス監査も手作業で有効にする。手順は [持ち出し対応の runbook](../runbooks/data-exfiltration-response.md) にある。
 
+#### 任意: 自管理 KMS キーの指定
+
+スタックは KMS キーを作成しない。既定のパラメータでは暗号化は変わらず、CloudWatch Logs のロググループは CloudWatch Logs の既定の暗号化、Lambda の環境変数は Lambda が用意する既定のキーのままになる。キーの ARN を渡したときだけ、自管理キーで暗号化される。
+
+| パラメータ | テンプレート | 対象 |
+|-----------|-------------|------|
+| `LogGroupKmsKeyArn` | `network.yaml`、`event-driven.yaml`、`main.yaml` | VPC Flow Logs のロググループ（スタックが VPC を作るときだけ作成される）と Step Functions のロググループ |
+| `LambdaEnvKmsKeyArn` | `event-driven.yaml`、`dr-replication.yaml`、`siem-integration.yaml`、`main.yaml`（Event-Driven スタックにだけ渡す） | 隔離アクション、イベント変換、SnapMirror ラグ監視、Security Hub 発行の各 Lambda 関数の環境変数 |
+
+`LogGroupKmsKeyArn` のキーの要件。出典は [CloudWatch Logs のドキュメント](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html)。
+
+- 対称キーを使う。キーポリシーで、同じリージョンの CloudWatch Logs サービスプリンシパルを許可する。
+- スタックをデプロイする IAM プリンシパルに、そのキーへの `kms:DescribeKey` を付ける。ロググループへキーを関連付けるときに必要になる。
+- 既存のロググループに `KmsKeyId` を足す変更は、中断を伴わない更新になる（[`AWS::Logs::LogGroup`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-logs-loggroup.html)）。ドキュメントに書かれているのは、新しく取り込むデータがキーで暗号化されることまで。それ以前のデータが再暗号化されるかは書かれていない。
+- そのキーで暗号化したデータを読むには、キーが有効で、CloudWatch Logs が使える状態にある必要がある。ログの保持期間が終わるまで、キーを残しておく。
+
+`LambdaEnvKmsKeyArn` のキーの要件。出典は [Lambda のドキュメント](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars-encryption.html)。
+
+- スタックをデプロイする IAM プリンシパルに、そのキーへの `kms:CreateGrant` と `kms:Encrypt` を付ける。Lambda はこの権限を使って、キーにグラントを作る。
+- 環境変数を参照するユーザーには `kms:Decrypt` が要る。持っていないユーザーでも、関数の管理はできる。
+- 既存の関数で `KmsKeyArn` を変える更新は、中断を伴わない（[`AWS::Lambda::Function`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-function.html)）。
+
+未確認: Step Functions の実行ロールと VPC Flow Logs のロールに、独自の KMS 権限が要るか（CloudWatch Logs のドキュメントは、`PutLogEvents` などを呼ぶプリンシパル向けの KMS 権限を挙げている）。Lambda の実行ロールに、実行時の `kms:Decrypt` が要るか（Lambda のドキュメントが求めているのは、クライアント側暗号化のヘルパーを使う場合だけ）。これらのテンプレートは cfn-lint と Checkov で検査しただけで、キーを指定したデプロイは実行していない。
+
 ### Step 3: スキャニングレイヤーのデプロイ
 
 ```bash

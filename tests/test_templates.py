@@ -349,3 +349,52 @@ class TestSqsSourcedLambdaDlqSkip:
         for m in mappings:
             queue = _values(m["EventSourceArn"])[0].split(".")[0]
             assert "RedrivePolicy" in res[queue]["Properties"]
+
+
+# (template, resource logical ID, resource property, parameter)
+OPTIONAL_KMS_BINDINGS = [
+    ("network.yaml", "FlowLogLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
+    ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
+    ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("dr-replication.yaml", "LagMonitorLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+]
+# main.yaml nests only these templates; the others are deployed as standalone stacks
+NESTED_IN_MAIN = {"network.yaml", "event-driven.yaml"}
+
+
+class _TaggedLoader(yaml.SafeLoader):
+    """Keeps each short-form tag as a one-key dict (``!Ref X`` -> ``{"Ref": "X"}``)."""
+
+
+_TaggedLoader.add_multi_constructor("!", _cfn_tag_constructor)
+
+
+def _load_tagged(name: str) -> dict:
+    with open(TEMPLATES_DIR / name) as f:
+        return yaml.load(f, Loader=_TaggedLoader)  # noqa: S506
+
+
+class TestOptionalKmsKeys:
+    """Customer managed keys are opt-in: empty default keeps the default encryption."""
+
+    @pytest.mark.parametrize(("name", "resource", "prop", "param"), OPTIONAL_KMS_BINDINGS)
+    def test_key_is_optional_and_wired(self, name: str, resource: str, prop: str, param: str) -> None:
+        template = _load_tagged(name)
+        assert template["Parameters"][param]["Default"] == ""
+        value = template["Resources"][resource]["Properties"][prop]
+        condition, if_set, if_unset = value["If"]
+        assert template["Conditions"][condition] == {"Not": [{"Equals": [{"Ref": param}, ""]}]}
+        assert if_set == {"Ref": param}
+        assert if_unset == {"Ref": "AWS::NoValue"}
+
+    @pytest.mark.parametrize(
+        ("stack", "param"),
+        sorted({(n.split(".")[0], p) for n, _, _, p in OPTIONAL_KMS_BINDINGS if n in NESTED_IN_MAIN}),
+    )
+    def test_root_stack_passes_key_to_nested_stack(self, stack: str, param: str) -> None:
+        main = _load_tagged("main.yaml")
+        assert param in main["Parameters"]
+        nested = [r for r in main["Resources"].values() if stack in str(r["Properties"]["TemplateURL"])]
+        assert nested and nested[0]["Properties"]["Parameters"][param] == {"Ref": param}

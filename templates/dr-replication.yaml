@@ -43,6 +43,20 @@ Parameters:
     Type: String
     Description: SNS topic ARN for alert notifications.
 
+  LambdaEnvKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Lambda environment variables at rest.
+      If empty, Lambda uses its default AWS managed key (aws/lambda).
+      The identity that deploys the stack needs kms:CreateGrant and kms:Encrypt on this key.
+
+# -------------------------------------------------------------------
+# Conditions
+# -------------------------------------------------------------------
+Conditions:
+  HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
+
 # -------------------------------------------------------------------
 # Resources
 # -------------------------------------------------------------------
@@ -115,6 +129,7 @@ Resources:
       Role: !GetAtt LagMonitorRole.Arn
       DeadLetterConfig:
         TargetArn: !GetAtt LagMonitorDlq.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           MANAGEMENT_ENDPOINT: !Ref PrimaryManagementEndpoint
