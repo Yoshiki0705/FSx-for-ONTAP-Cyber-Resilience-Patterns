@@ -298,6 +298,17 @@ Resources:
               - Effect: Allow
                 Action: sns:Publish
                 Resource: !Ref SecurityAlertTopicArn
+              # The topic is encrypted with a customer managed key that lives in the
+              # Event-Driven stack, so the key ARN is not known here. Limit the
+              # permission to use through SNS.
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Decrypt
+                Resource: !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'sns.${AWS::Region}.amazonaws.com'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
