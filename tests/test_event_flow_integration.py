@@ -138,8 +138,12 @@ TASKS_THAT_MUST_CATCH = [
     "WaitForApproval",
     "RestoreAccess",
     "CreateFlexClone",
+    "NotifyFailure",
+    "EscalateTimeout",
 ]
 LAMBDA_TASKS = ["RestrictExportPolicy", "RestoreAccess", "CreateFlexClone"]
+# Terminal states that publish to the alert topic. When the topic fails they end in a Fail state.
+NOTIFY_TASKS = ["NotifyFailure", "EscalateTimeout"]
 
 _MISSING = object()
 
@@ -251,6 +255,25 @@ class TestStepFunctionsAslValidation:
         # The function may already have run when the client times out, so it is not retried.
         assert "Lambda.ClientExecutionTimeoutException" not in retried
         assert all(1 <= r["MaxAttempts"] <= 5 for r in retriers)
+
+    @pytest.mark.parametrize("name", NOTIFY_TASKS)
+    def test_notification_task_retries_then_ends_in_a_fail_state(self, quarantine_asl, name):
+        state = quarantine_asl["States"][name]
+        assert state["Retry"][-1]["ErrorEquals"] == ["States.ALL"]
+        assert all(1 <= r["MaxAttempts"] <= 5 for r in state["Retry"])
+        assert state["Catch"][-1]["Next"] == "NotificationFailed"
+        failed = quarantine_asl["States"]["NotificationFailed"]
+        assert failed["Type"] == "Fail"
+        assert failed["Error"] == "NotificationFailed"
+
+    def test_every_catch_and_choice_target_is_a_state(self, quarantine_asl):
+        states = quarantine_asl["States"]
+        for name, state in states.items():
+            targets = [c["Next"] for c in state.get("Catch", [])]
+            targets += [r["Next"] for r in state.get("Choices", [])]
+            targets += [state["Default"]] if "Default" in state else []
+            for target in targets:
+                assert target in states, f"{name} points at {target}, which is not a state"
 
     def test_task_with_next_state_keeps_the_execution_input(self, quarantine_asl):
         """Without ResultPath a task's output replaces the whole state input."""

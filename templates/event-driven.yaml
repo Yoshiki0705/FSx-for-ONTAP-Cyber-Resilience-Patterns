@@ -458,6 +458,21 @@ Resources:
                 "Subject": "ERROR: Quarantine Workflow Failed",
                 "Message": "Quarantine workflow failed. Manual intervention required. Check Step Functions execution history for details."
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.notifyError",
+                  "Next": "NotificationFailed"
+                }
+              ],
               "End": true
             },
             "EscalateTimeout": {
@@ -468,7 +483,27 @@ Resources:
                 "Subject": "ESCALATION: Approval Timeout - Quarantined Volume",
                 "Message": "Quarantine approval timed out after 24 hours. Volume remains quarantined."
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.notifyError",
+                  "Next": "NotificationFailed"
+                }
+              ],
               "End": true
+            },
+            "NotificationFailed": {
+              "Type": "Fail",
+              "Error": "NotificationFailed",
+              "Cause": "The notification could not be published to the alert topic after retries. The volume may still be quarantined. Check the execution history and the alert topic."
             }
           }
         }

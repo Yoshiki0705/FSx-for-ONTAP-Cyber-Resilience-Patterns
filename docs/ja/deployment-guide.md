@@ -161,6 +161,7 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 
 - データポイントがない場合は正常として扱います（`notBreaching`）。
 - 監視するのは `ExecutionsFailed` だけです。`ExecutionsTimedOut` と `ExecutionsAborted` は監視しません。定義に実行全体のタイムアウトはなく、24 時間の承認待ちは `EscalateTimeout` が捕捉して通知します。
+- `NotifyFailure` と `EscalateTimeout` は、発行を 3 回リトライし、それでも失敗すると `NotificationFailed` の Fail 状態で終わります。トピックに発行できない場合も、失敗した実行が残り、このアラームが数えます。このアラームも同じトピックに通知するため、トピック自体に問題があるときは、アラームが誰にも届かないことがあります。その場合は実行履歴を確認してください。
 - Step Functions の CloudWatch 指標はベストエフォートで配信されるため、データポイントが遅れる、または届かないことがあります（[Step Functions の指標](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)）。
 
 2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、1 回実行して測りました。状態が `Fail` だけのステートマシンと、同じ形のアラーム（期間 60 秒）を使っています。実行は `FAILED` で終わり、指標の Sum は 1 になり、アラームは実行の 104 秒後に `ALARM` になり、購読したキューに通知が配信されました。未測定のものは、このテンプレートのデプロイ、実際の隔離ワークフローの失敗、期間 300 秒での動作です。
