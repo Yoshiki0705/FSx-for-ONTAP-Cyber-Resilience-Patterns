@@ -331,15 +331,22 @@ def scene_other_branch(sb: HandoffSandbox) -> Path:
     return make_worktree(sb, branch="handoff/another-item")
 
 
+def unrelated_commit(sb: HandoffSandbox) -> str:
+    """A commit that exists in the repository but is not below the worktree's ``HEAD``; no ref names it."""
+    tree = git_text(sb, "-C", str(sb.main_tree), "rev-parse", f"{sb.base_sha}^{{tree}}")
+    return git_text(sb, "-C", str(sb.main_tree), "commit-tree", tree, "-p", sb.base_sha, "-m", "chore: off the branch")
+
+
 #: Per case: the scene (it returns the ``--worktree`` argument), the phrase of standard error, and
 #: the ``base_sha`` that the item's record holds (``None``: no record, so the base is derived).
-REFUSALS: dict[str, tuple[Callable[[HandoffSandbox], Path | str], str, str | None]] = {
+REFUSALS: dict[str, tuple[Callable[[HandoffSandbox], Path | str], str, Callable[[HandoffSandbox], str] | None]] = {
     "another-repository": (other_repository_worktree, "is not a worktree that git lists for", None),
     "not-listed-by-git": (scene_plain_directory, "is not a worktree that git lists for", None),
     "missing-path": (lambda sb: sb.root / "no-such-path", "is not a directory", None),
     "inside-the-main-tree": (lambda sb: sb.main_tree, "which meets the main working tree of", None),
     "another-branch": (scene_other_branch, f", not refs/heads/{MANUAL_BRANCH}", None),
-    "unknown-base": (lambda sb: make_worktree(sb), "the recorded base of the item", "0" * 39 + "1"),
+    "unknown-base": (lambda sb: make_worktree(sb), "the recorded base of the item", lambda sb: "0" * 39 + "1"),
+    "base-not-below-head": (lambda sb: make_worktree(sb), "is not below HEAD of", unrelated_commit),
 }
 
 
@@ -353,7 +360,7 @@ def test_verify_refuses_a_worktree_that_is_not_the_items_and_changes_nothing(
     scene, phrase, recorded_base = REFUSALS[name]
     argument = scene(sb)
     if recorded_base is not None:
-        write_status(sb, [], base_sha=recorded_base)
+        write_status(sb, [], base_sha=recorded_base(sb))
     status_before = status_bytes(sb)
     before, refs_before = sb.snapshot_main_tree(), remote_refs(sb)
     worktrees_before = git_text(sb, "-C", str(sb.main_tree), "worktree", "list", "--porcelain")
