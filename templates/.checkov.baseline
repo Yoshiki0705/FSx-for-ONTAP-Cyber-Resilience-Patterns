@@ -25,7 +25,6 @@
                 {
                     "resource": "AWS::Lambda::Function.QuarantineLambda",
                     "check_ids": [
-                        "CKV_AWS_116",
                         "CKV_AWS_173"
                     ]
                 },

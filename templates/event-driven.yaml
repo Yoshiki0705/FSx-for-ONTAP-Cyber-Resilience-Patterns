@@ -387,6 +387,15 @@ Resources:
   # ---------------------------------------------------------------
   QuarantineLambda:
     Type: AWS::Lambda::Function
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_116
+            comment: >-
+              This function is invoked only from Step Functions Task states that name its ARN
+              as Resource; the state waits for the function output, so no event is discarded
+              by an asynchronous invocation. A Lambda dead-letter queue receives only events
+              that an asynchronous invocation discards.
     Properties:
       FunctionName: !Sub '${ProjectName}-quarantine-action-${Environment}'
       Runtime: python3.12

@@ -322,12 +322,20 @@ class TestAsyncLambdaDeadLetterQueue:
 
 
 class TestSqsSourcedLambdaDlqSkip:
-    """CKV_AWS_116 is skipped only for the SQS-sourced Lambda, whose source queues carry a RedrivePolicy."""
+    """CKV_AWS_116 is skipped only for the two Lambdas that no asynchronous invocation reaches."""
 
-    def test_skip_only_on_event_transformer(self) -> None:
+    def test_skip_only_on_event_transformer_and_quarantine(self) -> None:
         res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
         skipped = [n for n, r in res.items() if r.get("Metadata", {}).get("checkov", {}).get("skip")]
-        assert skipped == ["EventTransformerLambda"]
+        assert sorted(skipped) == ["EventTransformerLambda", "QuarantineLambda"]
+        for n in skipped:
+            assert [s["id"] for s in res[n]["Metadata"]["checkov"]["skip"]] == ["CKV_AWS_116"]
+
+    def test_quarantine_has_no_event_source_mapping(self) -> None:
+        res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
+        for r in res.values():
+            if r["Type"] == "AWS::Lambda::EventSourceMapping":
+                assert _values(r["Properties"]["FunctionName"]) != ["QuarantineLambda"]
 
     def test_event_transformer_mappings_use_queues_with_redrive(self) -> None:
         res = load_yaml(TEMPLATES_DIR / "event-driven.yaml")["Resources"]
