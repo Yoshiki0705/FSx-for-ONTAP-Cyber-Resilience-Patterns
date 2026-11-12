@@ -78,7 +78,7 @@ NOT_APPLICABLE_TEXT: Final = "該当なし"
 UNCONFIRMED_TEXT: Final = "未確定。先に Hub の Handoff を完了すること"
 
 #: The instruction that a query prompt gives for its answers (design section 17).
-ANSWER_INSTRUCTION: Final = "答えに既存の記録のパスとコミット SHA を添える"
+ANSWER_INSTRUCTION: Final = "答えに、読んだ既存の記録のパスを添える"
 
 #: What section 9 keeps out of commits, PR text and files (Requirement 23.7).
 PUBLIC_OUTPUT_TERMS: Final[tuple[str, ...]] = (
@@ -571,3 +571,40 @@ def test_rendered_prompts_have_every_section_and_guess_no_unconfirmed_ref(inputs
         with pytest.raises(prompt.PromptError) as caught:
             _render(inputs, item.id)
         assert [(issue.where, issue.kind) for issue in caught.value.issues] == [("item", "reference")] * len(orphans)
+
+
+#: Wording of the query-only answer section (task 5.7): the paths are asked for, the ``base_sha`` is recorded by the
+#: harness, and "該当なし" is no proof that nothing was missed.
+QUERY_ONLY_PHRASES: Final[tuple[str, ...]] = (
+    "`base_sha` はハーネスが記録",
+    "取りこぼしがない根拠",
+    "spoke_knowledge.py",
+)
+#: What a query prompt must not ask for: a commit SHA that a shell-less worker cannot get (design section 20).
+SHA_REQUESTS: Final[tuple[str, ...]] = ("SHA を添える", "SHA を挙げ", "SHA を書")
+
+
+# Feature: cyber-resilience-phase4-supply-chain, Property 27: 描いた本文は必須の節をすべて持ち、未確定の参照を推測で埋めない
+@settings(max_examples=100, deadline=None)
+@given(_render_inputs())
+def test_a_query_prompt_asks_for_paths_not_shas_and_a_change_prompt_is_unchanged(inputs: RenderInputs) -> None:
+    """Section 13 of a query item asks for paths, leaves ``base_sha`` to the harness and does not trust "該当なし".
+
+    A change item's body has none of these sentences.
+
+    **Validates: Requirements 28.1, 28.2**
+    """
+    checked = 0
+    for item in inputs.checked.items:
+        if _orphans(item, inputs.checked.by_id, inputs.confirmed):
+            continue
+        body = _render(inputs, item.id).body
+        checked += 1
+        event(item.mode)
+        if item.mode == "query":
+            assert ANSWER_INSTRUCTION in body
+            assert all(phrase in body for phrase in QUERY_ONLY_PHRASES)
+        else:
+            assert not any(phrase in body for phrase in QUERY_ONLY_PHRASES)
+        assert not any(request in body for request in SHA_REQUESTS)
+    event(f"rendered={min(checked, 1)}")

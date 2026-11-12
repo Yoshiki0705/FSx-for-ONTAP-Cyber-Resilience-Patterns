@@ -156,7 +156,13 @@ UNCONFIRMED_REF_TEXT: Final = "未確定。先に Hub の Handoff を完了す�
 
 #: The first instruction of section 13 of a query item.
 QUERY_ANSWER_INSTRUCTION: Final = (
-    "答えに既存の記録のパスとコミット SHA を添える。コミットされていない記録はその旨を書く"
+    "答えに、読んだ既存の記録のパスを添える。コミットされていない記録はその旨を書く。"
+    "読んだ worktree の `base_sha` はハーネスが記録するので、答えには書かなくてよい"
+)
+#: The caveat of section 13 of a query item: "該当なし" proves nothing about what was missed.
+QUERY_NOT_FOUND_CAVEAT: Final = (
+    "「該当なし」は、読んだ範囲に見つからなかったという報告で、取りこぼしがない根拠にはならない。"
+    "保守者が `spoke_knowledge.py` による検索と併用して確かめる"
 )
 
 #: The operations that section 11 forbids (Requirement 28.14), in the order written there.
@@ -1164,6 +1170,7 @@ def _answer_section() -> list[str]:
     return [
         f"- {QUERY_ANSWER_INSTRUCTION}",
         "- 問いごとに、問いの番号を付けて答える。該当する記録がない問いには「該当なし」と答える",
+        f"- {QUERY_NOT_FOUND_CAVEAT}",
         "- 記録で確かめられないことは、確かめていないと書く。推測で埋めない",
         "- 答えは標準出力に書き、ファイルに書き込まない",
     ]

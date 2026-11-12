@@ -36,6 +36,8 @@ run that nothing stops would take the fake's 60 seconds of sleep.
 
 from __future__ import annotations
 
+import dataclasses
+import inspect
 import json
 import os
 import re
@@ -52,8 +54,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from handoff import config as config_module
+from handoff import evaluate, runner, state
 from handoff import manifest as manifest_module
-from handoff import runner, state
 
 if TYPE_CHECKING:
     from conftest import HandoffSandbox
@@ -362,6 +364,49 @@ def push_commit(sandbox: HandoffSandbox, ref: str = "main") -> str:
 # ---------------------------------------------------------------------------------------------
 # a query item that succeeds: detached worktree, no branch, the main working tree, layer 3
 # ---------------------------------------------------------------------------------------------
+
+
+def test_a_query_run_records_base_sha_and_the_report_path_in_the_record_and_the_report(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """28.1, 28.2: the harness records ``base_sha`` and the report's path; the prompt asks the worker for neither."""
+    sb = handoff_sandbox
+    sb.apply_environ(monkeypatch)
+    cfg = make_config(sb)
+    manifest = make_manifest(cfg)
+    ctx = make_context(sb, cfg, manifest)
+    with runner.Harness.open(str(sb.handoff_dir)) as harness:
+        harness.add_missing_items(manifest)
+        outcome = harness.run_query_item(ctx, ITEM)
+    assert outcome.state == "succeeded", outcome
+    record = read_status(sb)["items"][ITEM]
+    assert re.fullmatch(r"[0-9a-f]{40}", record["base_sha"]) and record["base_sha"] == sb.base_sha
+    assert record["report"] == f"{REPO}/{ITEM}/report.md"
+    report = report_text(sb)
+    assert f"| base_sha | `{sb.base_sha}` |" in report
+    assert f"| Handoff_Report | `{record['report']}` |" in report
+    prompt_text = (sb.handoff_dir / "sync" / f"a-{REPO}.md").read_text(encoding="utf-8")
+    assert "SHA を添える" not in prompt_text and "`base_sha` はハーネスが記録" in prompt_text
+    assert "取りこぼしがない根拠" in prompt_text and "spoke_knowledge.py" in prompt_text
+
+
+def test_the_answer_text_does_not_decide_the_state(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Property 28 for a query item: an answer of "該当なし" alone succeeds; the observations hold no answer text."""
+    sb = handoff_sandbox
+    sb.apply_environ(monkeypatch, FAKE_KIRO_ANSWER="該当なし\n")
+    cfg = make_config(sb)
+    manifest = make_manifest(cfg)
+    ctx = make_context(sb, cfg, manifest)
+    with runner.Harness.open(str(sb.handoff_dir)) as harness:
+        harness.add_missing_items(manifest)
+        outcome = harness.run_query_item(ctx, ITEM)
+    assert (outcome.state, outcome.reason) == ("succeeded", "all_checks_passed")
+    fields = {field.name for field in dataclasses.fields(evaluate.Observations)}
+    assert not {name for name in fields if "text" in name or "answer" in name or name in {"stdout", "report"}}
+    assert "stdout_bytes" in fields
+    assert "answer" not in inspect.signature(evaluate.final_state).parameters
 
 
 def test_a_query_item_succeeds_in_a_detached_worktree(

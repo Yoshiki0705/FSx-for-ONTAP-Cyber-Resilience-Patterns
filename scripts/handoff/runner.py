@@ -3257,6 +3257,7 @@ class _Report:
             f"| 出力の読み取り | {reading} |",
             f"| worktree | {_code(run.worktree or '')}（残した。消すのは `cli.py cleanup` で承認を得てから） |",
             f"| Handoff_Prompt | {_code(_rel(run.files.prompt, run.directory))} |",
+            f"| Handoff_Report | {_code(_rel(run.files.report, run.directory))} |",
             f"| 最終状態 | {_one_line(final_text)} |",
             "",
             "## コマンド",
