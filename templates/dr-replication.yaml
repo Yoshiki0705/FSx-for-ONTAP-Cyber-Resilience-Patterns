@@ -90,6 +90,7 @@ Resources:
       Handler: lag_monitor.handler
       Timeout: 60
       MemorySize: 128
+      ReservedConcurrentExecutions: 1  # one scheduled check at a time; the 5-minute rule never needs more
       Architectures: [arm64]
       Role: !GetAtt LagMonitorRole.Arn
       Environment:

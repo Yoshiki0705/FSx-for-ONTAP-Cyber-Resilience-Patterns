@@ -251,3 +251,22 @@ class TestParameterFiles:
         env_param = next((p for p in params if p["ParameterKey"] == "Environment"), None)
         assert env_param is not None
         assert env_param["ParameterValue"] == "dev"
+
+
+class TestLambdaReservedConcurrency:
+    """Event-triggered Lambdas outside event-driven.yaml must cap their concurrency (CKV_AWS_115)."""
+
+    def test_lag_monitor_reserves_one_execution(self) -> None:
+        lam = load_yaml(TEMPLATES_DIR / "dr-replication.yaml")["Resources"]["LagMonitorLambda"]
+        assert lam["Properties"]["ReservedConcurrentExecutions"] == 1
+
+    def test_security_hub_publisher_concurrency_is_a_parameter(self) -> None:
+        tpl = load_yaml(TEMPLATES_DIR / "siem-integration.yaml")
+        param = tpl["Parameters"]["SecurityHubPublisherReservedConcurrency"]
+        assert param["Type"] == "Number"
+        assert param["Default"] == 10
+        assert param["MinValue"] == 1
+        lam = tpl["Resources"]["SecurityHubPublisherLambda"]
+        # CfnLoader keeps only the tag payload, so compare the referenced name.
+        ref = lam["Properties"]["ReservedConcurrentExecutions"]
+        assert list(ref.values()) == ["SecurityHubPublisherReservedConcurrency"]

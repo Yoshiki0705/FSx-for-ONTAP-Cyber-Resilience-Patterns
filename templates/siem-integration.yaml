@@ -76,6 +76,16 @@ Parameters:
     Default: ''
     Description: S3 bucket for Lambda code packages.
 
+  SecurityHubPublisherReservedConcurrency:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    Description: >
+      Reserved concurrency for the Security Hub publisher Lambda. Lambda keeps 100
+      executions unreserved in the account, so the value can be at most the account's
+      unreserved concurrency minus 100.
+      See https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html
+
 Conditions:
   DeploySecurityHub: !Equals [!Ref EnableSecurityHub, 'true']
   DeploySiemForwarder: !Equals [!Ref EnableSiemForwarder, 'true']
@@ -121,6 +131,7 @@ Resources:
       Handler: security_hub_publisher.handler
       Timeout: 30
       MemorySize: 128
+      ReservedConcurrentExecutions: !Ref SecurityHubPublisherReservedConcurrency
       Architectures: [arm64]
       Role: !GetAtt SecurityHubPublisherRole.Arn
       Environment:
