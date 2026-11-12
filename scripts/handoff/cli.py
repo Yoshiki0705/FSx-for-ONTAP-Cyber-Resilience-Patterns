@@ -72,17 +72,26 @@ Subcommands:
   harness (a stale lock, or a ``running`` record whose process is gone).
 - ``run (--sync-point X | --items ID,...)``: starts the named items in the order of
   ``dag.select``, up to ``max_concurrency`` at a time in worker threads, choosing again each time
-  an item starts or ends, until no named item can start. A change item is held in
-  ``needs-human`` (``change_mode_not_wired``) until task 5 wires the change mode. The runner holds
-  a query item whose prompt has a scan finding, is too long, cannot be drawn, or names this
-  session as its executor, and one whose agent is not approved or has a configuration of the
+  an item starts or ends, until no named item can start. A change item is checked against
+  ``selftest`` of ``status.json`` first (task 5.2): without ``result`` ``guards_active`` it is held
+  in ``needs-human`` (``selftest_unconfirmed``); otherwise ``kiro-cli --version`` and
+  ``config_sha256`` are found as the selftest finds them (``runner.kiro_fingerprint``, with
+  ``agents.change`` when its approval passes), and a ``kiro_cli_version`` or ``config_sha256``
+  that differs holds it (``selftest_stale``), with each difference on standard error. Standard
+  output then points to ``cli.py selftest`` and ``cli.py manual <id>``. A change item that passes
+  is held in ``needs-human`` (``change_mode_not_wired``) until task 5.3 wires the change mode;
+  ``command.build_kiro_argv`` still refuses a change item without ``guards_active`` behind this
+  check. A query item is not checked. The runner holds a query item whose prompt has a scan
+  finding, is too long, cannot be drawn, or names this session as its executor, and one whose
+  agent is not approved or has a configuration of the
   same name in the worktree (above). Each item is attempted at most once per run. SIGINT stops
   starting items, stops the running ones (they become ``failed``, ``harness_interrupted``; one
   that had not reached ``kiro-cli`` stays ``queued``) and waits for them (design H8). ``LoginRequired``,
   ``DiskSpaceLow``, ``UnsafeLocation`` and the other runner errors stop starting items and let the
   running ones finish. When ``kiro-cli`` cannot be found, before the first item or at an item's
-  ``whoami``, the manual display of each named item that is ``queued`` and ready is printed
-  instead, and nothing more starts (Requirement 28.21).
+  ``whoami``, or ``kiro-cli --version`` gives no version for the check of a change item (which
+  then stays ``queued``), the manual display of each named item that is ``queued`` and ready is
+  printed instead, and nothing more starts (Requirement 28.21).
 - ``manual ID``: prints the Handoff_Prompt in full, the repository to paste it in, and the
   commands from ``git -C <main> fetch --no-tags origin main`` to ``git worktree add`` that make the
   worktree (with ``<sha>`` for the base commit). The item must be ``queued`` (or have no record
@@ -143,7 +152,8 @@ Exit codes:
       other runner error (a hook directory that cannot be listed, for one), since its 1 means a
       result that was recorded.
 6     ``kiro-cli`` was not found, and the manual display was printed instead (Requirement 28.21).
-      For ``selftest`` also: ``kiro-cli --version`` did not exit 0 with a version.
+      For ``selftest``, and for ``run`` when it checks the selftest of a change item, also:
+      ``kiro-cli --version`` did not exit 0 with a version.
 130   Interrupted (SIGINT).
 ====  =====================================================================================
 
@@ -215,6 +225,12 @@ _TIMESTAMP_SHAPE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]
 #: The history reason of a change item that ``run`` holds until task 5 wires the change mode.
 CHANGE_MODE_HELD: Final = "change_mode_not_wired"
 
+#: The history reasons of a change item that ``run`` holds for the selftest (task 5.2): ``selftest``
+#: of ``status.json`` is missing or its ``result`` is not ``guards_active``, or its
+#: ``kiro_cli_version`` or ``config_sha256`` is not that of the ``kiro-cli`` and the files of now.
+SELFTEST_UNCONFIRMED: Final = "selftest_unconfirmed"
+SELFTEST_STALE: Final = "selftest_stale"
+
 #: The reason ``run`` and ``plan`` give an item that they mark ``running`` in an in-memory copy of
 #: the status, so that ``dag.select`` counts it. It is never written to ``status.json``.
 _IN_MEMORY_RUNNING: Final = "chosen by cli.py, not written"
@@ -243,6 +259,14 @@ _MODE_LABELS: Final[Mapping[str, str]] = {"query": "照会モード", "change": 
 #: What ``plan`` adds after a hold reason, for the reasons whose cause it can name.
 _HOLD_NOTES: Final[Mapping[str, str]] = {
     CHANGE_MODE_HELD: "変更モードはまだ配線していない（タスク 5）。手作業で渡すなら cli.py manual {id}",
+    SELFTEST_UNCONFIRMED: (
+        "変更モードの項目は guards_active の selftest がないと起動しない。"
+        "cli.py selftest をやり直すか、手作業で渡すなら cli.py manual {id}"
+    ),
+    SELFTEST_STALE: (
+        "selftest の記録は今の kiro-cli の版か設定（config_sha256）のものではない。"
+        "cli.py selftest をやり直すか、手作業で渡すなら cli.py manual {id}"
+    ),
     runner.EXECUTOR_IS_THIS_SESSION: "このセッションが行う。対象リポジトリの Kiro には渡さない",
     "prompt_scan_findings": "走査の該当がある本文は渡さない。テンプレートか変数を直してから status set で queued に戻す",
     "prompt_too_long": f"本文が {MAX_BODY_BYTES} バイトを超える",
@@ -1057,7 +1081,11 @@ def _run(args: argparse.Namespace, inputs: _Inputs) -> int:
         loop = _RunLoop(harness, context, inputs, selector, named)
         code = loop.run()
         if loop.kiro_cli_missing:
-            _err("kiro-cli を起動できなかった。手作業で渡すための表示に切り替える（Requirement 28.21）")
+            if loop.no_version:
+                what = f"kiro-cli（{inputs.config.kiro_cli}）の版を読めなかった（変更モードの項目の selftest の確認）"
+            else:
+                what = "kiro-cli を起動できなかった"
+            _err(f"{what}。手作業で渡すための表示に切り替える（Requirement 28.21）")
             _manual_for_ready(harness, context, inputs, named)
         return code
 
@@ -1075,6 +1103,60 @@ def _missing_kiro_cli(inputs: _Inputs) -> str | None:
     if os.path.isfile(path) and os.access(path, os.X_OK):
         return None
     return path
+
+
+def _selftest_hold(
+    selftest: Mapping[str, Any] | None, fingerprint: Callable[[], runner.KiroFingerprint]
+) -> tuple[str, str] | None:
+    """Why ``run`` holds a change item for the selftest, as ``(reason, detail)``, or ``None`` when it counts.
+
+    The ``result`` is read first. Without ``guards_active`` the item is held as
+    :data:`SELFTEST_UNCONFIRMED`, and ``kiro-cli --version`` is not asked: the item is held whatever
+    the version. Otherwise ``fingerprint`` is called once, and a ``kiro_cli_version`` or a
+    ``config_sha256`` of the selftest that differs from that of now holds the item as
+    :data:`SELFTEST_STALE`; one that is missing differs too. The detail names each value that
+    differs, with both sides.
+
+    Args:
+        selftest: ``selftest`` of ``status.json``: ``None`` before the first selftest.
+        fingerprint: Asks ``kiro-cli --version`` and reads the files of ``config_sha256``.
+
+    Returns:
+        The history reason and the detail for standard error, or ``None``.
+
+    Raises:
+        runner.RunnerError: From ``fingerprint``: ``KiroCliMissing`` when it got no version.
+    """
+    if not isinstance(selftest, Mapping):
+        return (
+            SELFTEST_UNCONFIRMED,
+            "status.json に selftest の結果がない。変更モードの項目には guards_active が要る（Requirement 28.17）",
+        )
+    recorded = _json_text(selftest.get("record"))
+    result = selftest.get("result")
+    if result != evaluate.GUARDS_ACTIVE:
+        return (
+            SELFTEST_UNCONFIRMED,
+            f"status.json の selftest の結果は {_json_text(result)}（記録 {recorded}）。"
+            "変更モードの項目には guards_active が要る（Requirement 28.17）",
+        )
+    now = fingerprint()
+    differ = [
+        f"{label}: 記録は {_json_text(selftest.get(key))}、今は {_json_text(value)}"
+        for label, key, value in (
+            ("kiro-cli の版", "kiro_cli_version", now.version),
+            ("config_sha256", "config_sha256", now.digest.sha256),
+        )
+        if selftest.get(key) != value
+    ]
+    if not differ:
+        return None
+    return SELFTEST_STALE, f"selftest（記録 {recorded}）の後に変わった: " + "; ".join(differ)
+
+
+def _json_text(value: object) -> str:
+    """A value of ``status.json`` or of ``kiro-cli`` as one line of JSON, for a detail on standard error."""
+    return json.dumps(value, ensure_ascii=False)
 
 
 class _RunLoop:
@@ -1120,6 +1202,7 @@ class _RunLoop:
         self.unexpected: list[BaseException] = []
         self.interrupted = False
         self.kiro_cli_missing = False
+        self.no_version = False
 
     def run(self) -> int:
         """Start, wait, show the results, and return the exit code.
@@ -1197,13 +1280,47 @@ class _RunLoop:
         self.attempted.add(item_id)
         item = self.inputs.by_id[item_id]
         if item.mode != "query":
-            self.harness.hold(item_id, reason=CHANGE_MODE_HELD)
-            self.held[item_id] = CHANGE_MODE_HELD
-            note = _HOLD_NOTES[CHANGE_MODE_HELD].format(id=item_id)
-            _out(f"{item_id}: needs-human（{CHANGE_MODE_HELD}）。{note}")
+            self._hold_change_item(item_id)
             return
         _out(f"開始: {item_id}（{item.repo}）")
         self.in_flight[item_id] = pool.submit(self.harness.run_query_item, self.context, item_id, stop=self.stop)
+
+    def _hold_change_item(self, item_id: str) -> None:
+        """Hold a change item: for the selftest first (task 5.2), then because the change mode is not wired.
+
+        :func:`_selftest_hold` decides with ``selftest`` of the status. A runner error while it asks
+        ``kiro-cli --version`` stops starting items, as an error of a worker does, and the item stays
+        ``queued``: for ``KiroCliMissing`` (no version to compare), :func:`_run` then prints the
+        manual display, as ``selftest`` does when it gets no version.
+        """
+        try:
+            hold = _selftest_hold(self.harness.status["selftest"], self._fingerprint)
+        except runner.RunnerError as error:
+            if isinstance(error, runner.KiroCliMissing):
+                self.kiro_cli_missing = True
+                self.no_version = True
+            self.errors.append(error)
+            _err(f"{item_id}: {error}")
+            return
+        reason, detail = (CHANGE_MODE_HELD, "") if hold is None else hold
+        self.harness.hold(item_id, reason=reason)
+        self.held[item_id] = reason
+        _out(f"{item_id}: needs-human（{reason}）。{_HOLD_NOTES[reason].format(id=item_id)}")
+        if detail:
+            _err(f"{item_id}: {detail}")
+
+    def _fingerprint(self) -> runner.KiroFingerprint:
+        """``kiro-cli --version`` and ``config_sha256`` now, for the agent that the selftest gives ``--agent``.
+
+        The selftest gives ``agents.change`` when its approval passed the checks of this command and
+        no agent otherwise (an unapproved one refuses the selftest), so the same pair decides here.
+        """
+        config = self.inputs.config
+        name = config.agents.get("change")
+        agent = name if name is not None and (name, "change") in self.context.approved_agents else None
+        return runner.kiro_fingerprint(
+            config, home=self.inputs.home, agent=agent, kill_grace_seconds=self.context.kill_grace_seconds
+        )
 
     def _wait(self) -> None:
         """Wait a short while for a running item to end; a stop request is seen at the next look."""

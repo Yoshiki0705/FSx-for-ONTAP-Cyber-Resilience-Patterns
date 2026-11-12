@@ -486,7 +486,7 @@ def test_run_starts_only_the_named_query_items_in_the_order_of_dag_select(
         OTHER: "queued",
     }
     assert [(h["from"], h["to"], h["reason"]) for h in status["items"][CHANGE]["history"]] == [
-        ("queued", "needs-human", "change_mode_not_wired")
+        ("queued", "needs-human", "selftest_unconfirmed")  # no selftest has run in the sandbox (task 5.2)
     ]
     assert status["items"][DENIED]["history"][-1]["reason"] == "prompt_scan_findings"
     assert status["items"][OTHER]["history"] == []
@@ -498,7 +498,7 @@ def test_run_starts_only_the_named_query_items_in_the_order_of_dag_select(
         assert not worktree(sb, held).exists()
     assert prompt_file(sb, "c").exists()  # the held body is kept for the maintainer, not passed on
     # the order of the starts and holds on standard output is the order of dag.select
-    events = [line for line in out.splitlines() if line.startswith("開始: ") or "（change_mode_not_wired）。" in line]
+    events = [line for line in out.splitlines() if line.startswith("開始: ") or "（selftest_unconfirmed）。" in line]
     assert ids_in(events, *ALL_IDS) == [QUERY, CHANGE, DENIED, SECOND]
     assert f"  {OTHER}" not in out and DENY_TERM not in out
     assert "deny_term" in err
