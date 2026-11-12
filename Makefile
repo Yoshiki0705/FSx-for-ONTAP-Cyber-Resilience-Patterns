@@ -182,6 +182,6 @@ clean: ## Remove generated files
 # -------------------------------------------------------------------
 .PHONY: cross-repo-agent
 
-cross-repo-agent: test ## Run quality gates and emit cross-repo notifications for Kiro Bot
+cross-repo-agent: test ## Run quality gates for a local supervisor script
 	@mkdir -p docs/agent/notifications
 	@echo "cross-repo-agent: gates passed."
