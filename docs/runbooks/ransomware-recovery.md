@@ -286,7 +286,7 @@ showmount -e <svm-management-ip>
 # Approval Queue のメッセージ確認
 QUEUE_URL=$(aws cloudformation describe-stacks \
   --stack-name fsxn-cyber-resilience-events-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`SecurityEventQueueUrl`].OutputValue' \
+  --query 'Stacks[0].Outputs[?OutputKey==`ApprovalQueueUrl`].OutputValue' \
   --output text --region ap-northeast-1)
 
 aws sqs receive-message --queue-url "$QUEUE_URL" --max-number-of-messages 1
@@ -327,6 +327,10 @@ aws stepfunctions send-task-success \
 承認・拒否がない場合、24 時間後に自動エスカレーション:
 - SNS で「ESCALATION: Approval Timeout」通知
 - ボリュームは隔離状態のまま
+
+### 承認の判定値が不正なとき
+
+`--task-output` に `approved` がない、または `true` / `false` 以外の値を渡すと、ワークフローは「ERROR: Quarantine Workflow Failed」を SNS で通知して終了します。ボリュームは隔離状態のままです。渡した値は、元のイベントを残したまま `approval` に保存されます。復旧や FlexClone の作成が失敗したときも、同じ通知が出ます。
 
 ### 手動復旧 (ワークフロー外)
 
