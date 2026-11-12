@@ -1,9 +1,10 @@
-"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status`` and ``cleanup``.
+"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status``, ``cleanup`` and ``selftest``.
 
 Task 2.3 of the phase 4 spec (design section 20; Requirements 28.11, 28.12, 28.13, 28.19, 28.21
-and 28.23). The pure core decides, :mod:`handoff.runner` starts every process and writes every
-file below ``.private/handoff/``, and this module parses the command line, reads and checks the
-inputs, wires them to the runner and shows the results. It starts no process itself.
+and 28.23), and ``selftest`` of task 5.2 (Requirements 28.16, 28.17 and 28.21). The pure core
+decides, :mod:`handoff.runner` starts every process and writes every file below
+``.private/handoff/``, and this module parses the command line, reads and checks the inputs,
+wires them to the runner and shows the results. It starts no process itself.
 
 Start it from the repository root::
 
@@ -104,26 +105,45 @@ Subcommands:
   with modified or untracked files. The removal is recorded in ``events`` and the record's
   ``worktree`` becomes ``null``. A branch is never deleted here: after the pull request is merged,
   the maintainer runs the ``git branch -d`` that the listing shows. Reports are kept.
+- ``selftest``: runs :meth:`handoff.runner.Harness.run_selftest`, the trials T0 to T4 of design
+  section 20 in throwaway repositories below ``<worktrees_root>/selftest/``, with the approval of
+  ``agents.change`` when it passes its checks now (above). It takes the lock, because it writes
+  ``selftest`` of ``status.json``. Standard output shows the result, each trial's outcome and
+  whether its ``kiro-cli`` started, the record ``.private/handoff/selftest/<run ID>.json``, and
+  whether ``selftest`` of ``status.json`` changed, as the harness last wrote it; standard error
+  shows why a result is ``unconfirmed``. A selftest that stops before its trials writes neither
+  the record nor ``status.json``, and standard error says that ``status.json`` kept its
+  ``selftest``. When ``kiro-cli`` is not found, or ``kiro-cli --version`` gives no version,
+  standard error says which, and the manual display of each change item of the manifest that is
+  ``queued`` and ready is printed instead, as ``run`` prints it (Requirement 28.21). Only then
+  are the deny lists read, to scan those prompts.
 
 Exit codes:
 
 ====  =====================================================================================
 0     Success. For ``run``: every item it started or held ended ``succeeded`` (also when no
-      item could start).
+      item could start). For ``selftest``: the result is ``guards_active``.
 1     An item ended ``failed`` or ``needs-human`` in this ``run``, or a request was refused
       for an item's state or content: ``manual`` of an item that is ``running`` or
       ``succeeded``, has a scan finding, cannot be drawn or belongs to this session; ``status set`` from a state other
       than ``failed`` and ``needs-human``; ``cleanup`` where git refused or could not tell;
-      ``status`` that could not list a repository's worktrees.
+      ``status`` that could not list a repository's worktrees. For ``selftest``: the result is
+      ``unconfirmed``, and the record and ``status.json`` were written.
 2     The configuration or the manifest was rejected, the arguments were wrong (both or neither
       of ``--sync-point`` and ``--items``, an unknown item, a blank ``--reason``), or the
-      handoff directory or the home directory could not be determined.
+      handoff directory or the home directory could not be determined. For ``selftest`` also:
+      the configuration cannot build its trials (``SelftestRefused``: a repository called
+      ``selftest`` in ``repos``, an ``agents.change`` whose approval did not pass, and the other
+      refusals of ``command.build_selftest_invocation``).
 3     The harness did not open: another harness holds the lock (H5), or the lock or
       ``status.json`` cannot be read.
 4     ``kiro-cli whoami`` failed: log in to ``kiro-cli``, then run again (H1, Requirement 28.18).
 5     The environment refused: too little free disk space (H7), a place that resolves into a
-      protected tree, or a deny list that is missing or unreadable.
+      protected tree, or a deny list that is missing or unreadable. For ``selftest`` also any
+      other runner error (a hook directory that cannot be listed, for one), since its 1 means a
+      result that was recorded.
 6     ``kiro-cli`` was not found, and the manual display was printed instead (Requirement 28.21).
+      For ``selftest`` also: ``kiro-cli --version`` did not exit 0 with a version.
 130   Interrupted (SIGINT).
 ====  =====================================================================================
 
@@ -161,7 +181,7 @@ from dataclasses import dataclass  # noqa: E402
 from datetime import datetime, timezone  # noqa: E402
 from typing import Any, Final  # noqa: E402
 
-from handoff import command, dag, runner, state  # noqa: E402
+from handoff import command, dag, evaluate, runner, state  # noqa: E402
 from handoff.config import MODES, ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
 from handoff.executor import Executor, ExecutorChoice, choose  # noqa: E402
 from handoff.manifest import SYNC_POINTS, Item, Manifest, ManifestError, parse_manifest  # noqa: E402
@@ -390,6 +410,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     cleanup.add_argument("item_id", metavar="ID")
     cleanup.add_argument("--approved", action="store_true", help="run git worktree remove (without --force)")
+    text = "run trials T0 to T4 in throwaway repositories and record whether the guards stopped kiro-cli"
+    commands.add_parser("selftest", help=text, description=text)
     return parser
 
 
@@ -679,6 +701,11 @@ def _is_timestamp(value: object) -> bool:
 
 def _context(inputs: _Inputs, deny: runner.DenyTerms, approvals: Sequence[_Approval]) -> runner.RunContext:
     """The inputs of the runner, with the agent approvals that pass their checks now. No ref is confirmed yet."""
+    return _run_context(inputs, deny, _verified_agents(inputs, approvals))
+
+
+def _run_context(inputs: _Inputs, deny: runner.DenyTerms, approved: frozenset[tuple[str, str]]) -> runner.RunContext:
+    """The inputs of the runner, with the pairs that :func:`_verified_agents` returned. No ref is confirmed yet."""
     return runner.RunContext(
         config=inputs.config,
         manifest=inputs.manifest,
@@ -687,7 +714,7 @@ def _context(inputs: _Inputs, deny: runner.DenyTerms, approvals: Sequence[_Appro
         session_worktrees_dir=inputs.session_worktrees_dir,
         deny=deny,
         confirmed_refs=frozenset(),
-        approved_agents=_verified_agents(inputs, approvals),
+        approved_agents=approved,
     )
 
 
@@ -1289,8 +1316,12 @@ def _manual(args: argparse.Namespace, inputs: _Inputs) -> int:
 
 def _manual_for_ready(
     harness: runner.Harness, context: runner.RunContext, inputs: _Inputs, named: tuple[Item, ...]
-) -> None:
-    """The manual display of each named item that is ``queued`` and ready, for ``run`` without ``kiro-cli``."""
+) -> int:
+    """The manual display of each named item that is ``queued`` and ready, for ``run`` and ``selftest`` without ``kiro-cli``.
+
+    Returns:
+        How many items were attempted: shown, or refused with the reason on standard error.
+    """
     view = _with_records(harness.status, inputs.manifest)
     shown = 0
     for item in named:
@@ -1304,6 +1335,7 @@ def _manual_for_ready(
             _out("")
         _write_manual(harness, context, inputs, item, view)
         shown += 1
+    return shown
 
 
 def _write_manual(
@@ -1655,6 +1687,88 @@ def _cleanup_with(inputs: _Inputs, item: Item, status: state.StatusDoc, harness:
 
 
 # --------------------------------------------------------------------------------------------
+# selftest
+# --------------------------------------------------------------------------------------------
+
+
+def _selftest(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``selftest``: run the trials T0 to T4 and show the result (the module docstring).
+
+    Every runner error ends the command here: with the code of :func:`_exit_code_of`, where an
+    error that its table does not name gets 5, since 1 means a recorded result, and, once the
+    harness is open, with a line on whether ``selftest`` of ``status.json`` changed.
+    """
+    approvals = _agent_approvals(inputs)
+    try:
+        with runner.Harness.open(inputs.handoff_dir) as harness:
+            earlier = harness.status["selftest"]
+            try:
+                return _selftest_in(harness, inputs, approvals, earlier)
+            except runner.RunnerError as error:
+                note = _selftest_note(harness, earlier)
+                raise _Exit(_exit_code_of(error, other=EXIT_ENVIRONMENT), f"{error}\n{note}") from None
+            except KeyboardInterrupt:
+                _err(_selftest_note(harness, earlier))
+                raise
+    except runner.RunnerError as error:  # the harness did not open
+        raise _Exit(_exit_code_of(error, other=EXIT_ENVIRONMENT), str(error)) from None
+
+
+def _selftest_in(
+    harness: runner.Harness, inputs: _Inputs, approvals: Sequence[_Approval], earlier: dict[str, Any] | None
+) -> int:
+    """Run the selftest in the open harness and show its result, or the manual display without ``kiro-cli``.
+
+    Returns:
+        0 for ``guards_active``, 1 for ``unconfirmed``, 6 when ``kiro-cli`` could not be used.
+    """
+    approved = _verified_agents(inputs, approvals)
+    context = runner.SelftestContext(
+        config=inputs.config,
+        home=inputs.home,
+        harness_tree=inputs.harness_tree,
+        session_worktrees_dir=inputs.session_worktrees_dir,
+        approved_agents=approved,
+    )
+    try:
+        outcome = harness.run_selftest(context)
+    except runner.KiroCliMissing as error:
+        missing = _missing_kiro_cli(inputs)
+        if missing is not None:
+            what = f"kiro-cli が {missing} に見つからない"
+        else:
+            what = f"kiro-cli（{inputs.config.kiro_cli}）の版を読めなかった"
+        _err(
+            f"{what}。selftest を実行できないので、変更モードの項目を手作業で渡すための表示に切り替える（Requirement 28.21）"
+        )
+        _err(str(error))
+        manual_context = _run_context(inputs, _deny_terms(inputs), approved)
+        _err(_selftest_note(harness, earlier))
+        change = tuple(item for item in inputs.manifest.items if item.mode == "change")
+        if not _manual_for_ready(harness, manual_context, inputs, change):
+            _err("queued で揃っている変更モードの項目がないので、手作業の表示はない")
+        return EXIT_MANUAL
+    _out(f"selftest {outcome.run_id}: {outcome.result}")
+    for trial, result in outcome.outcomes:
+        started = "kiro-cli を起動した" if trial in outcome.started else "起動しなかった"
+        _out(f"  {trial.upper()}: {result}（{started}）")
+    _out(f"記録: {_tilde(outcome.record, inputs.home)}")
+    _out(_selftest_note(harness, earlier))
+    if outcome.detail:
+        _err(f"selftest: {outcome.detail}")
+    return EXIT_OK if outcome.result == evaluate.GUARDS_ACTIVE else EXIT_ITEMS
+
+
+def _selftest_note(harness: runner.Harness, earlier: dict[str, Any] | None) -> str:
+    """Whether ``selftest`` of ``status.json`` differs from ``earlier``, by the harness's copy of its last write."""
+    current = harness.status["selftest"]
+    if current is None or current == earlier:
+        return "status.json の selftest は変えていない"
+    shown = "、".join(f"{key} {current.get(key)}" for key in ("result", "kiro_cli_version", "config_sha256"))
+    return f"status.json の selftest を更新した（{shown}）"
+
+
+# --------------------------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------------------------
 
@@ -1665,20 +1779,29 @@ _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] 
     "manual": _manual,
     "status": _status,
     "cleanup": _cleanup,
+    "selftest": _selftest,
 }
 
 
-def _exit_code_of(error: runner.RunnerError) -> int:
-    """The exit code of a runner error (the table in the module docstring)."""
+def _exit_code_of(error: runner.RunnerError, *, other: int = EXIT_ITEMS) -> int:
+    """The exit code of a runner error (the table in the module docstring).
+
+    Args:
+        error: The error.
+        other: The code of an error that the table does not name: 1 by default, 5 for
+            ``selftest``.
+    """
     if isinstance(error, (runner.LockHeld, runner.LockUnreadable, runner.StatusUnreadable)):
         return EXIT_HARNESS
+    if isinstance(error, runner.SelftestRefused):
+        return EXIT_USAGE
     if isinstance(error, runner.LoginRequired):
         return EXIT_LOGIN
     if isinstance(error, (runner.DiskSpaceLow, runner.UnsafeLocation, runner.DenyListUnavailable)):
         return EXIT_ENVIRONMENT
     if isinstance(error, runner.KiroCliMissing):
         return EXIT_MANUAL
-    return EXIT_ITEMS
+    return other
 
 
 def _state_text(record: state.ItemRecord) -> str:
