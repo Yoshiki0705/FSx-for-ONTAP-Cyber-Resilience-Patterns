@@ -462,6 +462,12 @@ Resources:
               This function is invoked only by SQS event source mappings, not asynchronously.
               AWS documents that, for SQS event sources, the dead-letter queue belongs on the
               source queue, and both source queues here have a RedrivePolicy.
+          - id: CKV_AWS_117
+            comment: >-
+              The only outbound call is events:PutEvents to an EventBridge bus, an AWS public API.
+              SQS is polled by the Lambda service, so no VPC path is needed to read the queues.
+              The function reaches no private VPC resource. Placing it in a VPC would require
+              an events interface endpoint or a NAT gateway, neither of which this stack creates.
     Properties:
       FunctionName: !Sub '${ProjectName}-event-transformer-${Environment}'
       Runtime: python3.12
