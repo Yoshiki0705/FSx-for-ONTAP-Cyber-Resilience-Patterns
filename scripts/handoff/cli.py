@@ -1,7 +1,8 @@
-"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status``, ``cleanup`` and ``selftest``.
+"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status``, ``cleanup``, ``selftest`` and ``publish``.
 
 Task 2.3 of the phase 4 spec (design section 20; Requirements 28.11, 28.12, 28.13, 28.19, 28.21
-and 28.23), and ``selftest`` of task 5.2 (Requirements 28.16, 28.17 and 28.21). The pure core
+and 28.23), ``selftest`` of task 5.2 (Requirements 28.16, 28.17 and 28.21) and ``publish`` of task 5.4
+(Requirements 28.14, 28.15, 28.20 and 28.23). The pure core
 decides, :mod:`handoff.runner` starts every process and writes every file below
 ``.private/handoff/``, and this module parses the command line, reads and checks the inputs,
 wires them to the runner and shows the results. It starts no process itself.
@@ -119,6 +120,17 @@ Subcommands:
   with modified or untracked files. The removal is recorded in ``events`` and the record's
   ``worktree`` becomes ``null``. A branch is never deleted here: after the pull request is merged,
   the maintainer runs the ``git branch -d`` that the listing shows. Reports are kept.
+- ``publish --approval FILE`` (task 5.4): publishes the ``succeeded`` change items that the approval
+  lists, with :meth:`handoff.runner.Harness.publish_batch`. ``FILE`` is a record below
+  ``.private/handoff/approvals/`` (a regular file, not a symbolic link) with exactly ``approved_at``
+  (:data:`handoff.state.TIMESTAMP_FORMAT`, not in the future), ``item_ids`` (the items the maintainer
+  approved, each once) and ``approved_in`` (the record of the session that holds the approval, below
+  ``.private/``); one approval covers the batch it lists, and an item that succeeded after
+  ``approved_at`` or is not listed is not published. It needs no ``kiro-cli``. Each listed item gets one
+  line on standard output: published (with the pull request number and the result of its checks),
+  or not published and why. A scan finding, a conflict or a pushed branch that differs from the
+  local one holds the item (it stays ``succeeded``, ``published.hold`` of ``status.json`` says
+  why).
 - ``selftest``: runs :meth:`handoff.runner.Harness.run_selftest`, the trials T0 to T4 of design
   section 20 in throwaway repositories below ``<worktrees_root>/selftest/``, with the approval of
   ``agents.change`` when it passes its checks now (above). It takes the lock, because it writes
@@ -135,16 +147,17 @@ Subcommands:
 Exit codes:
 
 ====  =====================================================================================
-0     Success. For ``run``: every item it started or held ended ``succeeded`` (also when no
+0     Success. For ``publish``: every listed item was published. For ``run``: every item it started or held ended ``succeeded`` (also when no
       item could start). For ``selftest``: the result is ``guards_active``.
-1     An item ended ``failed`` or ``needs-human`` in this ``run``, or a request was refused
+1     An item ended ``failed`` or ``needs-human`` in this ``run``, a listed item was not published by ``publish``, or a request was refused
       for an item's state or content: ``manual`` of an item that is ``running`` or
       ``succeeded``, has a scan finding, cannot be drawn or belongs to this session; ``status set`` from a state other
       than ``failed`` and ``needs-human``; ``cleanup`` where git refused or could not tell;
       ``status`` that could not list a repository's worktrees. For ``selftest``: the result is
       ``unconfirmed``, and the record and ``status.json`` were written.
 2     The configuration or the manifest was rejected, the arguments were wrong (both or neither
-      of ``--sync-point`` and ``--items``, an unknown item, a blank ``--reason``), or the
+      of ``--sync-point`` and ``--items``, an unknown item, a blank ``--reason``, an ``--approval``
+      file that is missing, outside ``approvals/`` or malformed), or the
       handoff directory or the home directory could not be determined. For ``selftest`` also:
       the configuration cannot build its trials (``SelftestRefused``: a repository called
       ``selftest`` in ``repos``, an ``agents.change`` whose approval did not pass, and the other
@@ -435,6 +448,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     cleanup.add_argument("item_id", metavar="ID")
     cleanup.add_argument("--approved", action="store_true", help="run git worktree remove (without --force)")
+    publish = commands.add_parser(
+        "publish",
+        help="push and open draft pull requests for the succeeded items that an approval lists",
+        description="push and open draft pull requests for the succeeded items that an approval lists",
+    )
+    publish.add_argument(
+        "--approval",
+        required=True,
+        metavar="FILE",
+        help="the approval record below .private/handoff/approvals/ (approved_at, item_ids, approved_in)",
+    )
     text = "run trials T0 to T4 in throwaway repositories and record whether the guards stopped kiro-cli"
     commands.add_parser("selftest", help=text, description=text)
     return parser
@@ -1907,6 +1931,71 @@ def _selftest_note(harness: runner.Harness, earlier: dict[str, Any] | None) -> s
 # --------------------------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------------------------
+# publish
+# --------------------------------------------------------------------------------------------
+
+
+#: The directory below ``.private/handoff/`` that holds the approval records of ``publish``.
+PUBLISH_APPROVAL_DIR: Final = "approvals"
+_PUBLISH_APPROVAL_KEYS: Final = ("approved_at", "item_ids", "approved_in")
+
+
+def _publish(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``publish --approval FILE``: publish the batch that the approval lists (the module docstring)."""
+    approval = _read_publish_approval(args.approval, inputs)
+    deny = _deny_terms(inputs)
+    with runner.Harness.open(inputs.handoff_dir) as harness:
+        context = _run_context(inputs, deny, frozenset())
+        outcomes = harness.publish_batch(context, approval)
+    for outcome in outcomes:
+        if outcome.published:
+            _out(f"{outcome.item_id}: 公開した（PR #{outcome.pr}、checks: {outcome.ci}）")
+            continue
+        held = "（保留。status.json の published.hold に理由を書いた）" if outcome.held else ""
+        first = outcome.detail.splitlines()[0] if outcome.detail else ""
+        _out(f"{outcome.item_id}: 公開しなかった: {outcome.reason}{held} {first}".rstrip())
+    return EXIT_OK if all(outcome.published for outcome in outcomes) else EXIT_ITEMS
+
+
+def _read_publish_approval(given: str, inputs: _Inputs) -> command.PublishApproval:
+    """Read and check the approval record of ``publish``.
+
+    Raises:
+        _Exit: With exit code 2: the file is not a regular file directly below ``approvals/``, is not
+            valid JSON, or does not have the form of the module docstring.
+    """
+    directory = posixpath.join(inputs.handoff_dir, PUBLISH_APPROVAL_DIR)
+    path = os.path.abspath(given)
+    try:
+        seen = os.lstat(path)
+    except OSError as exc:
+        raise _Exit(EXIT_USAGE, f"--approval {given}: {exc.strerror or exc}") from None
+    if not stat.S_ISREG(seen.st_mode):
+        raise _Exit(EXIT_USAGE, f"--approval {given} must be a regular file, not a symbolic link or a directory")
+    if posixpath.dirname(path) != directory or not path.endswith(".json"):
+        raise _Exit(EXIT_USAGE, f"--approval {given} must be a .json file directly below {directory}")
+    if os.path.realpath(directory) != posixpath.dirname(os.path.realpath(path)):
+        raise _Exit(EXIT_USAGE, f"--approval {given} resolves outside {directory}")
+    raw = _read_json(path)
+    if not isinstance(raw, dict):
+        raise _Exit(EXIT_USAGE, f"{path} must hold a JSON object")
+    issues = _key_issues("approval", raw, _PUBLISH_APPROVAL_KEYS)
+    if not issues:
+        if not _is_timestamp(raw["approved_at"]):
+            issues.append(f"approval.approved_at: must be a moment written as {state.TIMESTAMP_FORMAT}")
+        elif raw["approved_at"] > _now():
+            issues.append("approval.approved_at: is in the future")
+        if type(raw["item_ids"]) is not list:
+            issues.append("approval.item_ids: must be a list of item IDs")
+    if issues:
+        raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", issues))
+    try:
+        return command.PublishApproval(raw["approved_at"], tuple(raw["item_ids"]), raw["approved_in"])
+    except command.CommandError as error:
+        raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", error.issues)) from None
+
+
 _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] = {
     "plan": _plan,
     "run": _run,
@@ -1914,6 +2003,7 @@ _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] 
     "status": _status,
     "cleanup": _cleanup,
     "selftest": _selftest,
+    "publish": _publish,
 }
 
 
