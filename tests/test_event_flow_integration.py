@@ -9,6 +9,7 @@ All tests are mock-based (no real AWS calls).
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -130,6 +131,44 @@ class TestEventBridgeRuleMatching:
         assert entry["DetailType"] not in QUARANTINE_RULE_PATTERN["detail-type"]
 
 
+TASKS_THAT_MUST_CATCH = [
+    "CreateForensicSnapshot",
+    "RestrictExportPolicy",
+    "SendAlert",
+    "WaitForApproval",
+    "RestoreAccess",
+    "CreateFlexClone",
+]
+LAMBDA_TASKS = ["RestrictExportPolicy", "RestoreAccess", "CreateFlexClone"]
+
+_MISSING = object()
+
+
+def _resolve(data: dict, path: str) -> object:
+    """Resolve a dotted JSONPath such as ``$.detail.volumeId``; return _MISSING when absent."""
+    node: object = data
+    for key in path[2:].split("."):
+        if not isinstance(node, dict) or key not in node:
+            return _MISSING
+        node = node[key]
+    return node
+
+
+def _choose(state: dict, data: dict) -> str:
+    """Pick the next state of a Choice whose rules are ``And`` of IsPresent and BooleanEquals."""
+    for rule in state["Choices"]:
+        matched = True
+        for cond in rule["And"]:
+            value = _resolve(data, cond["Variable"])
+            if "IsPresent" in cond:
+                matched = matched and (value is not _MISSING) == cond["IsPresent"]
+            elif "BooleanEquals" in cond:
+                matched = matched and value is cond["BooleanEquals"]
+        if matched:
+            return rule["Next"]
+    return state["Default"]
+
+
 class TestStepFunctionsAslValidation:
     """Tests that validate Step Functions ASL references in the template."""
 
@@ -188,6 +227,77 @@ class TestStepFunctionsAslValidation:
 
     def test_asl_approval_timeout(self, quarantine_asl):
         assert quarantine_asl["States"]["WaitForApproval"]["TimeoutSeconds"] == 86400
+
+    # --- Error handling and data flow -------------------------------------
+
+    @pytest.mark.parametrize("name", TASKS_THAT_MUST_CATCH)
+    def test_task_has_a_single_trailing_catch_all(self, quarantine_asl, name):
+        catchers = quarantine_asl["States"][name]["Catch"]
+        catch_all = [c for c in catchers if "States.ALL" in c["ErrorEquals"]]
+        assert len(catch_all) == 1
+        assert catch_all[0]["ErrorEquals"] == ["States.ALL"]
+        assert catchers[-1] is catch_all[0]
+
+    @pytest.mark.parametrize("name", LAMBDA_TASKS)
+    def test_lambda_task_retries_transient_service_errors(self, quarantine_asl, name):
+        retriers = quarantine_asl["States"][name]["Retry"]
+        retried = {error for r in retriers for error in r["ErrorEquals"]}
+        assert {
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException",
+        } <= retried
+        # The function may already have run when the client times out, so it is not retried.
+        assert "Lambda.ClientExecutionTimeoutException" not in retried
+        assert all(1 <= r["MaxAttempts"] <= 5 for r in retriers)
+
+    def test_task_with_next_state_keeps_the_execution_input(self, quarantine_asl):
+        """Without ResultPath a task's output replaces the whole state input."""
+        for name, state in quarantine_asl["States"].items():
+            if state["Type"] == "Task" and "Next" in state:
+                assert "ResultPath" in state, f"{name} replaces the execution input with its result"
+
+    def test_approval_choice_guards_a_missing_decision(self, quarantine_asl):
+        state = quarantine_asl["States"]["ApprovalDecision"]
+        assert state["Default"] == "NotifyFailure"
+        decisions = {}
+        for rule in state["Choices"]:
+            conditions = rule["And"]
+            assert {"Variable": "$.approval.approved", "IsPresent": True} in conditions
+            decisions[rule["Next"]] = next(c["BooleanEquals"] for c in conditions if "BooleanEquals" in c)
+        assert decisions == {"RestoreAccess": True, "CreateFlexClone": False}
+
+    @pytest.mark.parametrize(("approved", "final_state"), [(True, "RestoreAccess"), (False, "CreateFlexClone")])
+    def test_every_path_resolves_on_the_runbook_approval_flow(self, quarantine_asl, approved, final_state):
+        """Walk the workflow with the task output the runbook sends and resolve every `$.` path.
+
+        The runbook approves with `send-task-success --task-output '{"approved": true}'`.
+        """
+        states = quarantine_asl["States"]
+        data = {"detail": {"timestamp": "t", "volumeId": "v", "svmId": "s", "severity": "HIGH"}}
+        task_results = {
+            "CreateForensicSnapshot": {"Snapshot": {"SnapshotId": "snap"}},
+            "RestrictExportPolicy": {"status": "ok"},
+            "SendAlert": {"MessageId": "m"},
+            "WaitForApproval": {"approved": approved},
+            "RestoreAccess": {},
+            "CreateFlexClone": {},
+        }
+        name = quarantine_asl["StartAt"]
+        while True:
+            state = states[name]
+            if state["Type"] == "Choice":
+                name = _choose(state, data)
+                continue
+            for path in re.findall(r"(?<!\$)\$\.[\w.]+", json.dumps(state.get("Parameters", {}))):
+                assert _resolve(data, path) is not _MISSING, f"{name}: {path} is not in {data}"
+            result_path = state.get("ResultPath", "$")
+            data = task_results[name] if result_path == "$" else {**data, result_path[2:]: task_results[name]}
+            if state.get("End"):
+                break
+            name = state["Next"]
+        assert name == final_state
 
 
 class TestEventClassificationProperty:

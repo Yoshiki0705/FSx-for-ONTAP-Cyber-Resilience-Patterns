@@ -213,6 +213,7 @@ Resources:
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
                   "Next": "NotifyFailure"
                 }
               ]
@@ -227,9 +228,18 @@ Resources:
               },
               "ResultPath": "$.quarantine",
               "Next": "SendAlert",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
                   "Next": "NotifyFailure"
                 }
               ]
@@ -242,7 +252,23 @@ Resources:
                 "Subject": "CRITICAL: Security Event - Quarantine Executed",
                 "Message.$": "States.Format('Volume {} quarantined. Severity: {}', $.detail.volumeId, $.detail.severity)"
               },
-              "Next": "WaitForApproval"
+              "ResultPath": "$.alert",
+              "Next": "WaitForApproval",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ]
             },
             "WaitForApproval": {
               "Type": "Task",
@@ -255,11 +281,18 @@ Resources:
                 }
               },
               "TimeoutSeconds": 86400,
+              "ResultPath": "$.approval",
               "Next": "ApprovalDecision",
               "Catch": [
                 {
                   "ErrorEquals": ["States.Timeout"],
+                  "ResultPath": "$.error",
                   "Next": "EscalateTimeout"
+                },
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
                 }
               ]
             },
@@ -267,12 +300,21 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Variable": "$.approved",
-                  "BooleanEquals": true,
+                  "And": [
+                    { "Variable": "$.approval.approved", "IsPresent": true },
+                    { "Variable": "$.approval.approved", "BooleanEquals": true }
+                  ],
                   "Next": "RestoreAccess"
+                },
+                {
+                  "And": [
+                    { "Variable": "$.approval.approved", "IsPresent": true },
+                    { "Variable": "$.approval.approved", "BooleanEquals": false }
+                  ],
+                  "Next": "CreateFlexClone"
                 }
               ],
-              "Default": "CreateFlexClone"
+              "Default": "NotifyFailure"
             },
             "RestoreAccess": {
               "Type": "Task",
@@ -282,6 +324,21 @@ Resources:
                 "volumeId.$": "$.detail.volumeId",
                 "svmId.$": "$.detail.svmId"
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ],
               "End": true
             },
             "CreateFlexClone": {
@@ -292,6 +349,21 @@ Resources:
                 "volumeId.$": "$.detail.volumeId",
                 "snapshotId.$": "$.snapshot.Snapshot.SnapshotId"
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.error",
+                  "Next": "NotifyFailure"
+                }
+              ],
               "End": true
             },
             "NotifyFailure": {
@@ -707,6 +779,12 @@ Outputs:
     Value: !Ref SecurityEventQueue
     Export:
       Name: !Sub '${ProjectName}-${Environment}-SecurityEventQueueUrl'
+
+  ApprovalQueueUrl:
+    Description: SQS Queue URL that receives the quarantine approval request and its task token
+    Value: !Ref ApprovalQueue
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-ApprovalQueueUrl'
 
   SecurityEventQueueArn:
     Description: SQS Queue ARN
