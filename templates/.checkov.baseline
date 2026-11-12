@@ -10,28 +10,6 @@
                     ]
                 }
             ]
-        },
-        {
-            "file": "/event-driven.yaml",
-            "findings": [
-                {
-                    "resource": "AWS::Lambda::Function.EventTransformerLambda",
-                    "check_ids": [
-                        "CKV_AWS_117"
-                    ]
-                }
-            ]
-        },
-        {
-            "file": "/siem-integration.yaml",
-            "findings": [
-                {
-                    "resource": "AWS::Lambda::Function.SecurityHubPublisherLambda",
-                    "check_ids": [
-                        "CKV_AWS_117"
-                    ]
-                }
-            ]
         }
     ]
 }

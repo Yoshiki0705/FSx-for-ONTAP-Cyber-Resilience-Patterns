@@ -161,6 +161,15 @@ Resources:
   SecurityHubPublisherLambda:
     Type: AWS::Lambda::Function
     Condition: DeploySecurityHub
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_117
+            comment: >-
+              The only outbound calls are securityhub:BatchImportFindings and sts, both AWS
+              public APIs. The function is invoked asynchronously by an EventBridge rule and
+              reaches no private VPC resource. Placing it in a VPC would require securityhub
+              and sts interface endpoints or a NAT gateway, which this stack does not create.
     Properties:
       FunctionName: !Sub '${ProjectName}-securityhub-publisher-${Environment}'
       Runtime: python3.12
