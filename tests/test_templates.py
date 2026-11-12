@@ -257,7 +257,13 @@ class TestParameterFiles:
 OPTIONAL_KMS_BINDINGS = [
     ("network.yaml", "FlowLogLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
     ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
+    ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("dr-replication.yaml", "LagMonitorLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
 ]
+# main.yaml nests only these templates; the others are deployed as standalone stacks
+NESTED_IN_MAIN = {"network.yaml", "event-driven.yaml"}
 
 
 class _TaggedLoader(yaml.SafeLoader):
@@ -287,7 +293,7 @@ class TestOptionalKmsKeys:
 
     @pytest.mark.parametrize(
         ("stack", "param"),
-        sorted({(n.split(".")[0], p) for n, _, _, p in OPTIONAL_KMS_BINDINGS if n != "main.yaml"}),
+        sorted({(n.split(".")[0], p) for n, _, _, p in OPTIONAL_KMS_BINDINGS if n in NESTED_IN_MAIN}),
     )
     def test_root_stack_passes_key_to_nested_stack(self, stack: str, param: str) -> None:
         main = _load_tagged("main.yaml")

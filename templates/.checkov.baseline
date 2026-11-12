@@ -8,8 +8,7 @@
                     "check_ids": [
                         "CKV_AWS_115",
                         "CKV_AWS_116",
-                        "CKV_AWS_117",
-                        "CKV_AWS_173"
+                        "CKV_AWS_117"
                     ]
                 }
             ]
@@ -21,15 +20,13 @@
                     "resource": "AWS::Lambda::Function.EventTransformerLambda",
                     "check_ids": [
                         "CKV_AWS_116",
-                        "CKV_AWS_117",
-                        "CKV_AWS_173"
+                        "CKV_AWS_117"
                     ]
                 },
                 {
                     "resource": "AWS::Lambda::Function.QuarantineLambda",
                     "check_ids": [
-                        "CKV_AWS_116",
-                        "CKV_AWS_173"
+                        "CKV_AWS_116"
                     ]
                 }
             ]
@@ -59,8 +56,7 @@
                     "check_ids": [
                         "CKV_AWS_115",
                         "CKV_AWS_116",
-                        "CKV_AWS_117",
-                        "CKV_AWS_173"
+                        "CKV_AWS_117"
                     ]
                 }
             ]

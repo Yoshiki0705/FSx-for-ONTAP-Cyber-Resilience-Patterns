@@ -416,6 +416,7 @@ echo "All resources deleted."
 | `QuarantineActionS3Key` | — | manifest.json から自動取得 | `deploy.sh` が自動設定 |
 | `NotificationEmail` | `''` | アラートメール送信先 | 本番では設定推奨 |
 | `LogGroupKmsKeyArn` | `''` | Step Functions のロググループを暗号化する KMS キー ARN。空のときは CloudWatch Logs の既定の暗号化のまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
+| `LambdaEnvKmsKeyArn` | `''` | Lambda 関数（隔離アクション、イベント変換）の環境変数を暗号化する KMS キー ARN。空のときは Lambda の既定のキーのまま | 自管理キーで暗号化するとき。要件は[デプロイガイド](ja/deployment-guide.md)の「任意: 自管理 KMS キーの指定」 |
 
 ### observability.yaml
 

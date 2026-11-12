@@ -51,6 +51,13 @@ Parameters:
       KMS key ARN for encrypting CloudWatch Logs log groups in the Network and Event-Driven stacks.
       If empty, the log groups keep the default CloudWatch Logs encryption.
 
+  LambdaEnvKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Lambda environment variables in the Event-Driven stack.
+      If empty, Lambda uses its default AWS managed key (aws/lambda).
+
 # -------------------------------------------------------------------
 # Resources
 # -------------------------------------------------------------------
@@ -115,6 +122,7 @@ Resources:
         Environment: !Ref Environment
         NotificationEmail: !Ref NotificationEmail
         LogGroupKmsKeyArn: !Ref LogGroupKmsKeyArn
+        LambdaEnvKmsKeyArn: !Ref LambdaEnvKmsKeyArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

@@ -154,20 +154,27 @@ ARP and FPolicy are set after the stacks are up, with the CLI / REST steps in th
 
 #### Optional: Customer Managed KMS Keys
 
-The stacks create no KMS keys of their own. With the default parameters, encryption is unchanged: CloudWatch Logs log groups use the default CloudWatch Logs encryption. A customer managed key is used only when you pass a key ARN.
+The stacks create no KMS keys of their own. With the default parameters, encryption is unchanged: CloudWatch Logs log groups use the default CloudWatch Logs encryption, and Lambda environment variables use the default key that Lambda provides. A customer managed key is used only when you pass a key ARN.
 
 | Parameter | Templates | Applies to |
 |-----------|-----------|------------|
 | `LogGroupKmsKeyArn` | `network.yaml`, `event-driven.yaml`, `main.yaml` | VPC Flow Logs log group (created only when the stack creates the VPC) and the Step Functions log group |
+| `LambdaEnvKmsKeyArn` | `event-driven.yaml`, `dr-replication.yaml`, `siem-integration.yaml`, `main.yaml` (passed to the Event-Driven stack only) | Environment variables of the quarantine action, event transformer, SnapMirror lag monitor and Security Hub publisher Lambda functions |
 
-Key requirements, from the [CloudWatch Logs documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html):
+Key requirements for `LogGroupKmsKeyArn`, from the [CloudWatch Logs documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html):
 
 - The key is symmetric. The key policy allows the CloudWatch Logs service principal of the same Region.
 - The identity that deploys the stack has `kms:DescribeKey` on the key, because associating a key with a log group requires it.
 - Setting `KmsKeyId` on an existing log group is an update with no interruption ([`AWS::Logs::LogGroup`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-logs-loggroup.html)). The documentation says newly ingested data uses the key. It does not say whether data ingested earlier is re-encrypted.
-- If the key is disabled or deleted, or CloudWatch Logs loses access to it, the data encrypted with it cannot be read.
+- Reading data encrypted with the key requires the key to stay enabled and usable by CloudWatch Logs. Keep the key for as long as the logs are retained.
 
-Not confirmed: whether the Step Functions execution role and the VPC Flow Logs role need KMS permissions of their own. The CloudWatch Logs page lists KMS permissions for principals that call `PutLogEvents`. These templates were checked with cfn-lint and Checkov only; no stack was deployed with a key.
+Key requirements for `LambdaEnvKmsKeyArn`, from the [Lambda documentation](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars-encryption.html):
+
+- The identity that deploys the stack has `kms:CreateGrant` and `kms:Encrypt` on the key. Lambda uses those permissions to create a grant on the key.
+- Users who view the environment variables need `kms:Decrypt`. Users without it can still manage the function.
+- Changing `KmsKeyArn` on an existing function is an update with no interruption ([`AWS::Lambda::Function`](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-function.html)).
+
+Not confirmed: whether the Step Functions execution role and the VPC Flow Logs role need KMS permissions of their own (the CloudWatch Logs page lists KMS permissions for principals that call `PutLogEvents`), and whether the Lambda execution roles need `kms:Decrypt` at run time (the Lambda page asks for it only when client-side encryption helpers are used). These templates were checked with cfn-lint and Checkov only; no stack was deployed with a key.
 
 ### Step 3: Deploy Scanning Layer
 

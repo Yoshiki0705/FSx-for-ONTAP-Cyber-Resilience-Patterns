@@ -51,12 +51,21 @@ Parameters:
       If empty, the log group keeps the default CloudWatch Logs encryption (no customer managed key).
       The key policy must allow the CloudWatch Logs service principal for the Region.
 
+  LambdaEnvKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Lambda environment variables at rest.
+      If empty, Lambda uses its default AWS managed key (aws/lambda).
+      The identity that deploys the stack needs kms:CreateGrant and kms:Encrypt on this key.
+
 # -------------------------------------------------------------------
 # Conditions
 # -------------------------------------------------------------------
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   HasLogGroupKmsKey: !Not [!Equals [!Ref LogGroupKmsKeyArn, '']]
+  HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
 
 # -------------------------------------------------------------------
 # Resources
@@ -406,6 +415,7 @@ Resources:
       Architectures:
         - arm64
       Role: !GetAtt QuarantineLambdaRole.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           FSX_SECRET_ARN: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}-fsxadmin-*'
@@ -445,6 +455,7 @@ Resources:
       Architectures:
         - arm64
       Role: !GetAtt EventTransformerLambdaRole.Arn
+      KmsKeyArn: !If [HasLambdaEnvKmsKey, !Ref LambdaEnvKmsKeyArn, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           EVENT_BUS_NAME: !Ref SecurityEventBus
