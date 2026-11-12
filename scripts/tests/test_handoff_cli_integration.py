@@ -442,8 +442,8 @@ def test_plan_shows_the_run_and_changes_no_state(
     handling = {item_id: plan_line(lines, item_id, "  run の扱い: ") for item_id in (QUERY, CHANGE, DENIED, SECOND)}
     assert handling[QUERY] == "  run の扱い: 起動する（1 番目）"
     assert handling[SECOND] == "  run の扱い: 起動する（2 番目。依存先が succeeded で終わった場合）"
-    assert handling[CHANGE].startswith(
-        "  run の扱い: needs-human にする（change_mode_not_wired。先に起動する項目が終わった後）"
+    assert handling[CHANGE].startswith(  # no selftest has run in the sandbox, as run would hold it
+        "  run の扱い: needs-human にする（selftest_unconfirmed。先に起動する項目が終わった後）"
     )
     assert handling[DENIED].startswith(
         "  run の扱い: needs-human にする（prompt_scan_findings。先に起動する項目が終わった後）"

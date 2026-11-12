@@ -25,9 +25,10 @@ And ``run`` of a change item after a selftest (part B2b): another ``kiro-cli`` v
 (``FAKE_KIRO_VERSION``) or an edited hook file holds the item as ``selftest_stale``, with the value
 that changed named on standard error and no ``chat`` started; no selftest, or an ``unconfirmed``
 one, holds it as ``selftest_unconfirmed`` without asking the version; the same version and files,
-also with an approved ``agents.change``, pass the check (the control), so the item is held for the
-next reason, the change mode that task 5.3 wires; a query item of the same run starts and succeeds
-as before; and ``kiro-cli --version`` without a version ends ``run`` with 6 and the manual display.
+also with an approved ``agents.change``, pass the check (the control), so the item starts (task
+5.3; ``test_handoff_change_integration.py`` checks its final states); a query item of the same
+run starts and succeeds as before; and ``kiro-cli --version`` without a version ends ``run`` with
+6 and the manual display.
 """
 
 from __future__ import annotations
@@ -59,9 +60,9 @@ FAKE_VERSION = "0.0.0-fake"
 OTHER_VERSION = "9.9.9-fake"
 #: The agent configuration that ``agents.change`` names in the control with an approved agent.
 AGENT = "handoff-change"
-#: The history reasons that ``run`` gives a held change item (the selftest's design note, and task
-#: 2.3), written out rather than taken from ``cli`` so that a changed name is caught.
-HELD_STALE, HELD_UNCONFIRMED, HELD_NOT_WIRED = "selftest_stale", "selftest_unconfirmed", "change_mode_not_wired"
+#: The history reasons that ``run`` gives a held change item (the selftest's design note), written
+#: out rather than taken from ``cli`` so that a changed name is caught.
+HELD_STALE, HELD_UNCONFIRMED = "selftest_stale", "selftest_unconfirmed"
 T0 = "2026-11-11T00:00:00Z"
 
 #: The selftest of an earlier harness, which a selftest that stops before its trials keeps.
@@ -520,9 +521,10 @@ def test_run_holds_a_change_item_as_selftest_unconfirmed_without_a_guards_active
 def test_run_passes_the_selftest_check_when_the_version_and_config_sha256_agree(
     handoff_sandbox: HandoffSandbox, agent: bool
 ) -> None:
-    """The control: the same version and files pass, so the item is held for the next reason, not ``selftest_*``.
+    """The control: the same version and files pass, so the item starts, with ``--agent`` when it is approved.
 
-    With ``agents.change`` approved, the selftest and ``run`` read the same agent file.
+    With ``agents.change`` approved, the selftest and ``run`` read the same agent file. The fake
+    commits nothing here, so the run ends ``needs-human`` (``no_commits``), not ``selftest_*``.
     """
     sb = handoff_sandbox
     prepare(sb, config=config_value(agents={"change": AGENT}) if agent else None)
@@ -538,11 +540,15 @@ def test_run_passes_the_selftest_check_when_the_version_and_config_sha256_agree(
 
     assert done.returncode == 1, (done.stdout, done.stderr)
     status = read_status(sb)
-    assert history(status, CHANGE) == [(state.QUEUED, state.NEEDS_HUMAN, HELD_NOT_WIRED)]
-    assert not any(reason.startswith("selftest_") for *_, reason in history(status, CHANGE))
-    assert subcommands(sb.invocations()[seen:]) == ["--version"]  # the check asked and compared
-    assert f"（{HELD_NOT_WIRED}）" in held_line(done.stdout, CHANGE)
-    assert "selftest_" not in done.stdout and details(done.stderr, CHANGE) == [], done.stderr
+    assert history(status, CHANGE) == [
+        (state.QUEUED, state.RUNNING, "dispatched"),
+        (state.RUNNING, state.NEEDS_HUMAN, "no_commits"),
+    ]
+    runs = sb.invocations()[seen:]
+    assert subcommands(runs) == ["--version", "whoami", "chat"]  # the check asked and compared, then started
+    assert ("--agent" in runs[2]["start"]["argv"]) is agent
+    assert f"開始: {CHANGE}（{REPO}）" in done.stdout.splitlines()
+    assert "selftest_" not in done.stdout, done.stdout
 
 
 def test_a_query_item_of_the_same_run_is_not_held_for_the_selftest(handoff_sandbox: HandoffSandbox) -> None:

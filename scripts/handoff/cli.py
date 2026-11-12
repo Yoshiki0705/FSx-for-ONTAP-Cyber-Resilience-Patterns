@@ -79,9 +79,14 @@ Subcommands:
   ``agents.change`` when its approval passes), and a ``kiro_cli_version`` or ``config_sha256``
   that differs holds it (``selftest_stale``), with each difference on standard error. Standard
   output then points to ``cli.py selftest`` and ``cli.py manual <id>``. A change item that passes
-  is held in ``needs-human`` (``change_mode_not_wired``) until task 5.3 wires the change mode;
+  is started in a worker thread with :meth:`handoff.runner.Harness.run_change_item` (task 5.3),
+  as a query item is with :meth:`handoff.runner.Harness.run_query_item`, and ends in the state
+  that ``evaluate.final_state`` gives its observations (the runner does not carry out the
+  conflict check and the re-run of verification commands yet, task 5.3b).
   ``command.build_kiro_argv`` still refuses a change item without ``guards_active`` behind this
-  check. A query item is not checked. The runner holds a query item whose prompt has a scan
+  check. Without a ``guards_active`` selftest, then, the only ``kiro-cli`` runs are those of query
+  items, which trust ``fs_read`` alone (Requirement 28.17). A query item is not checked. The
+  runner holds an item whose prompt has a scan
   finding, is too long, cannot be drawn, or names this session as its executor, and one whose
   agent is not approved or has a configuration of the
   same name in the worktree (above). Each item is attempted at most once per run. SIGINT stops
@@ -222,9 +227,6 @@ _AGENT_NAME: Final = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
 _SHA256: Final = re.compile(r"[0-9a-f]{64}")
 _TIMESTAMP_SHAPE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 
-#: The history reason of a change item that ``run`` holds until task 5 wires the change mode.
-CHANGE_MODE_HELD: Final = "change_mode_not_wired"
-
 #: The history reasons of a change item that ``run`` holds for the selftest (task 5.2): ``selftest``
 #: of ``status.json`` is missing or its ``result`` is not ``guards_active``, or its
 #: ``kiro_cli_version`` or ``config_sha256`` is not that of the ``kiro-cli`` and the files of now.
@@ -240,8 +242,8 @@ _IN_MEMORY_RUNNING: Final = "chosen by cli.py, not written"
 _IN_MEMORY_SUCCEEDED: Final = "assumed by cli.py plan, not written"
 
 #: The states from which ``manual`` hands an item over by hand. A ``needs-human`` item is handed
-#: over this way while the change mode is not wired or the guard is unconfirmed (design H3), and
-#: a ``failed`` one after its report and worktree were read (H2). ``running`` is refused because
+#: over this way while the guard is unconfirmed (design H3), and a ``failed`` one after its report
+#: and worktree were read (H2). ``running`` is refused because
 #: a harness is running it, and ``succeeded`` because its work is done.
 _MANUAL_STATES: Final[tuple[str, ...]] = (state.QUEUED, state.FAILED, state.NEEDS_HUMAN)
 
@@ -258,7 +260,6 @@ _MODE_LABELS: Final[Mapping[str, str]] = {"query": "照会モード", "change": 
 
 #: What ``plan`` adds after a hold reason, for the reasons whose cause it can name.
 _HOLD_NOTES: Final[Mapping[str, str]] = {
-    CHANGE_MODE_HELD: "変更モードはまだ配線していない（タスク 5）。手作業で渡すなら cli.py manual {id}",
     SELFTEST_UNCONFIRMED: (
         "変更モードの項目は guards_active の selftest がないと起動しない。"
         "cli.py selftest をやり直すか、手作業で渡すなら cli.py manual {id}"
@@ -935,7 +936,7 @@ def _forecast(
             item_id = selection.selected[0]
             if assumed:
                 after.add(item_id)
-            reason = _forecast_hold(inputs.by_id[item_id], drafts.get(item_id))
+            reason = _forecast_hold(inputs.by_id[item_id], drafts.get(item_id), view["selftest"])
             if reason is None:
                 view = state.transition(view, item_id, state.RUNNING, at=_now(), reason=_IN_MEMORY_RUNNING)
                 start.append(item_id)
@@ -956,10 +957,17 @@ def _forecast(
     return _Forecast(tuple(start), hold, frozenset(after), ready or frozenset(), waiting)
 
 
-def _forecast_hold(item: Item, draft: runner.PromptDraft | None) -> str | None:
-    """The reason with which ``run`` would hold an item before ``kiro-cli``, as far as ``plan`` can tell."""
-    if item.mode != "query":
-        return CHANGE_MODE_HELD
+def _forecast_hold(item: Item, draft: runner.PromptDraft | None, selftest: Mapping[str, Any] | None) -> str | None:
+    """The reason with which ``run`` would hold an item before ``kiro-cli``, as far as ``plan`` can tell.
+
+    A change item without a ``guards_active`` result in ``selftest`` of the status is held as
+    :data:`SELFTEST_UNCONFIRMED`, as ``run`` holds it. ``plan`` starts no ``kiro-cli``, so it does
+    not compare the selftest's ``kiro_cli_version`` and ``config_sha256`` with those of now: ``run``
+    can still hold a change item that this forecast starts, as :data:`SELFTEST_STALE`.
+    """
+    guards_active = isinstance(selftest, Mapping) and selftest.get("result") == evaluate.GUARDS_ACTIVE
+    if item.mode != "query" and not guards_active:
+        return SELFTEST_UNCONFIRMED
     if draft is None:
         return None
     if draft.hold_reason is not None:
@@ -1276,22 +1284,28 @@ class _RunLoop:
             self._wait()
 
     def _start(self, pool: ThreadPoolExecutor, item_id: str) -> None:
-        """Hold a change item, or hand a query item to a worker."""
+        """Hand a query item to a worker, and a change item too once its selftest counts."""
         self.attempted.add(item_id)
         item = self.inputs.by_id[item_id]
-        if item.mode != "query":
-            self._hold_change_item(item_id)
+        if item.mode == "query":
+            run = self.harness.run_query_item
+        elif self._selftest_counts(item_id):
+            run = self.harness.run_change_item
+        else:
             return
         _out(f"開始: {item_id}（{item.repo}）")
-        self.in_flight[item_id] = pool.submit(self.harness.run_query_item, self.context, item_id, stop=self.stop)
+        self.in_flight[item_id] = pool.submit(run, self.context, item_id, stop=self.stop)
 
-    def _hold_change_item(self, item_id: str) -> None:
-        """Hold a change item: for the selftest first (task 5.2), then because the change mode is not wired.
+    def _selftest_counts(self, item_id: str) -> bool:
+        """Check a change item against the selftest (task 5.2), and hold it when the selftest does not count.
 
         :func:`_selftest_hold` decides with ``selftest`` of the status. A runner error while it asks
         ``kiro-cli --version`` stops starting items, as an error of a worker does, and the item stays
         ``queued``: for ``KiroCliMissing`` (no version to compare), :func:`_run` then prints the
         manual display, as ``selftest`` does when it gets no version.
+
+        Returns:
+            Whether the item may start: ``False`` when it was held or the check failed.
         """
         try:
             hold = _selftest_hold(self.harness.status["selftest"], self._fingerprint)
@@ -1301,13 +1315,16 @@ class _RunLoop:
                 self.no_version = True
             self.errors.append(error)
             _err(f"{item_id}: {error}")
-            return
-        reason, detail = (CHANGE_MODE_HELD, "") if hold is None else hold
+            return False
+        if hold is None:
+            return True
+        reason, detail = hold
         self.harness.hold(item_id, reason=reason)
         self.held[item_id] = reason
         _out(f"{item_id}: needs-human（{reason}）。{_HOLD_NOTES[reason].format(id=item_id)}")
         if detail:
             _err(f"{item_id}: {detail}")
+        return False
 
     def _fingerprint(self) -> runner.KiroFingerprint:
         """``kiro-cli --version`` and ``config_sha256`` now, for the agent that the selftest gives ``--agent``.
