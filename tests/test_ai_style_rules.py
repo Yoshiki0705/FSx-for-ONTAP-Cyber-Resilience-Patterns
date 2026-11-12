@@ -7,6 +7,7 @@ has examples at all, that non-prose spans are excluded, and that languages are k
 This spoke stands the detector up standalone: it has no audit_public_output and no local criteria
 document, so the Hub's audit-staging and criteria-document classes are dropped here.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -37,9 +38,7 @@ class EachRuleHasAPositiveAndANegative(unittest.TestCase):
                 self.assertTrue(rule.positive, f"{rule.id} has no positive example")
                 self.assertTrue(rule.negative, f"{rule.id} has no negative example")
                 self.assertIn(rule.level, rules.CATEGORY_FOR_LEVEL)
-                self.assertTrue(
-                    rule.defect, f"{rule.id} does not name the defect it suggests"
-                )
+                self.assertTrue(rule.defect, f"{rule.id} does not name the defect it suggests")
 
     def test_positives_fire(self) -> None:
         for rule in rules.RULES:
@@ -71,8 +70,7 @@ class NonProseIsExcluded(unittest.TestCase):
             "multi-line comment": "<!--\n速さが核心です。\nご不明な点\n-->\n本文。\n",
             "frontmatter": "---\ntitle: 速さが核心です。\n---\n本文。\n",
             "switcher": (
-                "<!-- lang-switcher:start -->\n速さが核心です。ご不明な点\n"
-                "<!-- lang-switcher:end -->\n本文。\n"
+                "<!-- lang-switcher:start -->\n速さが核心です。ご不明な点\n" "<!-- lang-switcher:end -->\n本文。\n"
             ),
         }
         for name, document in cases.items():
@@ -99,17 +97,11 @@ class LanguagesAreKeptApart(unittest.TestCase):
         self.assertEqual(rules.scan_markdown(BROKEN, "ko"), [])
 
     def test_language_of(self) -> None:
-        self.assertEqual(
-            rules.language_of("docs/en/x.md", "日本語の本文です。" * 5), "en"
-        )
+        self.assertEqual(rules.language_of("docs/en/x.md", "日本語の本文です。" * 5), "en")
         self.assertEqual(rules.language_of("docs/ko/x.md", ""), "ko")
         self.assertEqual(rules.language_of("README-ja.md", "English only"), "ja")
-        self.assertEqual(
-            rules.language_of("guide.en.md", "日本語の本文です。" * 5), "en"
-        )
-        self.assertEqual(
-            rules.language_of("AGENTS.md", "これはひらがなとカタカナの本文です。"), "ja"
-        )
+        self.assertEqual(rules.language_of("guide.en.md", "日本語の本文です。" * 5), "en")
+        self.assertEqual(rules.language_of("AGENTS.md", "これはひらがなとカタカナの本文です。"), "ja")
         self.assertEqual(rules.language_of("AGENTS.md", "English prose only."), "en")
 
 
@@ -135,17 +127,11 @@ class CopyableCli(unittest.TestCase):
     def test_markers_exclude_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
-            (root / "marked.md").write_text(
-                BROKEN.strip() + " <!-- allow:ai-style -->\n", encoding="utf-8"
-            )
-            (root / "declared.md").write_text(
-                "<!-- audit-file-allow: ai-style -->\n" + BROKEN, encoding="utf-8"
-            )
+            (root / "marked.md").write_text(BROKEN.strip() + " <!-- allow:ai-style -->\n", encoding="utf-8")
+            (root / "declared.md").write_text("<!-- audit-file-allow: ai-style -->\n" + BROKEN, encoding="utf-8")
             (root / "blog").mkdir()
             (root / "blog" / "post.md").write_text(JA_LEAD + BROKEN, encoding="utf-8")
-            self.assertEqual(
-                self.run_cli(name, "--fail", "--exclude", "blog/*").returncode, 0
-            )
+            self.assertEqual(self.run_cli(name, "--fail", "--exclude", "blog/*").returncode, 0)
             summary = self.run_cli(name, "--summary")
             self.assertIn("| ai-style | ja | D1 | 2 |", summary.stdout)
             self.assertIn("| blog/post.md | ja | 2 | 2 |", summary.stdout)
@@ -165,16 +151,12 @@ class TheGateIsWiredToFail(unittest.TestCase):
         recipe = next(
             line
             for line in self.makefile.splitlines()
-            if "ai_style_rules.py" in line and line.lstrip().startswith("python3")
+            if "ai_style_rules.py" in line and line.lstrip().startswith(("python3", "$(PYTHON)"))
         )
         self.assertIn("--fail", recipe)
 
     def test_test_target_depends_on_ai_style(self) -> None:
-        test_rule = next(
-            line
-            for line in self.makefile.splitlines()
-            if line.startswith("test:")
-        )
+        test_rule = next(line for line in self.makefile.splitlines() if line.startswith("test:"))
         self.assertIn("ai-style", test_rule.split(":", 1)[1].split("##", 1)[0])
 
 

@@ -17,4 +17,4 @@ mypy==1.10.1
 boto3-stubs[essential]==1.34.144
 
 # Security
-checkov==3.2.145
+checkov==3.2.532
