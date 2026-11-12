@@ -155,6 +155,16 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 - The key's monthly cost. The key is deleted with the stack after a 30-day waiting period.
 - `HubAlertTopic` in `hub-aggregation.yaml` also uses `aws/sns` and has no topic policy. It was not changed or tested.
 
+## Quarantine Workflow Failure Alarm
+
+`event-driven.yaml` creates `QuarantineExecutionsFailedAlarm`. It watches the `ExecutionsFailed` metric (namespace `AWS/States`, dimension `StateMachineArn`) of the quarantine state machine. One failed execution within 5 minutes raises the alarm, which notifies `SecurityAlertTopic`. Executions that fail to reach `NotifyFailure` (for example on a `States.Runtime` error, which no `Catch` in the definition handles) are counted here, and the failed state is in the execution history.
+
+- A missing datapoint counts as healthy (`notBreaching`).
+- Only `ExecutionsFailed` is watched. `ExecutionsTimedOut` and `ExecutionsAborted` are not. The definition sets no execution timeout, and the 24-hour approval wait is caught and escalated by `EscalateTimeout`.
+- CloudWatch metrics for Step Functions are delivered on a best-effort basis, so a datapoint can arrive late or not at all ([Step Functions metrics](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)).
+
+Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. Not measured: a deployment of this template, a failure of the real quarantine workflow, and the 300-second period.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints

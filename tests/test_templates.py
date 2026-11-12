@@ -479,3 +479,29 @@ class TestAlertTopicDelivery:
                 for action in r["Properties"].get("AlarmActions", []):
                     target = action.get("Ref") if isinstance(action, dict) else None
                     assert target not in aws_managed, f"{path.name}: {name} notifies {target}, encrypted with aws/sns"
+
+
+class TestQuarantineExecutionsFailedAlarm:
+    """A failed quarantine execution must raise an alarm that reaches the alert topic."""
+
+    @pytest.fixture(scope="class")
+    def alarm(self) -> dict:
+        return _load_tagged("event-driven.yaml")["Resources"]["QuarantineExecutionsFailedAlarm"]["Properties"]
+
+    def test_alarm_counts_failed_executions_of_the_quarantine_state_machine(self, alarm: dict) -> None:
+        assert alarm["Namespace"] == "AWS/States"
+        assert alarm["MetricName"] == "ExecutionsFailed"
+        # Ref of a state machine returns its ARN, which is the metric dimension value.
+        assert alarm["Dimensions"] == [{"Name": "StateMachineArn", "Value": {"Ref": "QuarantineStateMachine"}}]
+
+    def test_one_failed_execution_in_five_minutes_raises_the_alarm(self, alarm: dict) -> None:
+        assert alarm["Statistic"] == "Sum"
+        assert alarm["Period"] == 300
+        assert alarm["EvaluationPeriods"] == 1
+        assert alarm["Threshold"] == 1
+        assert alarm["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
+        # No failed execution publishes no datapoint, which is the healthy state.
+        assert alarm["TreatMissingData"] == "notBreaching"
+
+    def test_alarm_notifies_the_alert_topic(self, alarm: dict) -> None:
+        assert alarm["AlarmActions"] == [{"Ref": "SecurityAlertTopic"}]
