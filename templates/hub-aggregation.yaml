@@ -16,20 +16,13 @@ Parameters:
 
   OrganizationId:
     Type: String
-    Default: ''
+    AllowedPattern: '^o-[a-z0-9]{10,32}$'
+    ConstraintDescription: >
+      Must be an AWS Organizations ID such as o-xxxxxxxxxx. It is required:
+      the hub bus accepts events only from accounts in this organization.
     Description: >
-      AWS Organization ID (o-xxxxxxxxxx) to allow all member accounts.
-      If empty, use SpokeAccountIds for explicit account list.
-
-  SpokeAccountIds:
-    Type: CommaDelimitedList
-    Default: ''
-    Description: >
-      Comma-separated list of spoke account IDs allowed to send events.
-      Used when OrganizationId is not provided.
-
-Conditions:
-  UseOrganization: !Not [!Equals [!Ref OrganizationId, '']]
+      AWS Organizations ID (o-xxxxxxxxxx). Required. Every member account of
+      this organization may put events on the hub bus.
 
 Resources:
 
@@ -55,10 +48,7 @@ Resources:
       Condition:
         Type: StringEquals
         Key: 'aws:PrincipalOrgID'
-        Value: !If
-          - UseOrganization
-          - !Ref OrganizationId
-          - !Ref 'AWS::NoValue'
+        Value: !Ref OrganizationId
 
   # Route aggregated events to notification
   HubNotificationRule:
