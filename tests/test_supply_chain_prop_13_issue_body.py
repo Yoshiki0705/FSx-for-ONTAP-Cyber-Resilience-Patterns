@@ -11,6 +11,7 @@ adds the generator-driven version and the table (the human-readable part) item b
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from datetime import date
 
 import hypothesis.strategies as st
@@ -42,6 +43,10 @@ def _cases(draw: st.DrawFn) -> tuple[Finding, ib.FindingIssue] | None:
     finding = draw(
         st.sampled_from(sorted(found, key=lambda f: (f.repo.owner, f.repo.name, f.vuln_id, f.component.purl)))
     )
+    # The generator never puts a MAL- id only in the aliases; swapping the first alias into the
+    # primary position gives that shape (a GHSA primary with a MAL- alias, and the reverse).
+    if finding.aliases and draw(st.booleans()):
+        finding = replace(finding, vuln_id=finding.aliases[0], aliases=(finding.vuln_id, *finding.aliases[1:]))
     kev = draw(_KEV)
     epss = draw(_EPSS)
     opened = draw(sc.utc_datetimes())
@@ -88,6 +93,7 @@ def _labels(finding: Finding, issue: ib.FindingIssue) -> frozenset[str]:
             f"kev={issue.kev is not None}",
             f"severity={finding.cvss_severity}",
             f"aliases={bool(finding.aliases)}",
+            f"malicious_only_in_aliases={is_malicious(finding) and not finding.vuln_id.startswith('MAL-')}",
         }
     )
 
@@ -185,3 +191,5 @@ def test_the_generator_reaches_every_shape_the_property_names() -> None:
         assert needed in seen, needed
     # The "未判明" case: one Finding that is not malicious and has no fixed version.
     assert "unfixed_non_malicious=True" in seen
+    # A MAL- identifier that is only an alias (the primary is a GHSA or CVE).
+    assert "malicious_only_in_aliases=True" in seen
