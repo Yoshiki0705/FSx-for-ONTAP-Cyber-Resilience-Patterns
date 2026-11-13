@@ -34,6 +34,22 @@
 | **Respond（対応）** | RS.MA、RS.AN、RS.MI、RS.CO | ✅ | Step Functions オーケストレーション（隔離、承認ワークフロー）、Security Hub 連携 | Lambda 直接ブロック（1.8秒実測、コールドスタート込みで +10-15秒）：name-mapping deny + export-policy deny + NACL deny + セッション切断 + 保護 Snapshot、フォレンジクスダッシュボード（4 SIEM） | 検知元を問わず SNS から起動できる。注: SMB name-mapping deny は NTFS セキュリティスタイルのボリュームでは無効 |
 | **Recover（復旧）** | RC.RP、RC.CO | ⚠️ | DR レプリケーションパターン、AWS Backup / 論理エアギャップボールト（restore testing の対象に FSx for ONTAP が入る、documented） | 検証済みクリーン復旧ポイント（FlexClone + 拡張子スキャン + 判定）、TTL 自動ブロック解除、SnapMirror ラグ監視（Terraform モジュール。設定は[デプロイガイド](deployment-guide.md)の「SnapMirror ラグ監視」） | 完全なリストアリハーサルは AWS Backup restore testing を推奨；RC.CO（ステークホルダーコミュニケーション）は最小限 |
 
+### PDCA と説明責任の CSF 2.0 への対応
+
+PDCA（Plan、Do、Check、Act）の 4 段階と説明責任の観点を、[CSF 2.0（NIST CSWP 29、2024-02-26 版）](https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf)のカテゴリとサブカテゴリに対応づける。参照日は 2026-11-13。ここでの説明責任は、平時の保護設定とログの取得、侵害を検知したときの判断、復旧までの記録を残すことを指す。
+
+CSF 2.0 は、機能を並行して扱うよう書き、Core の機能とカテゴリの順序は達成の順序を意味しないとも書く（CSWP 29 の 2 節）。そのため PDCA の 4 段階を 6 機能に 1 対 1 で当てず、改善の繰り返しを表すカテゴリ（GV.OV と ID.IM）と、各機能の成果に当てる。CSWP 29 は PDCA の語を使わないので、この表は NIST の対応づけではなく、NIST による認定でもない。このプロジェクトが同じ話題を扱うと読んだ解釈で、根拠の種別は `hypothesis` とする。サブカテゴリの ID と本文は、CSWP 29 の付録 A で確かめた（documented）。
+
+| 段階または観点 | CSF 2.0 のカテゴリとサブカテゴリ | 対応の理由 | 根拠の種別 |
+|---|---|---|---|
+| Plan | GV.OC-04、GV.OC-05、GV.RM-02、GV.RR-02、GV.PO-01、GV.SC-05、ID.AM-05 | 外部の利害関係者が期待するサービスと依存先を理解し（GV.OC-04、05、GV.SC-05）、リスクの許容度を定め（GV.RM-02）、役割と方針を決め（GV.RR-02、GV.PO-01）、資産の優先順位を付ける（ID.AM-05）。対応目標と RTO/RPO を決める段階に当たる | hypothesis |
+| Do | PR.DS-11、PR.PS-01、PR.PS-02、PR.PS-06、PR.IR-03、ID.AM-02、ID.RA-01、ID.RA-08、ID.RA-09 | バックアップの作成と保護（PR.DS-11）、構成とソフトウェアの管理と開発の実践（PR.PS-01、02、06）、レジリエンスの要件を満たす仕組み（PR.IR-03）、ソフトウェアの一覧（ID.AM-02）、脆弱性の特定と開示への対応、使用前の真正性と完全性の評価（ID.RA-01、08、09）を実装する段階に当たる | hypothesis |
+| Check | GV.OV-03、ID.IM-01、ID.IM-02、ID.IM-03、PR.DS-11 | 成績の評価（GV.OV-03）と、評価、試験と演習、運用の実行から改善を見つける作業（ID.IM-01、02、03）に当たる。リストア訓練はバックアップの試験（PR.DS-11）と ID.IM-02 に、対応目標の実績の測定は GV.OV-03 と ID.IM-03 に当たる | hypothesis |
+| Act | GV.OV-01、GV.OV-02、GV.PO-02、ID.IM-04、RC.RP-04 | 戦略の見直しと調整（GV.OV-01、02）、方針の更新（GV.PO-02）、インシデント対応計画などの維持と改善（ID.IM-04）、復旧後の運用の基準の設定（RC.RP-04）に当たる。インシデント後のレビューを受けて、対応目標と待ち時間を見直す段階である | hypothesis |
+| 説明責任 | GV.RR-01、GV.RR-02、GV.OC-02、GV.OC-03、PR.PS-04、RS.AN-03、RS.AN-06、RS.AN-07、RS.CO-02、RS.CO-03、RC.RP-06、RC.CO-03、RC.CO-04 | 責任と権限（GV.RR-01、02）、利害関係者の期待と法令、契約の要件（GV.OC-02、03）、ログの生成と提供（PR.PS-04）、何が起きたかと根本原因の分析（RS.AN-03）、調査の記録と、インシデントのデータの完全性と来歴の保持（RS.AN-06、07）、利害関係者への通知と共有（RS.CO-02、03）、復旧の終了の宣言と文書の完了（RC.RP-06）、復旧の進捗の伝達（RC.CO-03、04）に分かれる。GV、PR、RS、RC の 4 機能にまたがる | hypothesis |
+
+RS と RC の実行（第 3 の柱の調査、第 2 の柱の復旧）は PDCA の 1 段階ではなく、インシデントのときに行う。その記録が Check の ID.IM-03 と Act の入力になる。この表はこの節だけに置く。ほかの文書は、この節へのリンクで参照し、表を写さない。
+
 ## 暗号化・破壊型と持ち出し型のシナリオ別対応
 
 同じ侵入から、ファイルの暗号化・削除と、データの持ち出しのどちらも起こりうる。効く制御が違うので、2 つのシナリオを同じ形の表で分けて書く。根拠の種別はセルの中に括弧で示す。
@@ -143,6 +159,31 @@ FSx for ONTAP の制御が作用するのは、ファイル・オブジェクト
 | **信頼性** | Multi-AZ FSx for ONTAP、SnapMirror クロスリージョンレプリケーション、失敗したレスポンスアクション用 DLQ、パイプライン健全性の CloudWatch アラーム、AWS Backup の論理エアギャップボールト（文書のみ） |
 | **コスト最適化** | `templates/cost-scheduler.yaml`（開発/ステージング環境の自動停止/起動）、レスポンスモジュールのコスト ~$0.51/月 |
 | **運用上の優秀性** | CloudFormation IaC、CI/CD パイプライン（285 テスト）、cfn-guard セキュリティポリシー |
+
+### ベストプラクティス ID との対応
+
+AWS Well-Architected Framework の v13（2024-11-06 版）のベストプラクティス ID に、このプロジェクトの構成要素を対応づける。参照日は 2026-11-13。`latest` のページの Publication date と Document revisions の最新行は、どちらも 2024-11-06 だった。各行の ID には 2 つのリンクを付けた。1 つ目は `latest` のページ、2 つ目は版つきのパス `2025-02-25` の同じページである。`2025-02-25` が何の版かは文書から読み取れなかった（open）。10 ページとも、2 つのパスの本文はタグを除いた比較で一致した（2026-11-13）。`latest` の公開日か改訂履歴が変わったときは、すべての ID を確かめ直す。
+
+「柱」は、サイバーレジリエンスのプログラムが分ける 3 本の柱を指す。第 1 はソフトウェアサプライチェーンの可視化と対応、第 2 は RTO/RPO と SLA/SLO/SLI、第 3 はフォレンジックである。「PDCA の段階」は、Plan、Do、Check、Act の繰り返しのうち、その ID を主な根拠にする段階を指す。
+
+| 柱または PDCA の段階 | ベストプラクティス ID（ページへのリンク） | このプロジェクトでの対応 | 根拠の種別 |
+|---|---|---|---|
+| 第 1 の柱 | [SEC11-BP02 Automate testing throughout the development and release lifecycle](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_automate_testing_throughout_lifecycle.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html)） | CI/CD での SBOM の生成と、所見を Issue で追跡する運用（実装予定）。ページは実装の手順に、CI/CD への SBOM 抽出の組み込みと、自動テストの所見のチケットによる追跡を挙げる | documented |
+| 第 1 の柱 | [SEC11-BP05 Centralize services for packages and dependencies](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)） | リポジトリ横断の依存の一覧を持ち、新しく見つかった問題の影響を特定する（実装予定）。ページが例に挙げる AWS CodeArtifact のような中央のパッケージリポジトリは置かない。リポジトリの運用と費用は要らない一方、上流を承認済みのものに限れないので、版の固定と、公開直後の版を取り込まない待ち時間（Cooldown）で補う。新しい依存の追加は PR のレビューに頼る | documented |
+| 第 1 の柱 | [SEC11-BP06 Deploy software programmatically](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_deploy_software_programmatically.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html)） | ビルドの来歴証明と、Lambda のカナリアデプロイとロールバックの参照構成（実装予定）。ページの期待する成果は、テストした版とデプロイする版が同じであることと、パッケージの暗号署名である | documented |
+| 第 1 の柱 | [SEC11-BP07 Regularly assess security properties of the pipelines](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)） | 再利用可能ワークフローの参照を SHA で固定し、権限を最小にする（実装予定）。ページはパイプラインの権限の分離、一時的な認証情報、テストを使う側が編集できないことを挙げる | documented |
+| 第 2 の柱 | [REL13-BP01 Define recovery objectives for downtime and data loss](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_objective_defined_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html)） | 方針だけを書く。RTO と RPO はワークロードごとに利用者が定める値で、このプロジェクトが示す値は置き換えるための参照値にとどまる。対応する仕様は未作成で、範囲は第 2 の柱の仕様が決める | documented |
+| 第 2 の柱 | [REL13-BP02 Use defined recovery strategies to meet the recovery objectives](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_disaster_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)） | 方針だけを書く。ページは、レプリケーションだけではデータの破損や破壊から守れず、ポイントインタイムの復旧手段が要ると書く。FSx for ONTAP では Snapshot、SnapMirror、AWS Backup の論理エアギャップボールトを選択肢として並べ、制約を同じ粒度で比べる。対応する仕様は未作成 | documented |
+| 第 3 の柱 | [SEC10-BP03 Prepare forensic capabilities](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_incident_response_prepare_forensic.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html)） | 方針だけを書く。ページは収集、検査、分析、報告の 4 段階と、セキュリティ OU とフォレンジック OU のアカウント構成、スナップショットとバックアップの取得を挙げる。資源を別のアカウントやリージョンへコピーするときはデータ主権の要件を確かめる。対応する仕様は未作成 | documented |
+| PDCA の Check | [OPS09-BP01 Measure operations goals and KPIs with metrics](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_measure_ops_goals_kpis.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html)） | 脆弱性への対応目標の実績（期限を超えた件数、検出から起票、修正までの時間）を Check の指標にする。ページは運用の目標と KPI を指標で測り、基準値を置いて見直すよう求める | documented |
+| PDCA の Check と Act | [OPS09-BP03 Review operations metrics and prioritize improvement](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)） | Check の指標を定期的に見直し、目標を再確認するか変更して、改善に優先順位を付ける。Check から Act に移る場面に当たる | documented |
+| PDCA の Act | [OPS11-BP02 Perform post-incident analysis](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)） | インシデント後の分析で寄与要因と予防策を特定し、検知、診断、緩和までの時間を短くできたかを問う。対応目標と待ち時間の見直しの根拠にする | documented |
+
+根拠の種別 `documented` は、ID、表題、「このプロジェクトでの対応」の列が引くページの記述を、上の参照日にページで確かめたことを指す。同じ列の「このプロジェクトでの対応」は、このプロジェクトの読みであり、AWS が示した対応ではない。「実装予定」と書いた項目は、この文書の時点で実装が済んでいない。REL11-BP07、REL09-BP04、REL13-BP03 のように第 2 の柱が追加で扱う ID は、その柱の仕様が範囲を決めたときに足す。
+
+### この対応の位置づけ
+
+ベストプラクティス ID との対応は、AWS Well-Architected のレビューの結果ではなく、AWS による承認でもない。ベストプラクティスのページを読み、このプロジェクトの構成要素が同じ話題を扱うと読んだものである。ワークロードの持ち主は、自分のワークロードを [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) でレビューできる（[フレームワークの Introduction](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)）。フレームワークはこのレビューを、監査の仕組みではなく、設計判断についての対話だと書く。[CSF 2.0 への対応](#pdca-と説明責任の-csf-20-への対応)も、NIST による認定ではない。どちらの対応も、法務、コンプライアンス、規制上の判断ではなく、ガバナンス上の指針である。
 
 ## CIS Controls v8 マッピング
 
