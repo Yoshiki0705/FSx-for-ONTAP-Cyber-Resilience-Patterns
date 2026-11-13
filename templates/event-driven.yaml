@@ -349,8 +349,8 @@ Resources:
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
-                  "ResultPath": "$.error",
-                  "Next": "NotifyFailure"
+                  "ResultPath": "$.alertError",
+                  "Next": "WaitForApproval"
                 }
               ]
             },
