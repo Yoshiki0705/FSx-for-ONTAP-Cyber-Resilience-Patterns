@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import replace
+from datetime import date
 
 from hypothesis import event, given, settings
 from hypothesis import strategies as st
@@ -87,6 +88,10 @@ def _scenarios(draw: st.DrawFn) -> tuple[models.PlanInputs, models.PlanInputs, b
     inputs = draw(sc.plan_inputs(12, 0, policy=policy))
     targets = frozenset(policy.target_repositories)
     first = replace(inputs, issues=(), vex={}, fetch_ok=targets, feeds=_healthy(inputs.feeds))
+    if targets and draw(st.booleans()):  # a LOW finding that is open only because KEV lists it
+        planted = _finding("CVE-2026-9001", "LOW", repo=min(targets, key=_rk), purl="pkg:npm/planted@1.0.0")
+        kev = {**(first.feeds.kev or {}), planted.vuln_id: (date(2026, 1, 1), None)}
+        first = replace(first, findings=first.findings | {planted}, feeds=replace(first.feeds, kev=kev))
     opened = planner.plan(first)
     store = _apply(first, opened)
     pool = tuple(sorted(set(sc.finding_vuln_ids(inputs.findings)) | set(sc.DEFAULT_VULN_IDS)))
@@ -94,7 +99,7 @@ def _scenarios(draw: st.DrawFn) -> tuple[models.PlanInputs, models.PlanInputs, b
     ordered = sorted(policy.target_repositories, key=_rk)
     ok = draw(st.lists(st.sampled_from(ordered), max_size=len(ordered), unique_by=_rk)) if ordered else []
     vanish = draw(st.booleans())
-    found = sorted(inputs.findings, key=lambda f: (_rk(f.repo), f.vuln_id, f.component.purl))
+    found = sorted(first.findings, key=lambda f: (_rk(f.repo), f.vuln_id, f.component.purl))
     flags = draw(st.lists(st.booleans(), min_size=len(found), max_size=len(found)))
     kept = frozenset() if vanish else frozenset(f for f, keep in zip(found, flags, strict=True) if keep)
     second = replace(
