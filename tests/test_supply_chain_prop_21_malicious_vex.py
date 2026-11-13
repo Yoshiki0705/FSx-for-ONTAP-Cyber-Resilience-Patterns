@@ -63,7 +63,12 @@ def _other_version(purl: str) -> str:
 def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, list[tuple[models.Finding, models.VexStatus, int]]]:
     """Malicious-only inputs and, for some findings, the status and shape of a statement that names them."""
     inputs = draw(sc.plan_inputs(14, 6))
-    mal_findings = frozenset(f for f in inputs.findings if planner.is_malicious(f))
+    mal_list = _ordered([f for f in inputs.findings if planner.is_malicious(f)])
+    flags = draw(st.lists(st.booleans(), min_size=len(mal_list), max_size=len(mal_list)))
+    mal_findings = frozenset(  # some get a GHSA alias, so a statement can name the finding without a MAL- identifier
+        replace(f, aliases=(*f.aliases, sc.ghsa_id(n))) if flag and sc.ghsa_id(n) not in _ids(f) else f
+        for n, (f, flag) in enumerate(zip(mal_list, flags, strict=True))
+    )
     mal_issues = tuple(i for i in inputs.issues if (i.vuln_id or "").startswith("MAL-"))
     inputs = replace(inputs, findings=mal_findings, issues=mal_issues)
     found = _ordered(mal_findings)
@@ -87,7 +92,10 @@ def _statements(
         ids = _ids(f)
         head = ids[shape % len(ids)]
         rest = tuple(i for i in ids if i != head) if shape & 4 else ()
-        if shape & 8:  # a statement about another vulnerability that lists the finding's ids as aliases
+        plain = [i for i in ids if not i.upper().startswith("MAL-")]
+        if shape & 32 and plain:  # a statement on a non-MAL- alias only: the one form a table can match
+            head, rest = plain[0], ()
+        elif shape & 8:  # a statement about another vulnerability that lists the finding's ids as aliases
             head, rest = "CVE-2098-0001", ids
         purl = _other_version(f.component.purl) if shape & 16 else f.component.purl
         path = f".vex/{n:03d}.json"
@@ -95,6 +103,14 @@ def _statements(
         if status in EXCLUDING and not shape & 16:
             matches.append((f, path))
     return {repo: tuple(docs) for repo, docs in out.items()}, matches
+
+
+def _names(doc: models.VexDocument) -> tuple[str, ...]:
+    return tuple(i for s in doc.statements for i in (s.vuln_id, *s.aliases))
+
+
+def _status_of(vex: dict[models.Repo, tuple[models.VexDocument, ...]], path: str) -> str:
+    return next(s.status for docs in vex.values() for d in docs if d.path == path for s in d.statements)
 
 
 def _with_state(inputs: models.PlanInputs, state: str) -> models.PlanInputs:
@@ -135,9 +151,18 @@ def _check(
     assert all(reason == REASON_MALICIOUS for _, reason in got.rejected_vex)
     paths = {path for path, _ in got.rejected_vex}
     assert paths <= {d.path for docs in vex.values() for d in docs}
-    for f, path in matches:  # the statement names the finding exactly, but the finding is still handled
-        if f in base.findings:
-            assert path in paths
+    named = {  # a not_affected / fixed statement that lists a MAL- identifier is rejected whether or not a finding matches
+        d.path
+        for docs in vex.values()
+        for d in docs
+        for s in d.statements
+        if s.status in EXCLUDING and any(i.upper().startswith("MAL-") for i in (s.vuln_id, *s.aliases))
+    }
+    allowed = set(base.policy.vex_exclude_statuses)
+    by_match = {path for f, path in matches if f in base.findings and _status_of(vex, path) in allowed}
+    assert named <= paths
+    assert paths <= named | by_match
+    assert by_match <= paths
     for a in got.actions:
         if a.op == "close":
             assert a.close_reason in CLOSE_REASONS
@@ -146,6 +171,11 @@ def _check(
     seen["statements"] += bool(vex)
     seen["matching_excluding"] += any(f in base.findings for f, _ in matches)
     seen["rejected"] += bool(got.rejected_vex)
+    seen["alias_only_match"] += any(
+        f in base.findings and _status_of(vex, path) in set(base.policy.vex_exclude_statuses)
+        for f, path in matches
+        if not any(i.upper().startswith("MAL-") for d in vex[f.repo] if d.path == path for i in _names(d))
+    )
     for op in ("create", "update", "reopen", "close"):
         seen[op] += any(a.op == op for a in got.actions)
     seen["close_resolved"] += any(a.op == "close" and a.close_reason == "resolved" for a in got.actions)
@@ -186,6 +216,7 @@ def test_generated_cases_reach_every_operation_and_a_rejected_statement() -> Non
         "statements",
         "matching_excluding",
         "rejected",
+        "alias_only_match",
         "create",
         "update",
         "reopen",
