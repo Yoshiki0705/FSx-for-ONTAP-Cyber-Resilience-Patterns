@@ -312,6 +312,20 @@ def test_a_new_mal_id_for_the_same_package_version_continues_the_issue() -> None
     assert [(a.op, a.number) for a in planner.plan(second).actions] == [("update", 1)]
 
 
+def test_a_kev_listed_malware_ghsa_continues_the_open_mal_issue_instead_of_replacing_it() -> None:
+    first = _inputs((_finding("MAL-2026-0000", None),))
+    ghsa = _finding("GHSA-mmmm-aaaa-llll", None)
+    kev = _feeds(kev={"GHSA-mmmm-aaaa-llll": (date(2026, 11, 1), None)})
+    second = _next(first, planner.plan(first), findings=frozenset({ghsa}), feeds=kev)
+    plan = planner.plan(second)
+    assert [a.op for a in plan.actions if a.op in ("create", "close")] == []
+    assert all(a.number == 1 and a.vuln_id == "MAL-2026-0000" for a in plan.actions)
+    third = _next(second, plan)
+    assert [(i.vuln_id, i.state) for i in third.issues] == [("MAL-2026-0000", "open")]
+    marker = issue_body.parse_marker(plan.actions[0].body) if plan.actions else None
+    assert marker is None or marker.aliases == ("GHSA-mmmm-aaaa-llll",)
+
+
 def test_deadline_shortens_to_seven_days_when_a_high_issue_enters_kev_and_never_lengthens() -> None:
     first = _inputs((_finding(),))
     kev = _feeds(kev={"CVE-2026-0001": (date(2026, 11, 11), False)})
