@@ -235,7 +235,7 @@ AWS のドキュメントにある動き方は次のとおりです。
 
 その後、このテンプレートのデプロイを 1 回確かめました（[通知経路の確認](alert-path-verification.md#測定結果)の C6）。200 の応答での配信、400 の応答でのデッドレターキュー、デッドレターキューのアラームが予備のトピックに通知することです。デプロイでは、5xx の応答でのリトライは測っていません。
 
-`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`）があり、Event-Driven スタックに渡します。キーのないエンドポイントは、入れ子のスタックを作る前に `main.yaml` が拒否します。`main.yaml` からのデプロイは実行していません。
+`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`）があり、Event-Driven スタックに渡します。エンドポイントを指定してキーが空のときにスタックの作成を失敗させる、テンプレートのルールも持ちます。2026-11-14（日本時間）に `ap-northeast-1` で、同じルールと無料のリソース 1 つだけの試験用スタックを使い、1 回測りました。エンドポイントありでキーなしで作成すると、`Parameter validation failed: assertion error` で `ROLLBACK_COMPLETE` になり、リソースは作られませんでした。キーありでは作成できました。`main.yaml` の変更セットは、エンドポイントありでキーなしでも作成できました。失敗が現れるのは変更セットの作成時ではなく、スタックの作成時です。試験に使ったのはルールの文面で、`main.yaml` そのものではありません。`main.yaml` からのデプロイは実行していません。
 
 ## VPC Endpoint 競合マトリクス
 
