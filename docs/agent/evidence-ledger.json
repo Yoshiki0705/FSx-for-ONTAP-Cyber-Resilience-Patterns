@@ -1232,6 +1232,90 @@
     },
     {
       "id": "E-039",
+      "claim": "A CloudWatch alarm action fails when it names an SNS topic encrypted with the AWS managed key aws/sns. The same alarm notifies a topic encrypted with a customer managed key whose key policy lets cloudwatch.amazonaws.com call kms:Decrypt and kms:GenerateDataKey*.",
+      "subject": "Amazon CloudWatch alarm actions and Amazon SNS server-side encryption, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_PutMetricAlarm.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "Gives the SNS action ARN form. The page does not mention topic encryption, so this entry rests on the observation, not on this page."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. Topic encrypted with alias/aws/sns and a topic policy allowing cloudwatch.amazonaws.com to publish: PutMetricAlarm succeeded, set-alarm-state to ALARM delivered nothing to a subscribed SQS queue, and the alarm action history recorded 'Failed to execute action'. The same setup on a topic without encryption delivered the notification ('Successfully executed action'). Topic encrypted with a customer managed key (key policy: account root administers, cloudwatch.amazonaws.com and events.amazonaws.com may call kms:Decrypt and kms:GenerateDataKey* under aws:SourceAccount) with the same topic policy: the notification was delivered and the history recorded a successful execution.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a CloudWatch alarm can notify a topic encrypted with aws/sns. The design uses a customer managed key, which works whichever way the answer goes."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "Five alarms in this repository notify the security alert topic: the dead-letter queue alarm in event-driven.yaml, three alarms in observability.yaml and the dead-letter queue alarm in siem-integration.yaml. Not tested: other Regions, and a deployment of these templates."
+    },
+    {
+      "id": "E-040",
+      "claim": "An EventBridge rule target on an SNS topic that has only the default topic policy delivers nothing. The rule delivers once the topic policy allows events.amazonaws.com to publish, with or without a customer managed key on the topic.",
+      "subject": "Amazon EventBridge rule target on an SNS topic, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-use-resource-based.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "The Amazon SNS permissions section shows a new topic's default policy and adds a statement that lets events.amazonaws.com publish. EventBridge targets use either an IAM execution role or a resource-based policy; this rule has no execution role, so it needs the topic policy."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. A rule on the default event bus with an SNS topic target and the default topic policy: put-events was accepted, nothing reached a subscribed SQS queue within about 100 seconds, and the rule's FailedInvocations metric showed 2. The same rule on an unencrypted topic whose policy allowed events.amazonaws.com to publish delivered on the first event, and so did a topic encrypted with a customer managed key whose key policy allowed events.amazonaws.com.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether a topic needs an explicit policy for EventBridge. The behaviour is observed, and the topic policy is added either way."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "RuleNotification in event-driven.yaml targets SecurityAlertTopic and had no topic policy. HubNotificationRule in hub-aggregation.yaml targets HubAlertTopic, which had none either; see E-041 for the encryption key."
+    },
+    {
+      "id": "E-041",
+      "claim": "An EventBridge rule on a custom event bus delivers nothing to an SNS topic encrypted with the AWS managed key aws/sns, even when the topic policy allows events.amazonaws.com to publish. It delivers to a topic encrypted with a customer managed key whose key policy and topic policy allow events.amazonaws.com.",
+      "subject": "Amazon EventBridge rule target on an SNS topic with server-side encryption, ap-northeast-1",
+      "tier": "verified",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-use-resource-based.html",
+          "retrieved": "2026-11-12",
+          "read": "selective",
+          "note": "The Amazon SNS permissions section covers the topic policy only. It does not mention topic encryption, so this entry rests on the observation."
+        }
+      ],
+      "observation": "2026-11-12 (UTC), one account, ap-northeast-1, one run per case. A rule on a custom event bus (pattern: source prefix fsxn.cyber-resilience, detail-type MalwareDetected) with an SNS topic target. Topic encrypted with alias/aws/sns and a topic policy allowing events.amazonaws.com with aws:SourceAccount: four put-events calls were accepted, nothing reached a subscribed SQS queue, and the rule's FailedInvocations metric showed 2. Topic encrypted with a customer managed key (key policy: account root administers, events.amazonaws.com may call kms:Decrypt and kms:GenerateDataKey* under aws:SourceAccount) with the same topic policy: delivered on the first event.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Whether EventBridge can publish to a topic encrypted with aws/sns. The design uses a customer managed key, which works whichever way the answer goes."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/en/deployment-guide.md",
+        "docs/ja/deployment-guide.md"
+      ],
+      "note": "Tested with the rule and the topic in one account. Events forwarded from another account to the bus were not tested."
+    },
+    {
+      "id": "E-042",
       "claim": "Cloud Volumes ONTAP upgrades: NetApp documents upgrading only from the NetApp Console, saying that using ONTAP System Manager or the ONTAP CLI might affect system stability. It also says that reverting or downgrading Cloud Volumes ONTAP to a previous release is not supported.",
       "subject": "NetApp Cloud Volumes ONTAP upgrade path and revert",
       "tier": "documented",
@@ -1255,7 +1339,7 @@
       "note": "The page says 'might affect system stability', not that it fails. Applies to Cloud Volumes ONTAP, not FSx for ONTAP."
     },
     {
-      "id": "E-040",
+      "id": "E-043",
       "claim": "An ONTAP Select node cannot be reverted to a version earlier than the one it was originally installed with; a node first installed at 9.17.1 cannot be reverted at all. The Deploy utility cannot upgrade existing ONTAP Select nodes.",
       "subject": "NetApp ONTAP Select node revert",
       "tier": "documented",
@@ -1279,7 +1363,7 @@
       "note": "Applies to ONTAP Select, not FSx for ONTAP."
     },
     {
-      "id": "E-041",
+      "id": "E-044",
       "claim": "The GitHub REST endpoint that exports a repository SBOM synchronously (GET /repos/{owner}/{repo}/dependency-graph/sbom) is documented as closing down and not accessible after November 13, 2026; GitHub points to the asynchronous generate-report and fetch-report flow.",
       "subject": "GitHub REST API synchronous SBOM export",
       "tier": "documented",
@@ -1303,7 +1387,7 @@
       "note": "A closing-down notice, not a capability the product lacks. The asynchronous endpoints remain."
     },
     {
-      "id": "E-042",
+      "id": "E-045",
       "claim": "Renovate with the default minimumReleaseAgeBehaviour (timestamp-required) holds digest updates indefinitely for registries that return no release timestamps (the page names GHCR, Quay and ECR); minimumReleaseAgeBehaviour=timestamp-optional raises them without an age check.",
       "subject": "Renovate minimumReleaseAge on registries without release timestamps",
       "tier": "documented",
@@ -1327,7 +1411,7 @@
       "note": "Observed from the documentation only; not reproduced against a registry."
     },
     {
-      "id": "E-043",
+      "id": "E-046",
       "claim": "Amazon Inspector Code Security findings are not available to the Amazon Inspector integration with AWS Security Hub CSPM; they can be read in the Amazon Inspector console and API.",
       "subject": "Amazon Inspector Code Security and Security Hub CSPM integration",
       "tier": "documented",
@@ -1351,7 +1435,7 @@
       "note": "The page covers Security Hub CSPM. Whether the separate AWS Security Hub (OCSF) receives them is not stated there."
     },
     {
-      "id": "E-044",
+      "id": "E-047",
       "claim": "Amazon Inspector Lambda standard scanning does not scan the AWS SDK dependency installed by default in the Lambda runtime; it scans only dependencies uploaded with the function code or inherited from a layer.",
       "subject": "Amazon Inspector Lambda standard scanning, runtime-bundled AWS SDK",
       "tier": "documented",
@@ -1375,7 +1459,7 @@
       "note": "A function that bundles nothing but the runtime's SDK has no scanned dependencies."
     },
     {
-      "id": "E-045",
+      "id": "E-048",
       "claim": "Amazon Inspector does not support scanning Lambda functions encrypted with customer managed keys; this applies to Lambda standard scanning and Lambda code scanning.",
       "subject": "Amazon Inspector Lambda scanning, customer managed keys",
       "tier": "documented",
@@ -1399,7 +1483,7 @@
       "note": "Whether a given function is encrypted with a customer managed key is a property of that account; check it per function."
     },
     {
-      "id": "E-046",
+      "id": "E-049",
       "claim": "Amazon Inspector Lambda scanning excludes functions that have not been invoked or updated in the last 90 days, and only scans the $LATEST version; scanning resumes if the function is invoked again or its code changes.",
       "subject": "Amazon Inspector Lambda scanning eligibility",
       "tier": "documented",
@@ -1423,7 +1507,7 @@
       "note": "Same page as the customer managed key limitation."
     },
     {
-      "id": "E-047",
+      "id": "E-050",
       "claim": "The enhanced AWS Security Hub (OCSF) does not receive findings from third-party partner tools. Third-party partner and custom findings in the AWS Security Finding Format go to AWS Security Hub CSPM.",
       "subject": "AWS Security Hub versus Security Hub CSPM, finding sources",
       "tier": "documented",
@@ -1447,7 +1531,7 @@
       "note": "The FAQ page was retrieved whole and the Q&As on finding sources, format and event delivery were read; the other Q&As were not read line by line."
     },
     {
-      "id": "E-048",
+      "id": "E-051",
       "claim": "AWS Resilience Hub's list of supported storage resources names Amazon EBS, Amazon EFS, Amazon S3 and Amazon FSx for Windows File Server. Amazon FSx for NetApp ONTAP is not on the list, and unlisted resources are described as not fully supported at this time.",
       "subject": "AWS Resilience Hub supported resources, FSx for ONTAP",
       "tier": "documented",
@@ -1471,7 +1555,7 @@
       "note": "Absence from a positive list, not a sentence naming FSx for ONTAP. The page says unsupported resources may be added later; recheck before relying on it."
     },
     {
-      "id": "E-049",
+      "id": "E-052",
       "claim": "Amazon Inspector SBOM export does not support agent-based Amazon EC2 Windows instances; agentless Amazon EC2 Windows instances are supported from February 28, 2026.",
       "subject": "Amazon Inspector SBOM export, EC2 Windows",
       "tier": "documented",
@@ -1495,7 +1579,7 @@
       "note": "The page says 'currently'; recheck before relying on it. It does not say whether the Security Hub SBOM inventory lists agent-based Windows instances."
     },
     {
-      "id": "E-050",
+      "id": "E-053",
       "claim": "The AWS Security Hub GetSoftwareV2 response returns PackageName, PackageType, PackageVersion and ResourceCount for each package. It has no purl, license, supplier or hash field.",
       "subject": "AWS Security Hub GetSoftwareV2 response fields",
       "tier": "documented",
@@ -1519,7 +1603,7 @@
       "note": "The SoftwareResult object page was not opened; the field list is read from the response syntax in this page."
     },
     {
-      "id": "E-051",
+      "id": "E-054",
       "claim": "The AWS Security Hub SBOM inventory documents compute resources (virtual machines, container images, serverless functions) that Amazon Inspector scans, and shows software only for the resource types Amazon Inspector scans. Neither the Inspector scan targets nor the inventory types name FSx for ONTAP or ONTAP; the inventory therefore is not expected to list them.",
       "subject": "AWS Security Hub SBOM inventory coverage, FSx for ONTAP and ONTAP",
       "tier": "hypothesis",
@@ -1543,7 +1627,7 @@
       "note": "Inference from two lists that do not name FSx for ONTAP. Not stated by AWS and not tried. Absence from a list is not a statement of absence."
     },
     {
-      "id": "E-052",
+      "id": "E-055",
       "claim": "Renovate's GitHub vulnerabilityAlerts path reads GitHub Dependabot alerts and requires the dependency graph and Dependabot alerts to be enabled (plus read permission on Dependabot alerts for the app); in a repository with Dependabot alerts disabled it is therefore not expected to raise fix pull requests.",
       "subject": "Renovate vulnerabilityAlerts and GitHub Dependabot alerts",
       "tier": "hypothesis",
@@ -1567,7 +1651,7 @@
       "note": "The documented part is the precondition. The no-pull-request result when alerts are disabled was read from the Renovate source in an earlier survey (selective) and was not run, so the tier is hypothesis."
     },
     {
-      "id": "E-053",
+      "id": "E-056",
       "claim": "npm with min-release-age (or before) set: when the window blocks a patched version that npm audit fix would install, npm keeps the vulnerable version, warns, and exits with a non-zero code; the fix is to add the package to min-release-age-exclude or relax the window.",
       "subject": "npm min-release-age and npm audit fix",
       "tier": "documented",
@@ -1591,7 +1675,7 @@
       "note": "Documentation for npm CLI v11 as shown on the page; not run here."
     },
     {
-      "id": "E-054",
+      "id": "E-057",
       "claim": "When snapshot locking is enabled on an ONTAP volume, ONTAP can be upgraded but cannot be reverted to an earlier version until all locked snapshots have reached their expiration date and been deleted and snapshot locking is disabled.",
       "subject": "ONTAP Tamperproof Snapshot (snapshot locking) and revert",
       "tier": "documented",

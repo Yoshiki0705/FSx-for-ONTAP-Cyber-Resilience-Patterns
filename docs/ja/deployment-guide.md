@@ -117,6 +117,61 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - 未初期化のリレーションシップは、`lag_time` がなく `healthy: true` を返すため、どちらの SnapMirror アラームも鳴りません（モジュールの README の実行例で 1 回観測）。
 - このリポジトリのスタックに対して、モジュールも通知先の確認も実行していません。
 
+## セキュリティアラートトピックの暗号化
+
+`event-driven.yaml` は、`SecurityAlertTopic` を AWS マネージドキー `aws/sns` ではなく、お客様管理キー（`AlertTopicKey`、キーローテーション有効）で暗号化します。試験では、`aws/sns` で暗号化したトピックを指定した CloudWatch アラームのアクションが失敗しました [E-039]。このトピックに通知するアラームは 5 つです。`event-driven.yaml` の DLQ アラーム、`observability.yaml` の 3 つ、`siem-integration.yaml` の DLQ アラームです。この試験の結果からは、トピックが `aws/sns` のままだと、これらのアラームは通知できなかったと考えています。スタックにはトピックポリシーもなく、既定のポリシーだけのトピックには EventBridge ルールが何も配信しませんでした [E-040]。そのため `RuleNotification` ルールも配信できていなかったと考えています。
+
+### スタックが作るもの
+
+| リソース | 目的 |
+|----------|------|
+| `AlertTopicKey` とそのエイリアス | トピックを暗号化する。アカウントのルートがキーを管理し、同じアカウントの CloudWatch と EventBridge が `kms:Decrypt` と `kms:GenerateDataKey*` を呼べる |
+| `SecurityAlertTopicPolicy` | アカウントの所有者にトピックの管理を許可し、同じアカウントの CloudWatch と EventBridge に発行を許可する |
+| `StepFunctionsExecutionRole` への KMS 権限 | 隔離ワークフローが暗号化したトピックへアラートを発行できるようにする |
+| `siem-integration.yaml` の `ComplianceCollectorRole` への KMS 権限 | キーは別のスタックにあるため、SNS 経由の利用（`kms:ViaService`）に限定する |
+| 出力 `AlertTopicKeyArn` | 他の発行元向けのキー ARN |
+
+### 他の発行元に必要な権限
+
+トピックに `sns:Publish` する主体は、`AlertTopicKeyArn` に対する `kms:GenerateDataKey` と `kms:Decrypt` も必要です。`ComplianceCollectorRole` と同じ `kms:ViaService` 条件でも構いません。`sns:Publish` だけのロールは `KMSAccessDenied` になりました。
+
+### 実測した内容
+
+2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、各ケース 1 回ずつ実行しました。
+
+| ケース | 結果 |
+|--------|------|
+| `aws/sns` で暗号化したトピックへのアラーム | アクションが失敗し、配信されない [E-039] |
+| 暗号化なしのトピックへのアラーム | 配信された [E-039] |
+| お客様管理キーで暗号化したトピックへのアラーム（上記のキーポリシー） | 配信された [E-039] |
+| 既定のトピックポリシーだけのトピックへの EventBridge ルール | 配信されず、`FailedInvocations` が 2 [E-040] |
+| `events.amazonaws.com` を許可したトピックポリシーへの EventBridge ルール（お客様管理キーの有無とも） | 配信された [E-040] |
+| `sns:Publish` だけのロール、次に `kms:ViaService` の権限を足したロール | `KMSAccessDenied`、次に配信された |
+| カスタムイベントバスのルールから、`aws/sns` で暗号化し、`events.amazonaws.com` を許可したトピックポリシーを付けたトピックへ | 配信されず、`FailedInvocations` が 2 [E-041] |
+| カスタムイベントバスのルールから、お客様管理キー（鍵ポリシーとトピックポリシーで `events.amazonaws.com` を許可）で暗号化したトピックへ | 配信された [E-041] |
+
+### ハブのアラートトピック
+
+`hub-aggregation.yaml` の `HubAlertTopic` にも同じ変更を入れました。このトピックに発行するのは、ハブの EventBridge ルール（`HubNotificationRule`）だけです。お客様管理キー `HubAlertTopicKey`（ローテーション有効、削除の待機期間 30 日）、トピックポリシー `HubAlertTopicPolicy`、出力 `HubAlertTopicKeyArn` を追加しています。ハブのスタックにはアラームがないため、発行を許可するのはハブのアカウントの `events.amazonaws.com` だけです。`aws/sns` で暗号化したトピックは、トピックポリシーを付けても、ルールから何も受け取りませんでした [E-041]。
+
+### 未測定の項目
+
+- 上の各ケースは、単独のリソースで試しました。これらのテンプレートのデプロイ（既存のトピックを `aws/sns` から `AlertTopicKey` に変える、その場での更新を含む）は 1 回実行し、[デプロイ後の通知経路の確認](alert-path-verification.md#測定結果)に記録しています。
+- キーの月額料金は確認していません。キーはスタックと一緒に削除され、削除までに 30 日の待機期間があります。
+- ハブのトピックは、ルールとトピックが同じアカウントにある構成で試しました。スポークアカウントからハブのバスへ転送されたイベントは試していません。
+
+## 隔離ワークフローの失敗アラーム
+
+`event-driven.yaml` は `QuarantineExecutionsFailedAlarm` を作ります。隔離ステートマシンの `ExecutionsFailed` 指標（名前空間 `AWS/States`、ディメンション `StateMachineArn`）を監視し、5 分以内に失敗した実行が 1 件あると ALARM になって `SecurityAlertTopic` に通知します。`NotifyFailure` に届かずに失敗した実行（たとえば、定義のどの `Catch` も処理しない `States.Runtime` エラー）もここで数えられ、失敗した状態は実行履歴で確認できます。
+
+- データポイントがない場合は正常として扱います（`notBreaching`）。
+- 監視するのは `ExecutionsFailed` だけです。`ExecutionsTimedOut` と `ExecutionsAborted` は監視しません。定義に実行全体のタイムアウトはなく、24 時間の承認待ちは `EscalateTimeout` が捕捉して通知します。
+- `NotifyFailure` と `EscalateTimeout` は、発行を 3 回リトライし、それでも失敗すると `NotificationFailed` の Fail 状態で終わります。トピックに発行できない場合も、失敗した実行が残り、このアラームが数えます。このアラームも同じトピックに通知するため、トピック自体に問題があるときは、アラームが誰にも届かないことがあります。その場合は実行履歴を確認してください。
+- `SendAlert` は、エクスポートポリシーを制限した後に動きます。3 回リトライしても失敗した場合、実行は `WaitForApproval` に進み、エラーを `$.alertError` に保存します。承認メッセージにこのエラーが含まれます。ボリュームは制限されたままで、承認の手順と 24 時間後のエスカレーションは動きます。Step Functions の TestState API で、失敗をモックして（リトライを使い切った状態）確認しました。失敗は捕捉され、次の状態は `WaitForApproval` でした。デプロイした環境での実行は、していません。
+- Step Functions の CloudWatch 指標はベストエフォートで配信されるため、データポイントが遅れる、または届かないことがあります（[Step Functions の指標](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)）。
+
+2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、1 回実行して測りました。状態が `Fail` だけのステートマシンと、同じ形のアラーム（期間 60 秒）を使っています。実行は `FAILED` で終わり、指標の Sum は 1 になり、アラームは実行の 104 秒後に `ALARM` になり、購読したキューに通知が配信されました。このテンプレートを期間 300 秒でデプロイした確認は、2026-11-13 に 1 回実行しました。隔離ワークフローの実行が失敗し、開始の約 49 秒後にアラームが鳴りました（[測定結果](alert-path-verification.md#測定結果)）。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い
@@ -484,6 +539,7 @@ aws secretsmanager delete-secret \
 
 ## 関連ドキュメント
 
+- [デプロイ後の通知経路の確認](alert-path-verification.md)
 - [既存 FSx for ONTAP 環境への統合](../deployment-guide-existing-fsxn.md)
 - [コスト・ライセンス詳細](../verification-environment-cost.md)
 - [アーキテクチャ概要](../architecture/overview.md)

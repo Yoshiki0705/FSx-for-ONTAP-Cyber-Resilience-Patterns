@@ -117,6 +117,61 @@ The `LagMonitorLambda` in the removed `dr-replication.yaml` was a placeholder: i
 - An uninitialized relationship reports `healthy: true` with no `lag_time`, so neither SnapMirror alarm fires for it (observed once, in the module README's sample run).
 - Neither the module nor the notification-target test was run against this repository's stacks.
 
+## Security Alert Topic Encryption
+
+`event-driven.yaml` encrypts `SecurityAlertTopic` with a customer managed key (`AlertTopicKey`, key rotation on) instead of the AWS managed key `aws/sns`. In a test, a CloudWatch alarm action that named a topic encrypted with `aws/sns` failed [E-039]. Five alarms notify this topic: the dead-letter queue alarm in `event-driven.yaml`, the three alarms in `observability.yaml`, and the dead-letter queue alarm in `siem-integration.yaml`. Going by that test, these alarms could not notify through the topic while it used `aws/sns`. The stack also had no topic policy, and in a test an EventBridge rule delivered nothing to a topic that has only the default policy [E-040], so the `RuleNotification` rule would not have delivered either.
+
+### What the stack creates
+
+| Resource | Purpose |
+|----------|---------|
+| `AlertTopicKey` and its alias | Encrypts the topic. The account root administers the key. CloudWatch and EventBridge in the same account may call `kms:Decrypt` and `kms:GenerateDataKey*` |
+| `SecurityAlertTopicPolicy` | Lets the account owner manage the topic, and lets CloudWatch and EventBridge in the same account publish |
+| KMS permission on `StepFunctionsExecutionRole` | Lets the quarantine workflow publish alerts to the encrypted topic |
+| KMS permission on `ComplianceCollectorRole` in `siem-integration.yaml` | The key lives in another stack, so the permission is limited to use through SNS (`kms:ViaService`) |
+| Output `AlertTopicKeyArn` | The key ARN for other publishers |
+
+### Permission another publisher needs
+
+An identity that calls `sns:Publish` on the topic also needs `kms:GenerateDataKey` and `kms:Decrypt` on `AlertTopicKeyArn`, or the same `kms:ViaService` condition as `ComplianceCollectorRole`. A role with only `sns:Publish` got `KMSAccessDenied`.
+
+### Measured results
+
+Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
+
+| Case | Result |
+|------|--------|
+| Alarm to a topic encrypted with `aws/sns` | Action failed, nothing delivered [E-039] |
+| Alarm to a topic with no encryption | Delivered [E-039] |
+| Alarm to a topic encrypted with a customer managed key, key policy as above | Delivered [E-039] |
+| EventBridge rule to a topic with only the default topic policy | Nothing delivered, `FailedInvocations` 2 [E-040] |
+| EventBridge rule to a topic whose policy allows `events.amazonaws.com`, with or without the customer managed key | Delivered [E-040] |
+| Role with `sns:Publish` only, then with the `kms:ViaService` permission added | `KMSAccessDenied`, then delivered |
+| Rule on a custom event bus to a topic encrypted with `aws/sns`, topic policy allowing `events.amazonaws.com` | Nothing delivered, `FailedInvocations` 2 [E-041] |
+| Rule on a custom event bus to a topic encrypted with a customer managed key, key policy and topic policy allowing `events.amazonaws.com` | Delivered [E-041] |
+
+### Hub alert topic
+
+`hub-aggregation.yaml` gets the same change for `HubAlertTopic`, which only the hub EventBridge rule (`HubNotificationRule`) publishes to: a customer managed key `HubAlertTopicKey` (rotation on, 30-day deletion window), a topic policy `HubAlertTopicPolicy`, and the output `HubAlertTopicKeyArn`. Only `events.amazonaws.com` of the hub account may publish, because the hub stack has no alarms. A topic encrypted with `aws/sns` received nothing from the rule even with a topic policy [E-041].
+
+### Not measured
+
+- The cases above used standalone resources. A deployment of these templates, including an in-place update of an existing topic from `aws/sns` to `AlertTopicKey`, was run once and is recorded in [Verifying the Alert Path After Deployment](alert-path-verification.md#results).
+- The key's monthly cost. The key is deleted with the stack after a 30-day waiting period.
+- The hub topic was tested with the rule and the topic in one account. Events forwarded from a spoke account to the hub bus were not tested.
+
+## Quarantine Workflow Failure Alarm
+
+`event-driven.yaml` creates `QuarantineExecutionsFailedAlarm`. It watches the `ExecutionsFailed` metric (namespace `AWS/States`, dimension `StateMachineArn`) of the quarantine state machine. One failed execution within 5 minutes raises the alarm, which notifies `SecurityAlertTopic`. Executions that fail to reach `NotifyFailure` (for example on a `States.Runtime` error, which no `Catch` in the definition handles) are counted here, and the failed state is in the execution history.
+
+- A missing datapoint counts as healthy (`notBreaching`).
+- Only `ExecutionsFailed` is watched. `ExecutionsTimedOut` and `ExecutionsAborted` are not. The definition sets no execution timeout, and the 24-hour approval wait is caught and escalated by `EscalateTimeout`.
+- `NotifyFailure` and `EscalateTimeout` retry the publish 3 times and then end in the `NotificationFailed` Fail state. A topic that cannot be published to therefore still produces a failed execution, which this alarm counts. This alarm notifies the same topic, so if the topic itself is the problem the alarm may reach nobody. Check the execution history in that case.
+- `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the execution continues to `WaitForApproval` and stores the error in `$.alertError`, which the approval message carries. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on a mocked failure (retries used up): the failure was caught and the next state was `WaitForApproval`. A deployed execution was not run.
+- CloudWatch metrics for Step Functions are delivered on a best-effort basis, so a datapoint can arrive late or not at all ([Step Functions metrics](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)).
+
+Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. A deployment of this template with the 300-second period was run once on 2026-11-13: a failed execution of the quarantine workflow raised the alarm about 49 seconds after it started ([results](alert-path-verification.md#results)).
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints
@@ -486,6 +541,7 @@ aws secretsmanager delete-secret \
 
 ## Related Documentation
 
+- [Verifying the Alert Path After Deployment](alert-path-verification.md)
 - [Existing FSx for ONTAP Integration](../deployment-guide-existing-fsxn.md)
 - [Cost & License Details](../verification-environment-cost.md)
 - [Architecture Overview](../architecture/overview.md)

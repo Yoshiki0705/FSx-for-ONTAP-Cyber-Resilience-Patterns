@@ -162,16 +162,100 @@ Resources:
   # ---------------------------------------------------------------
   # SNS - Security alert notifications
   # ---------------------------------------------------------------
-  SecurityAlertTopic:
-    Type: AWS::SNS::Topic
+  # A CloudWatch alarm cannot notify a topic encrypted with the AWS managed key
+  # aws/sns (alarm action fails, measured), because that key's policy cannot be
+  # changed. The topic uses this customer managed key, whose policy lets alarms
+  # and EventBridge rules in this account publish.
+  AlertTopicKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      TopicName: !Sub '${ProjectName}-security-alerts-${Environment}'
-      KmsMasterKeyId: alias/aws/sns
+      Description: !Sub 'Encrypts the ${ProjectName} security alert topic (${Environment})'
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableAccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowAlarmsAndRulesToPublish
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudwatch.amazonaws.com
+                - events.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey*'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+
+  AlertTopicKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-alert-topic-${Environment}'
+      TargetKeyId: !Ref AlertTopicKey
+
+  SecurityAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-security-alerts-${Environment}'
+      KmsMasterKeyId: !GetAtt AlertTopicKey.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # The default topic policy lets no AWS service publish: the EventBridge rule
+  # above delivered nothing without this policy (measured). IAM roles in this
+  # account publish through their own identity policies.
+  SecurityAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref SecurityAlertTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountOwner
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - 'sns:Publish'
+              - 'sns:Subscribe'
+              - 'sns:Receive'
+              - 'sns:GetTopicAttributes'
+              - 'sns:SetTopicAttributes'
+              - 'sns:AddPermission'
+              - 'sns:RemovePermission'
+              - 'sns:DeleteTopic'
+              - 'sns:ListSubscriptionsByTopic'
+            Resource: !Ref SecurityAlertTopic
+          - Sid: AllowAlarmsAndRulesToPublish
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudwatch.amazonaws.com
+                - events.amazonaws.com
+            Action: 'sns:Publish'
+            Resource: !Ref SecurityAlertTopic
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
 
   SecurityAlertEmailSubscription:
     Type: AWS::SNS::Subscription
@@ -267,8 +351,8 @@ Resources:
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
-                  "ResultPath": "$.error",
-                  "Next": "NotifyFailure"
+                  "ResultPath": "$.alertError",
+                  "Next": "WaitForApproval"
                 }
               ]
             },
@@ -376,6 +460,21 @@ Resources:
                 "Subject": "ERROR: Quarantine Workflow Failed",
                 "Message": "Quarantine workflow failed. Manual intervention required. Check Step Functions execution history for details."
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.notifyError",
+                  "Next": "NotificationFailed"
+                }
+              ],
               "End": true
             },
             "EscalateTimeout": {
@@ -386,7 +485,27 @@ Resources:
                 "Subject": "ESCALATION: Approval Timeout - Quarantined Volume",
                 "Message": "Quarantine approval timed out after 24 hours. Volume remains quarantined."
               },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.notifyError",
+                  "Next": "NotificationFailed"
+                }
+              ],
               "End": true
+            },
+            "NotificationFailed": {
+              "Type": "Fail",
+              "Error": "NotificationFailed",
+              "Cause": "The notification could not be published to the alert topic after retries. The volume may still be quarantined. Check the execution history and the alert topic."
             }
           }
         }
@@ -664,6 +783,34 @@ Resources:
       TreatMissingData: notBreaching
 
   # ---------------------------------------------------------------
+  # Quarantine workflow failure alarm
+  # ---------------------------------------------------------------
+  # Counts executions that end in FAILED. States.Runtime errors are not caught
+  # by any Catch in the definition, so a failure of that kind shows up here and
+  # in the execution history only.
+  QuarantineExecutionsFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-quarantine-executions-failed-${Environment}'
+      AlarmDescription: >-
+        A quarantine workflow execution ended in FAILED. The volume may still be
+        quarantined. Open the state machine execution history to find the failed
+        state.
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref QuarantineStateMachine
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+      TreatMissingData: notBreaching
+
+  # ---------------------------------------------------------------
   # IAM Roles
   # ---------------------------------------------------------------
 
@@ -715,6 +862,12 @@ Resources:
                   - 'sns:Publish'
                 Resource:
                   - !Ref SecurityAlertTopic
+              - Effect: Allow
+                Action:
+                  - 'kms:GenerateDataKey'
+                  - 'kms:Decrypt'
+                Resource:
+                  - !GetAtt AlertTopicKey.Arn
               - Effect: Allow
                 Action:
                   - 'sqs:SendMessage'
@@ -841,6 +994,12 @@ Outputs:
     Value: !Ref SecurityAlertTopic
     Export:
       Name: !Sub '${ProjectName}-${Environment}-SecurityAlertTopicArn'
+
+  AlertTopicKeyArn:
+    Description: KMS key that encrypts the security alert topic. A role that publishes to the topic needs kms:GenerateDataKey and kms:Decrypt on it
+    Value: !GetAtt AlertTopicKey.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-AlertTopicKeyArn'
 
   QuarantineStateMachineArn:
     Description: Quarantine workflow state machine ARN

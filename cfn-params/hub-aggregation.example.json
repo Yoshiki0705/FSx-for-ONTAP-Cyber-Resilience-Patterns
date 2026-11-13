@@ -10,9 +10,5 @@
   {
     "ParameterKey": "OrganizationId",
     "ParameterValue": "o-exampleorgid"
-  },
-  {
-    "ParameterKey": "SpokeAccountIds",
-    "ParameterValue": ""
   }
 ]

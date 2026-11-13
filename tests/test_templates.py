@@ -402,3 +402,168 @@ class TestOptionalKmsKeys:
         assert param in main["Parameters"]
         nested = [r for r in main["Resources"].values() if stack in str(r["Properties"]["TemplateURL"])]
         assert nested and nested[0]["Properties"]["Parameters"][param] == {"Ref": param}
+
+
+class TestAlertTopicDelivery:
+    """The security alert topic must accept alarms and EventBridge rules and stay encrypted.
+
+    A CloudWatch alarm cannot notify a topic encrypted with the AWS managed key aws/sns,
+    and the default topic policy lets no AWS service publish.
+    """
+
+    SERVICES = ["cloudwatch.amazonaws.com", "events.amazonaws.com"]
+
+    @pytest.fixture(scope="class")
+    def template(self) -> dict:
+        return _load_tagged("event-driven.yaml")
+
+    @staticmethod
+    def _statement(policy: dict, sid: str) -> dict:
+        return next(s for s in policy["Statement"] if s["Sid"] == sid)
+
+    def test_topic_uses_the_customer_managed_key(self, template: dict) -> None:
+        topic = template["Resources"]["SecurityAlertTopic"]["Properties"]
+        assert topic["KmsMasterKeyId"] == {"GetAtt": "AlertTopicKey.Arn"}
+
+    def test_key_rotates_and_lets_alarms_and_rules_publish(self, template: dict) -> None:
+        key = template["Resources"]["AlertTopicKey"]["Properties"]
+        assert key["EnableKeyRotation"] is True
+        statement = self._statement(key["KeyPolicy"], "AllowAlarmsAndRulesToPublish")
+        assert statement["Principal"]["Service"] == self.SERVICES
+        assert statement["Action"] == ["kms:Decrypt", "kms:GenerateDataKey*"]
+        assert statement["Condition"] == {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+        # No wildcard principal: only the account root administers the key.
+        assert self._statement(key["KeyPolicy"], "EnableAccountAdministration")["Principal"]["AWS"]["Sub"].endswith(
+            ":root"
+        )
+
+    def test_topic_policy_lets_alarms_and_rules_publish(self, template: dict) -> None:
+        policy = template["Resources"]["SecurityAlertTopicPolicy"]["Properties"]
+        assert policy["Topics"] == [{"Ref": "SecurityAlertTopic"}]
+        statement = self._statement(policy["PolicyDocument"], "AllowAlarmsAndRulesToPublish")
+        assert statement["Principal"]["Service"] == self.SERVICES
+        assert statement["Action"] == "sns:Publish"
+        assert statement["Resource"] == {"Ref": "SecurityAlertTopic"}
+        assert statement["Condition"] == {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+
+    def test_state_machine_role_can_use_the_key(self, template: dict) -> None:
+        policy = template["Resources"]["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]
+        grants = [s for s in policy["Statement"] if s["Action"] == ["kms:GenerateDataKey", "kms:Decrypt"]]
+        assert len(grants) == 1
+        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}]
+
+    def test_compliance_role_can_use_the_key_only_through_sns(self) -> None:
+        siem = _load_tagged("siem-integration.yaml")
+        policy = siem["Resources"]["ComplianceCollectorRole"]["Properties"]["Policies"][0]["PolicyDocument"]
+        grants = [s for s in policy["Statement"] if "kms:Decrypt" in s["Action"]]
+        assert len(grants) == 1
+        assert sorted(grants[0]["Action"]) == ["kms:Decrypt", "kms:GenerateDataKey"]
+        assert grants[0]["Condition"] == {
+            "StringEquals": {"kms:ViaService": {"Sub": "sns.${AWS::Region}.amazonaws.com"}}
+        }
+
+    def test_key_arn_is_exported_for_other_publishers(self, template: dict) -> None:
+        output = template["Outputs"]["AlertTopicKeyArn"]
+        assert output["Value"] == {"GetAtt": "AlertTopicKey.Arn"}
+        assert "Export" in output
+
+    def test_no_alarm_notifies_a_topic_encrypted_with_the_aws_managed_key(self) -> None:
+        for path in sorted(TEMPLATES_DIR.glob("*.yaml")):
+            resources = _load_tagged(path.name).get("Resources", {})
+            aws_managed = {
+                name
+                for name, r in resources.items()
+                if r["Type"] == "AWS::SNS::Topic" and r["Properties"].get("KmsMasterKeyId") == "alias/aws/sns"
+            }
+            for name, r in resources.items():
+                if r["Type"] != "AWS::CloudWatch::Alarm":
+                    continue
+                for action in r["Properties"].get("AlarmActions", []):
+                    target = action.get("Ref") if isinstance(action, dict) else None
+                    assert target not in aws_managed, f"{path.name}: {name} notifies {target}, encrypted with aws/sns"
+
+
+class TestQuarantineExecutionsFailedAlarm:
+    """A failed quarantine execution must raise an alarm that reaches the alert topic."""
+
+    @pytest.fixture(scope="class")
+    def alarm(self) -> dict:
+        return _load_tagged("event-driven.yaml")["Resources"]["QuarantineExecutionsFailedAlarm"]["Properties"]
+
+    def test_alarm_counts_failed_executions_of_the_quarantine_state_machine(self, alarm: dict) -> None:
+        assert alarm["Namespace"] == "AWS/States"
+        assert alarm["MetricName"] == "ExecutionsFailed"
+        # Ref of a state machine returns its ARN, which is the metric dimension value.
+        assert alarm["Dimensions"] == [{"Name": "StateMachineArn", "Value": {"Ref": "QuarantineStateMachine"}}]
+
+    def test_one_failed_execution_in_five_minutes_raises_the_alarm(self, alarm: dict) -> None:
+        assert alarm["Statistic"] == "Sum"
+        assert alarm["Period"] == 300
+        assert alarm["EvaluationPeriods"] == 1
+        assert alarm["Threshold"] == 1
+        assert alarm["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
+        # No failed execution publishes no datapoint, which is the healthy state.
+        assert alarm["TreatMissingData"] == "notBreaching"
+
+    def test_alarm_notifies_the_alert_topic(self, alarm: dict) -> None:
+        assert alarm["AlarmActions"] == [{"Ref": "SecurityAlertTopic"}]
+
+
+class TestHubAlertTopicDelivery:
+    """The hub alert topic must accept the hub EventBridge rule and stay encrypted.
+
+    An EventBridge rule delivered nothing to a topic encrypted with the AWS managed key aws/sns,
+    even with a topic policy that allows EventBridge to publish.
+    """
+
+    ACCOUNT_CONDITION = {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+
+    @pytest.fixture(scope="class")
+    def template(self) -> dict:
+        return _load_tagged("hub-aggregation.yaml")
+
+    @staticmethod
+    def _statement(policy: dict, sid: str) -> dict:
+        return next(s for s in policy["Statement"] if s["Sid"] == sid)
+
+    def test_topic_uses_the_customer_managed_key(self, template: dict) -> None:
+        topic = template["Resources"]["HubAlertTopic"]["Properties"]
+        assert topic["KmsMasterKeyId"] == {"GetAtt": "HubAlertTopicKey.Arn"}
+
+    def test_key_rotates_and_lets_rules_publish(self, template: dict) -> None:
+        key = template["Resources"]["HubAlertTopicKey"]["Properties"]
+        assert key["EnableKeyRotation"] is True
+        statement = self._statement(key["KeyPolicy"], "AllowRulesToPublish")
+        assert statement["Principal"] == {"Service": "events.amazonaws.com"}
+        assert statement["Action"] == ["kms:Decrypt", "kms:GenerateDataKey*"]
+        assert statement["Condition"] == self.ACCOUNT_CONDITION
+        admin = self._statement(key["KeyPolicy"], "EnableAccountAdministration")
+        assert admin["Principal"]["AWS"]["Sub"].endswith(":root")
+
+    def test_topic_policy_lets_rules_publish(self, template: dict) -> None:
+        policy = template["Resources"]["HubAlertTopicPolicy"]["Properties"]
+        assert policy["Topics"] == [{"Ref": "HubAlertTopic"}]
+        statement = self._statement(policy["PolicyDocument"], "AllowRulesToPublish")
+        assert statement["Principal"] == {"Service": "events.amazonaws.com"}
+        assert statement["Action"] == "sns:Publish"
+        assert statement["Resource"] == {"Ref": "HubAlertTopic"}
+        assert statement["Condition"] == self.ACCOUNT_CONDITION
+
+    def test_key_arn_is_an_output(self, template: dict) -> None:
+        assert template["Outputs"]["HubAlertTopicKeyArn"]["Value"] == {"GetAtt": "HubAlertTopicKey.Arn"}
+
+    def test_no_rule_targets_a_topic_encrypted_with_the_aws_managed_key(self) -> None:
+        for path in sorted(TEMPLATES_DIR.glob("*.yaml")):
+            resources = _load_tagged(path.name).get("Resources", {})
+            aws_managed = {
+                name
+                for name, r in resources.items()
+                if r["Type"] == "AWS::SNS::Topic" and r["Properties"].get("KmsMasterKeyId") == "alias/aws/sns"
+            }
+            for name, r in resources.items():
+                if r["Type"] != "AWS::Events::Rule":
+                    continue
+                for target in r["Properties"].get("Targets", []):
+                    arn = target.get("Arn")
+                    ref = arn.get("Ref") if isinstance(arn, dict) else None
+                    assert ref not in aws_managed, f"{path.name}: rule {name} targets {ref}, encrypted with aws/sns"

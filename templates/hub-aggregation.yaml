@@ -16,20 +16,13 @@ Parameters:
 
   OrganizationId:
     Type: String
-    Default: ''
+    AllowedPattern: '^o-[a-z0-9]{10,32}$'
+    ConstraintDescription: >
+      Must be an AWS Organizations ID such as o-xxxxxxxxxx. It is required:
+      the hub bus accepts events only from accounts in this organization.
     Description: >
-      AWS Organization ID (o-xxxxxxxxxx) to allow all member accounts.
-      If empty, use SpokeAccountIds for explicit account list.
-
-  SpokeAccountIds:
-    Type: CommaDelimitedList
-    Default: ''
-    Description: >
-      Comma-separated list of spoke account IDs allowed to send events.
-      Used when OrganizationId is not provided.
-
-Conditions:
-  UseOrganization: !Not [!Equals [!Ref OrganizationId, '']]
+      AWS Organizations ID (o-xxxxxxxxxx). Required. Every member account of
+      this organization may put events on the hub bus.
 
 Resources:
 
@@ -55,10 +48,7 @@ Resources:
       Condition:
         Type: StringEquals
         Key: 'aws:PrincipalOrgID'
-        Value: !If
-          - UseOrganization
-          - !Ref OrganizationId
-          - !Ref 'AWS::NoValue'
+        Value: !Ref OrganizationId
 
   # Route aggregated events to notification
   HubNotificationRule:
@@ -77,15 +67,92 @@ Resources:
         - Id: HubAlertTopic
           Arn: !Ref HubAlertTopic
 
+  # An EventBridge rule delivered nothing to a topic encrypted with the AWS
+  # managed key aws/sns, even with a topic policy that allows EventBridge
+  # (measured). The topic uses this customer managed key, whose policy lets
+  # EventBridge in this account publish.
+  HubAlertTopicKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub 'Encrypts the ${ProjectName} hub alert topic (${Environment})'
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableAccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowRulesToPublish
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey*'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  HubAlertTopicKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-hub-alert-topic-${Environment}'
+      TargetKeyId: !Ref HubAlertTopicKey
+
   # Hub SNS topic for aggregated alerts
   HubAlertTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub '${ProjectName}-hub-alerts-${Environment}'
-      KmsMasterKeyId: alias/aws/sns
+      KmsMasterKeyId: !GetAtt HubAlertTopicKey.Arn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
+
+  # The default topic policy lets no AWS service publish, so the rule above
+  # delivered nothing without this policy (measured).
+  HubAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref HubAlertTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountOwner
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - 'sns:Publish'
+              - 'sns:Subscribe'
+              - 'sns:Receive'
+              - 'sns:GetTopicAttributes'
+              - 'sns:SetTopicAttributes'
+              - 'sns:AddPermission'
+              - 'sns:RemovePermission'
+              - 'sns:DeleteTopic'
+              - 'sns:ListSubscriptionsByTopic'
+            Resource: !Ref HubAlertTopic
+          - Sid: AllowRulesToPublish
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sns:Publish'
+            Resource: !Ref HubAlertTopic
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
 
 Outputs:
   HubEventBusArn:
@@ -103,3 +170,7 @@ Outputs:
   HubAlertTopicArn:
     Description: Hub SNS topic for aggregated security alerts
     Value: !Ref HubAlertTopic
+
+  HubAlertTopicKeyArn:
+    Description: KMS key that encrypts the hub alert topic. An identity that publishes to the topic needs kms:GenerateDataKey and kms:Decrypt on it
+    Value: !GetAtt HubAlertTopicKey.Arn
