@@ -275,6 +275,11 @@ Resources:
   # account publish through their own identity policies.
   SecurityAlertTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W3037  # sns:Receive is a legacy topic-policy action absent from the linter's action list
     Properties:
       Topics:
         - !Ref SecurityAlertTopic
@@ -376,6 +381,11 @@ Resources:
 
   AlertFallbackTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W3037  # sns:Receive is a legacy topic-policy action absent from the linter's action list
     Properties:
       Topics:
         - !Ref AlertFallbackTopic
