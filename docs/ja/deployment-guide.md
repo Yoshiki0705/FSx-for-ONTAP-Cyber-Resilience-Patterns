@@ -202,6 +202,39 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 
 未測定のものは、このテンプレートのデプロイ、既定の閾値と期間 300 秒での動作、キューに複数のメッセージがある場合、デプロイしたスタックで Step Functions のロールが予備のトピックに発行できるか、です。
 
+## 承認待ちの Webhook
+
+前の節の 2 つのトピックは、どちらも SNS です。`ApprovalWebhookEndpoint` を指定すると、SNS を使わない経路が加わります。既定のイベントバスの EventBridge ルールが、`ApprovalWaitingAlarm` の状態の変化（`ALARM` と `OK`）を [API 送信先](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html)に送ります。受信側は、JSON の `POST` を受け付け、API キーのヘッダーを確かめる HTTPS のエンドポイントであれば種類を問いません。パラメータを空にすると、これらのリソースは作られません。
+
+| リソースまたはパラメータ | 役割 |
+|--------------------------|------|
+| パラメータ `ApprovalWebhookEndpoint` | Webhook の HTTPS の URL。`http://` はパラメータのパターンで拒否される |
+| パラメータ `ApprovalWebhookApiKeyName` と `ApprovalWebhookApiKeyValue` | ヘッダーの名前（既定 `x-api-key`）と値。値は `NoEcho` で、エンドポイントを指定したときに値が空だと、テンプレートのルールが拒否する |
+| `ApprovalWebhookConnection` | `API_KEY` の接続。EventBridge は、名前が `events!connection/` で始まる Secrets Manager のシークレットにキーを保存し、AWS 所有のキーで暗号化する |
+| `ApprovalWebhookDestination` | エンドポイントへの `POST`。呼び出しは毎秒 1 回まで |
+| `ApprovalWebhookRule` と `ApprovalWebhookRuleRole` | このアラームの `aws.cloudwatch` / `CloudWatch Alarm State Change` のイベントだけに一致する。ロールは、この送信先への `events:InvokeApiDestination` だけを持つ |
+| `ApprovalWebhookDlq` と `ApprovalWebhookDlqPolicy` | SQS マネージドの暗号化を使う標準キュー。送信できるのはこのルールだけ |
+| `ApprovalWebhookDlqAlarm` | デッドレターキューにメッセージがあると、両方のトピックに通知する |
+
+AWS のドキュメントにある動き方は次のとおりです。
+
+- リクエストは 5 秒でタイムアウトします。
+- 401、407、409、429、5xx の応答はリトライされます。ターゲットのリトライポリシーは 24 時間、185 回にしてあります。ほかの 4xx はリトライされず、イベントはデッドレターキューに入ります。
+- デッドレターキューのメッセージには、属性 `ERROR_CODE` と `ERROR_MESSAGE` が付きます。受信側を直した後、そこからイベントを送り直します。
+
+ルールとアラームは、トピックと同じリージョンにあります。この経路が補うのは SNS の障害で、リージョン単位の EventBridge や CloudWatch の障害では、この経路も止まります。Webhook の受信側は、別に監視が要ります。デッドレターキューのアラームは SNS のトピックに通知するためです。
+
+2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、同じ形の単独のリソース（アラーム、ルール、`API_KEY` の接続、API 送信先、デッドレターキュー）を使い、各 1 回測りました。受信側は、キーのヘッダーを確かめる Lambda の関数 URL です。
+
+| 場合 | 結果 |
+|------|------|
+| 対照: キーなし、続けてキーありのリクエスト | キーなしは 403、キーありは 200 |
+| アラームを `ALARM`、続けて `OK` にし、受信側は 200 を返す | 両方のイベントが、状態の変化から約 0.7 秒で届いた |
+| 受信側が 500 を返し、その後 200 に戻す | 約 1 秒、55 秒、166 秒の試行が 500 を受けた。受信側を 200 に戻した後、約 386 秒でイベントが届いた。デッドレターキューは空のまま |
+| 受信側が 400 を返す | 試行は 1 回で、リトライはなかった。両方のイベント（`ALARM` と `OK`）が、`ERROR_CODE` `INVALID_PARAMETER` 付きでデッドレターキューに入った |
+
+未測定のものは、このテンプレートのデプロイ、デッドレターキューのアラーム、EventBridge から SQS マネージドの暗号化のキューへの送信、です（試験のキューは既定の属性で作り、暗号化の設定は読み戻していません）。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い

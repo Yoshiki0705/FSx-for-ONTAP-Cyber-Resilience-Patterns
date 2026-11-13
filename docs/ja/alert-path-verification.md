@@ -13,6 +13,7 @@
 | 3 | デプロイしたスタックで、アラームと EventBridge ルールがトピックに配信されるか | 手順 5 の C1、C2 |
 | 4 | `ExecutionsFailed` アラームが、期間 300 秒で鳴るか | 手順 5 の C4 |
 | 5 | ハブのルールがハブのトピックに配信されるか。ハブのバスポリシーが意図どおりか | 手順 6 |
+| 6 | 承認待ちのアラームの状態の変化が、API 送信先を通って Webhook に届くか | 手順 5 の C6 |
 
 この手順では、次の 4 つは確認できません。
 
@@ -108,6 +109,7 @@ aws sns subscribe --topic-arn <トピック ARN> --protocol sqs --notification-e
 | C3 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | 実行は `SUCCEEDED` で終わり、キューに `ERROR: Quarantine Workflow Failed` が入る。ボリュームがないのでスナップショットが失敗し、`NotifyFailure` がロール経由で発行する |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{}'` | 実行は `FAILED` で終わる。数分後に `fsxn-cyber-resilience-quarantine-executions-failed-dev` が `ALARM` になり、キューに通知が入る |
 | C5 | 手順 4 と同じ方法で、出力 `AlertFallbackTopicArn` のトピックにもキューを購読させる（`aws:SourceArn` にトピックの ARN を加える）。続けて `aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | キューに `ALARM` の通知が 2 通、トピックごとに 1 通入る。予備のトピックの鍵ポリシーとトピックポリシーを確かめる。Step Functions のロールが予備のトピックに発行できるかは、`SendAlert` の失敗が要るので確かめられない |
+| C6 | `ApprovalWebhookEndpoint` に、受けたリクエストを読める試験用の受信側を指定してデプロイしたスタックだけで行う。`aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | 受信側に、キーのヘッダー付きで `CloudWatch Alarm State Change` のイベントが届く。ルール `fsxn-cyber-resilience-approval-webhook-dev` に `Invocations` が出て `FailedInvocations` は出ず、出力 `ApprovalWebhookDlqUrl` のキューは空のまま |
 
 C2 のイベントは、隔離ルールに一致しない送信元と種別にしてあるので、ワークフローは起動しません。`receive-message` は、届いているメッセージを 1 回で全部返すとは限りません。何も見えないときは、2〜3 回読み直してください。ルールが配信したかは、`AWS/Events` の `Invocations` と `FailedInvocations` で確かめられます。
 
@@ -117,6 +119,7 @@ C2 のイベントは、隔離ルールに一致しない送信元と種別に�
 - C2 だけが失敗した場合は、トピックポリシーを疑います。
 - C3 だけが失敗した場合は、Step Functions のロールの KMS 権限を疑います。
 - C5 で通知が 1 通だけの場合は、届かなかった側のトピックのポリシーを疑います。
+- C6 でデッドレターキューにメッセージが入った場合は、その属性 `ERROR_CODE` と `ERROR_MESSAGE` を読みます。401、407、409、429 以外の 4xx は、受信側がリクエストを拒否したことを示します（たとえば、キーの誤り）。
 
 ## 手順 6: ハブのスタック
 
@@ -177,4 +180,5 @@ C4 の時間は 1 回の観測で、指標の到着時刻に左右されます�
 
 - 「確認する内容」に挙げた 4 つ（承認フロー、`NotificationFailed`、`ComplianceCollectorRole`、スポークからの転送）。
 - C5。予備のトピックは、「測定結果」の実行の後に追加しました。
+- C6。Webhook の経路は、その実行の後に追加しました。単独のリソースでの測定は、[デプロイガイド](deployment-guide.md#承認待ちの-webhook)にあります。
 - 削除待ちのキーの料金。

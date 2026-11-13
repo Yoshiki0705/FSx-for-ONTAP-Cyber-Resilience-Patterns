@@ -43,6 +43,30 @@ Parameters:
       Age in seconds of the oldest message in the approval queue that raises the
       approval wait alarm. Must be shorter than the 24-hour approval timeout.
 
+  ApprovalWebhookEndpoint:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^https://\S+$'
+    Description: >
+      HTTPS URL of a webhook that receives the state changes of the approval wait
+      alarm through an EventBridge API destination (optional). Leave empty to create
+      no webhook resources.
+
+  ApprovalWebhookApiKeyName:
+    Type: String
+    Default: x-api-key
+    AllowedPattern: '^[A-Za-z0-9-]{1,64}$'
+    Description: Name of the HTTP header that carries the webhook API key.
+
+  ApprovalWebhookApiKeyValue:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: >
+      API key sent in the header named by ApprovalWebhookApiKeyName. Required when
+      ApprovalWebhookEndpoint is set. EventBridge stores it in a Secrets Manager
+      secret that the connection creates.
+
   LambdaArtifactBucket:
     Type: String
     Description: S3 bucket containing Lambda deployment packages.
@@ -82,8 +106,19 @@ Parameters:
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   HasFallbackNotificationEmail: !Not [!Equals [!Ref FallbackNotificationEmail, '']]
+  HasApprovalWebhook: !Not [!Equals [!Ref ApprovalWebhookEndpoint, '']]
   HasLogGroupKmsKey: !Not [!Equals [!Ref LogGroupKmsKeyArn, '']]
   HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
+
+# -------------------------------------------------------------------
+# Rules
+# -------------------------------------------------------------------
+Rules:
+  ApprovalWebhookNeedsApiKey:
+    RuleCondition: !Not [!Equals [!Ref ApprovalWebhookEndpoint, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ApprovalWebhookApiKeyValue, '']]
+        AssertDescription: ApprovalWebhookApiKeyValue is required when ApprovalWebhookEndpoint is set.
 
 # -------------------------------------------------------------------
 # Resources
@@ -949,6 +984,155 @@ Resources:
       TreatMissingData: notBreaching
 
   # ---------------------------------------------------------------
+  # Approval wait webhook (optional, HasApprovalWebhook)
+  # ---------------------------------------------------------------
+  # A path for the approval wait alarm that does not go through SNS. CloudWatch
+  # sends every alarm state change to the default event bus; this rule forwards
+  # the changes of ApprovalWaitingAlarm (ALARM and OK) to an API destination.
+  # It helps when SNS fails. EventBridge and the alarm are in the same Region as
+  # the topics, so a Regional EventBridge or CloudWatch outage stops this path too.
+  # Delivery is retried on 401, 407, 409, 429 and 5xx responses for up to
+  # 24 hours and 185 attempts. Other 4xx responses go to the dead-letter queue
+  # without a retry.
+  ApprovalWebhookConnection:
+    Type: AWS::Events::Connection
+    Condition: HasApprovalWebhook
+    Properties:
+      Name: !Sub '${ProjectName}-approval-webhook-${Environment}'
+      Description: API key for the approval wait webhook
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: !Ref ApprovalWebhookApiKeyName
+          ApiKeyValue: !Ref ApprovalWebhookApiKeyValue
+
+  ApprovalWebhookDestination:
+    Type: AWS::Events::ApiDestination
+    Condition: HasApprovalWebhook
+    Properties:
+      Name: !Sub '${ProjectName}-approval-webhook-${Environment}'
+      Description: Webhook that receives approval wait alarm state changes
+      ConnectionArn: !GetAtt ApprovalWebhookConnection.Arn
+      InvocationEndpoint: !Ref ApprovalWebhookEndpoint
+      HttpMethod: POST
+      InvocationRateLimitPerSecond: 1
+
+  ApprovalWebhookRuleRole:
+    Type: AWS::IAM::Role
+    Condition: HasApprovalWebhook
+    Properties:
+      RoleName: !Sub '${ProjectName}-approval-webhook-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: InvokeApprovalWebhook
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'events:InvokeApiDestination'
+                Resource: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:api-destination/${ApprovalWebhookDestination}/*'
+
+  # SQS managed encryption (SSE-SQS) needs no KMS key policy for EventBridge.
+  ApprovalWebhookDlq:
+    Type: AWS::SQS::Queue
+    Condition: HasApprovalWebhook
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_27
+            comment: >-
+              The queue is encrypted at rest with SQS managed encryption
+              (SqsManagedSseEnabled: true). This check accepts only KmsMasterKeyId.
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub '${ProjectName}-approval-webhook-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Layer
+          Value: event-driven
+
+  ApprovalWebhookDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Condition: HasApprovalWebhook
+    Properties:
+      Queues:
+        - !Ref ApprovalWebhookDlq
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowApprovalWebhookRule
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt ApprovalWebhookDlq.Arn
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !GetAtt ApprovalWebhookRule.Arn
+
+  ApprovalWebhookRule:
+    Type: AWS::Events::Rule
+    Condition: HasApprovalWebhook
+    Properties:
+      Name: !Sub '${ProjectName}-approval-webhook-${Environment}'
+      Description: Sends approval wait alarm state changes to the webhook
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.cloudwatch
+        detail-type:
+          - CloudWatch Alarm State Change
+        resources:
+          - !GetAtt ApprovalWaitingAlarm.Arn
+      Targets:
+        - Id: ApprovalWebhook
+          Arn: !GetAtt ApprovalWebhookDestination.Arn
+          RoleArn: !GetAtt ApprovalWebhookRuleRole.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 86400
+            MaximumRetryAttempts: 185
+          DeadLetterConfig:
+            Arn: !GetAtt ApprovalWebhookDlq.Arn
+
+  # An event in the dead-letter queue means the webhook rejected it or the
+  # retries ran out. The alarm notifies both topics.
+  ApprovalWebhookDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasApprovalWebhook
+    Properties:
+      AlarmName: !Sub '${ProjectName}-approval-webhook-dlq-${Environment}'
+      AlarmDescription: >-
+        An approval wait alarm state change was not delivered to the webhook. Read
+        the ERROR_CODE and ERROR_MESSAGE attributes of the message in the
+        dead-letter queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ApprovalWebhookDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlertFallbackTopic
+        - !Ref SecurityAlertTopic
+      TreatMissingData: notBreaching
+
+  # ---------------------------------------------------------------
   # IAM Roles
   # ---------------------------------------------------------------
 
@@ -1146,6 +1330,11 @@ Outputs:
     Value: !Ref AlertFallbackTopic
     Export:
       Name: !Sub '${ProjectName}-${Environment}-AlertFallbackTopicArn'
+
+  ApprovalWebhookDlqUrl:
+    Condition: HasApprovalWebhook
+    Description: SQS queue URL that holds approval wait alarm events the webhook did not accept
+    Value: !Ref ApprovalWebhookDlq
 
   QuarantineStateMachineArn:
     Description: Quarantine workflow state machine ARN

@@ -13,6 +13,7 @@ This procedure deploys the stacks to a test environment and checks that alerts r
 | 3 | Do an alarm and an EventBridge rule deliver to the topic in the deployed stack? | Step 5, C1 and C2 |
 | 4 | Does the `ExecutionsFailed` alarm fire with its 300-second period? | Step 5, C4 |
 | 5 | Does the hub rule deliver to the hub topic, and is the hub bus policy what you intend? | Step 6 |
+| 6 | Does a state change of the approval wait alarm reach the webhook through the API destination? | Step 5, C6 |
 
 These steps do not check four things:
 
@@ -108,6 +109,7 @@ Read each result with `aws sqs receive-message --queue-url <queue URL> --wait-ti
 | C3 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | The execution ends `SUCCEEDED`, and the queue holds `ERROR: Quarantine Workflow Failed`. The volume does not exist, so the snapshot fails and `NotifyFailure` publishes through the role |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{}'` | The execution ends `FAILED`. After a few minutes `fsxn-cyber-resilience-quarantine-executions-failed-dev` reaches `ALARM` and the queue holds the notification |
 | C5 | Subscribe the queue to the `AlertFallbackTopicArn` output as in Step 4 (add the topic ARN to `aws:SourceArn`), then `aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | Two `ALARM` notifications in the queue, one from each topic. This checks the fallback key policy and topic policy. It does not check that the Step Functions role can publish to the fallback topic, which needs a failed `SendAlert` |
+| C6 | Only for a stack deployed with `ApprovalWebhookEndpoint` set to a test receiver whose requests you can read. Run `aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | The receiver gets a `CloudWatch Alarm State Change` event with the key header. The rule `fsxn-cyber-resilience-approval-webhook-dev` shows `Invocations` and no `FailedInvocations`, and the `ApprovalWebhookDlqUrl` queue stays empty |
 
 The event in C2 uses a source and detail type that the quarantine rule does not match, so it starts no workflow. `receive-message` does not always return every waiting message in one call. If you see nothing, read two or three more times. The rule's `Invocations` and `FailedInvocations` in `AWS/Events` show whether it delivered.
 
@@ -117,6 +119,7 @@ How to read a failure:
 - If only C2 fails, suspect the topic policy.
 - If only C3 fails, suspect the KMS permission of the Step Functions role.
 - If C5 shows only one notification, suspect the policy of the topic that sent nothing.
+- If C6 puts a message in the dead-letter queue, read its `ERROR_CODE` and `ERROR_MESSAGE` attributes. A 4xx other than 401, 407, 409 and 429 means the receiver rejected the request (for example, a wrong key).
 
 ## Step 6: Hub Stack
 
@@ -177,4 +180,5 @@ The C4 time is from one observation and depends on when the metric arrives. It w
 
 - The four items listed under "What This Checks" (the approval path, `NotificationFailed`, `ComplianceCollectorRole`, and events forwarded from a spoke account).
 - C5. The fallback topic was added after the run under "Results".
+- C6. The webhook path was added after that run. Its standalone measurement is in the [deployment guide](deployment-guide.md#approval-wait-webhook).
 - The charge for a key pending deletion.
