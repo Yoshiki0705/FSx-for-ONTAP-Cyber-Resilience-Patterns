@@ -128,6 +128,14 @@ def test_json_round_trip_gives_the_same_record(record: rr.RunRecord) -> None:
     assert rr.to_json(rr.from_json(text)) == text
 
 
+def test_text_does_not_depend_on_the_insertion_order_of_maps() -> None:
+    """Equal records give the same text even when their maps were filled in another order."""
+    a = _record(summary_overflow={"example-org/a": 1, "example-org/b": 2})
+    b = _record(summary_overflow={"example-org/b": 2, "example-org/a": 1})
+    assert a == b
+    assert rr.to_json(a) == rr.to_json(b)
+
+
 def test_json_has_the_design_keys_and_the_added_fields() -> None:
     """The text carries schema_version 1, the Q-13/Q-18 fields and a recorded 0-check repository."""
     data = json.loads(rr.to_json(_record()))
@@ -155,6 +163,7 @@ def test_json_has_the_design_keys_and_the_added_fields() -> None:
         lambda d: d["pull_requests"][0].update(repo="no-slash"),
         lambda d: d.update(aggregator_commit="ABC"),
         lambda d: d.update(kev_fetched_on="2026-13-40"),
+        lambda d: d.update(kev_fetched_on="20261110"),
     ],
 )
 def test_malformed_records_are_rejected(mutate) -> None:  # noqa: ANN001
