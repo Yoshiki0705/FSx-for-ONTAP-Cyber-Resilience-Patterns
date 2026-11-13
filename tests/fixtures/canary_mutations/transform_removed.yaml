@@ -1,0 +1,77 @@
+# Reduced copy of templates/event-driven.yaml in the shape task 12.2 gives it (design section 12).
+# Only the resources the Lambda_Canary_Reference test reads are kept; the other resources the
+# Outputs point at are empty stand-ins. All names and values are synthetic.
+# MUTATION: Transform line removed
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  EventTransformerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: example-event-transformer
+      Runtime: python3.12
+      Handler: event_transformer.handler
+      CodeUri:
+        Bucket: example-artifact-bucket
+        Key: lambda/event-transformer.zip
+      AutoPublishAlias: live
+      DeploymentPreference:
+        Type: Canary10Percent5Minutes
+        Alarms:
+          - !Ref EventTransformerAliasErrorsAlarm
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: FunctionUpdate
+  EventTransformerAliasErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+        - Name: Resource
+          Value: !Sub '${EventTransformerLambda}:live'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  EventTransformerMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt SecurityEventQueue.Arn
+      FunctionName: !Ref EventTransformerLambda.Alias
+  BatchScanResultMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt BatchScanResultQueue.Arn
+      FunctionName: !Ref EventTransformerLambda.Alias
+  SecurityEventQueue:
+    Type: AWS::SQS::Queue
+  ApprovalQueue:
+    Type: AWS::SQS::Queue
+  BatchScanResultQueue:
+    Type: AWS::SQS::Queue
+  SecurityEventBus:
+    Type: AWS::Events::EventBus
+  SecurityAlertTopic:
+    Type: AWS::SNS::Topic
+  QuarantineStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+Outputs:
+  SecurityEventQueueUrl:
+    Value: !Ref SecurityEventQueue
+  ApprovalQueueUrl:
+    Value: !Ref ApprovalQueue
+  SecurityEventQueueArn:
+    Value: !GetAtt SecurityEventQueue.Arn
+  SecurityEventBusName:
+    Value: !Ref SecurityEventBus
+  SecurityAlertTopicArn:
+    Value: !Ref SecurityAlertTopic
+  QuarantineStateMachineArn:
+    Value: !Ref QuarantineStateMachine
+  BatchScanResultQueueUrl:
+    Value: !Ref BatchScanResultQueue
+  BatchScanResultQueueArn:
+    Value: !GetAtt BatchScanResultQueue.Arn
