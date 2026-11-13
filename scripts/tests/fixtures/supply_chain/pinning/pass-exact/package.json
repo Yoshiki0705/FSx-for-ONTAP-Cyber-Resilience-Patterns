@@ -1,7 +1,7 @@
 {
   "name": "example",
   "dependencies": {
-    "aws-cdk-lib": "2.140.0"
+    "aws-cdk-lib": "2.260.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
