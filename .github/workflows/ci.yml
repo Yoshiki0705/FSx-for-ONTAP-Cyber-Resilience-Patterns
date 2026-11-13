@@ -127,6 +127,14 @@ jobs:
       # environment-specific list stays local in .sensitive-patterns.local.
       - name: Check tracked files for sensitive data
         run: python3 scripts/check_sensitive_patterns.py --tracked
+      # Same two commands as `make check-supply-chain`, which `make test` runs. The selftest
+      # comes first: every subcommand must be seen failing on its fixtures before a clean
+      # result on the repository means anything. Offline by design; the SHA-existence check
+      # (`make check-pinned-sha-exist`) needs a token and the network and is not run here.
+      - name: Supply-chain gates (selftest, then the repository)
+        run: |
+          python3 scripts/check_supply_chain.py --selftest
+          python3 scripts/check_supply_chain.py
       - name: Run pytest
         env:
           AWS_DEFAULT_REGION: ap-northeast-1
