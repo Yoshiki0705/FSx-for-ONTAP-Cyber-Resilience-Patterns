@@ -44,11 +44,13 @@ git worktree add --detach ../fsxn-cyber-new origin/main
 `fsxn-cyber-old` で実行します。クイックスタートの、FSx for ONTAP を含まないパイプラインのみのデプロイです。
 
 ```
-./scripts/deploy.sh dev package
+./scripts/package-lambdas.sh --upload --bucket "$LAMBDA_ARTIFACT_BUCKET"
 ./scripts/deploy.sh dev network
 ./scripts/deploy.sh dev events
 ./scripts/deploy.sh dev observability
 ```
+
+`./scripts/deploy.sh dev package` は、パッケージを `lambda-packages/` に作り、バケットへのアップロードはしません。`events` のスタックは Lambda のコードをバケットから読むので、`package-lambdas.sh --upload` でアップロードします。バケットは、暗号化を有効にし、パブリックアクセスをブロックしておきます。
 
 これで、手順 3 の更新は、`aws/sns` で暗号化したトピックを持つスタックから始まります。
 
@@ -67,7 +69,7 @@ aws cloudformation describe-change-set --stack-name fsxn-cyber-resilience-events
 | `Modify` と `False` | 手順 3 へ進む |
 | `True` または `Conditional` | 中止する。置換されたトピックは ARN が変わり、購読が失われる |
 
-期待する結果は `Modify` と `False` です。これは確認していません。同じ表に、`AlertTopicKey`、`SecurityAlertTopicPolicy`、`QuarantineExecutionsFailedAlarm` が `Add` で出るはずです。
+期待する結果は `Modify` と `False` です。同じ表に、`AlertTopicKey`、`AlertTopicKeyAlias`、`SecurityAlertTopicPolicy`、`QuarantineExecutionsFailedAlarm` が `Add` で出ます。`QuarantineStateMachine` と `StepFunctionsExecutionRole` は `Modify` と `False` です。1 回の実行での結果は、「測定結果」にあります。
 
 ## 手順 3: 更新の適用
 
@@ -106,7 +108,7 @@ aws sns subscribe --topic-arn <トピック ARN> --protocol sqs --notification-e
 | C3 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | 実行は `SUCCEEDED` で終わり、キューに `ERROR: Quarantine Workflow Failed` が入る。ボリュームがないのでスナップショットが失敗し、`NotifyFailure` がロール経由で発行する |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{}'` | 実行は `FAILED` で終わる。数分後に `fsxn-cyber-resilience-quarantine-executions-failed-dev` が `ALARM` になり、キューに通知が入る |
 
-C2 のイベントは、隔離ルールに一致しない送信元と種別にしてあるので、ワークフローは起動しません。C4 の所要時間は測っていません。期間 60 秒の試験では 104 秒でした。
+C2 のイベントは、隔離ルールに一致しない送信元と種別にしてあるので、ワークフローは起動しません。`receive-message` は、届いているメッセージを 1 回で全部返すとは限りません。何も見えないときは、2〜3 回読み直してください。ルールが配信したかは、`AWS/Events` の `Invocations` と `FailedInvocations` で確かめられます。
 
 失敗の読み方は次のとおりです。
 
@@ -124,7 +126,7 @@ aws cloudformation describe-stacks --stack-name fsxn-cyber-resilience-hub-dev --
 aws events describe-event-bus --name fsxn-cyber-resilience-hub-dev --query Policy --output text
 ```
 
-手順 4 と同じ方法でハブのトピックにキューを購読し、ハブのバスにイベントを送ります。
+手順 4 と同じ方法でハブのトピックにキューを購読し（キューのポリシーの `aws:SourceArn` に、ハブのトピックの ARN も加えます）、ハブのバスにイベントを送ります。
 
 ```
 aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.fpolicy","DetailType":"MalwareDetected","Detail":"{}","EventBusName":"fsxn-cyber-resilience-hub-dev"}]'
@@ -152,8 +154,24 @@ aws cloudformation delete-stack --stack-name fsxn-cyber-resilience-network-dev
 - スタックの更新が失敗した場合は、自動で戻ります（手順 3）。再実行の前に、`aws cloudformation describe-stack-events` で原因を調べてください。
 - 確認（手順 5）が失敗した場合は、スタックを戻す必要はありません。上の読み方で原因を調べ、確認が通るまで、テンプレートを本番環境に移さないでください。
 
+## 測定結果
+
+2026-11-13（日本時間）に、1 アカウントの `ap-northeast-1` で、この手順を 1 回実行しました。旧版はコミット `7654c64`、新版はコミット `a83a24e` です。
+
+| 確認 | 結果 |
+|------|------|
+| 手順 1 の旧版のトピックの鍵 | `alias/aws/sns` |
+| 手順 2 の `SecurityAlertTopic` | `Modify` と `False`。トピックは置換されず、更新後の鍵は `AlertTopicKey` になった |
+| C1 | `ALARM` の通知がキューに届き、履歴に `Successfully executed action` が出た |
+| C2 | イベントの本文がキューに届いた。ルールの `Invocations` は 1、`FailedInvocations` は 0 |
+| C3 | 実行は `SUCCEEDED`。`CreateForensicSnapshot` から `NotifyFailure` に進み、`ERROR: Quarantine Workflow Failed` がキューに届いた |
+| C4 | 実行は `FAILED`（`States.Runtime`）。アラームのアクションは、実行開始の約 49 秒後。通知がキューに届いた |
+| 手順 6 のバスポリシー | `"Principal":"*"` と、組織 ID への `aws:PrincipalOrgID` の `StringEquals` 条件 |
+| 手順 6 のハブのトピック | イベントの本文がキューに届いた |
+
+C4 の時間は 1 回の観測で、指標の到着時刻に左右されます。再現は確認していません。
+
 ## 未測定の項目
 
-- この手順の実行。コマンドはデプロイスクリプトとテンプレートの出力に沿って書いたもので、C1〜C4 はデプロイしたスタックでは実行していません。
-- 手順 2 の、トピックの更新がその場で済むか。
-- 期間 300 秒での C4 の所要時間。
+- 「確認する内容」に挙げた 4 つ（承認フロー、`NotificationFailed`、`ComplianceCollectorRole`、スポークからの転送）。
+- 削除待ちのキーの料金。
