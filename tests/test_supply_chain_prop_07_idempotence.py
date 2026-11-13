@@ -21,6 +21,7 @@ from tests.fakes import issue_store as fake
 from tests.strategies import supply_chain as sc
 
 _LIMITS = (1, 2, 3, 4, 20)
+_MAX_RUNS = 40
 
 
 def _policy(limit: int) -> models.Policy:
@@ -129,6 +130,30 @@ def test_planning_stays_empty_after_closed_issues_are_reopened(inputs: models.Pl
     assert planner.plan(_settle(closed, second)).actions == ()
 
 
+# Feature: cyber-resilience-phase4-supply-chain, Property 7: 計画の冪等性
+@settings(max_examples=100, deadline=None)
+@given(st.sampled_from(_LIMITS).flatmap(_sized))
+def test_repeated_runs_settle_to_an_empty_plan_even_with_overflow(inputs: models.PlanInputs) -> None:
+    """With overflow, the rest is created by later runs; planning then reaches an empty plan and stays there.
+
+    This covers the summary Issue (create, update, close), which the cases above skip. The bound is the
+    largest number of findings the generator makes plus the runs the summary needs to close.
+
+    **Validates: Requirements 8.5, 27.5**
+    """
+    current = inputs
+    runs = 0
+    for runs in range(1, _MAX_RUNS + 1):
+        plan = planner.plan(current)
+        if not plan.actions:
+            break
+        current = _settle(current, plan)
+    else:
+        raise AssertionError(f"still planning after {_MAX_RUNS} runs")
+    event(f"runs={min(runs, 4)}")
+    assert planner.plan(_settle(current, planner.plan(current))).actions == ()
+
+
 def test_the_property_is_not_vacuous() -> None:
     """Across the generated inputs, non-overflowing runs create and close, and from a settled state update and reopen."""
     seen: Counter[str] = Counter()
@@ -148,6 +173,13 @@ def test_the_property_is_not_vacuous() -> None:
         settled = _settle(inputs, first)
         second = planner.plan(replace(settled, feeds=replace(settled.feeds, epss=epss)))
         seen.update(f"derived-{a.op}" for a in second.actions)
+        current = inputs
+        for _ in range(_MAX_RUNS):
+            step = planner.plan(current)
+            if not step.actions:
+                break
+            seen.update(f"summary-{a.op}" for a in step.actions if a.kind == "summary")
+            current = _settle(current, step)
         closed = replace(
             settled,
             issues=tuple(replace(i, state="closed") if i.kind == "finding" else i for i in settled.issues),
@@ -155,6 +187,8 @@ def test_the_property_is_not_vacuous() -> None:
         seen.update(f"closed-{a.op}" for a in planner.plan(closed).actions)
 
     run()
+    seen_summary = seen["summary-create"] + seen["summary-update"] + seen["summary-close"]
+    assert seen_summary > 0, f"no summary action over the settling runs; counts {sorted(seen.items())}"
     needed = ("checked", "create", "close", "derived-update", "closed-reopen")
     missing = [k for k in needed if seen[k] == 0]
     assert not missing, f"never seen: {missing}; counts {sorted(seen.items())}"
