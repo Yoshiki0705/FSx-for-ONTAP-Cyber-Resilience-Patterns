@@ -1,0 +1,35 @@
+{
+  "note": "Public view of the Infrastructure_Component_Ledger. Each row has only verified_version (component name + version), advisory_match (該当あり / 該当なし / 判定保留) and matched_on (YYYY-MM-DD, or null while the row has never been matched). The mapping of an FSx for ONTAP version to NetApp advisories written for ONTAP 9 is a hypothesis, so no row is marked 該当なし yet. File system IDs, endpoints and running versions are kept in the private view.",
+  "rows": [
+    {
+      "verified_version": "ONTAP 9.18.1P6",
+      "advisory_match": "該当なし",
+      "matched_on": "2026-13-40"
+    },
+    {
+      "verified_version": "ONTAP 9.18.1P3D1",
+      "advisory_match": "判定保留",
+      "matched_on": null
+    },
+    {
+      "verified_version": "ONTAP 9.17.1P7D1",
+      "advisory_match": "判定保留",
+      "matched_on": null
+    },
+    {
+      "verified_version": "FSx for ONTAP deployment type SINGLE_AZ_1",
+      "advisory_match": "判定保留",
+      "matched_on": null
+    },
+    {
+      "verified_version": "TrendAI Vision One File Security <version-not-recorded>",
+      "advisory_match": "判定保留",
+      "matched_on": null
+    },
+    {
+      "verified_version": "Deep Instinct for NetApp ONTAP <version-not-recorded>",
+      "advisory_match": "判定保留",
+      "matched_on": null
+    }
+  ]
+}

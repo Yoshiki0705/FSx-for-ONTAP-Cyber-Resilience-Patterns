@@ -144,6 +144,27 @@ def stale_rows(doc: Any, today: dt.date) -> list[str]:
     return stale
 
 
+#: (substring of a problem message, kind). The first match wins; used by the
+#: ``infra-ledger`` gate subcommand to label the strings ``check_public`` returns.
+_KINDS = (
+    ("D-suffixed", "d-suffix"),
+    ("holds a", "sensitive"),
+    ("sensitive values", "sensitive"),
+    ("advisory_match must be", "match-value"),
+    ("needs matched_on", "decided-without-date"),
+    ("keeps matched_on null", "undecided-with-date"),
+    ("matched_on must be", "date"),
+)
+
+
+def problem_kind(problem: str) -> str:
+    """Return the short kind of a message from ``check_public`` (``schema`` if none fits)."""
+    for needle, kind in _KINDS:
+        if needle in problem:
+            return kind
+    return "schema"
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the checks on the files named on the command line."""
     parser = argparse.ArgumentParser(description=__doc__)
