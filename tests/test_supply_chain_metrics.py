@@ -155,6 +155,18 @@ def test_resolved_issue_without_a_pull_request_has_no_pr_intervals() -> None:
     assert (result.opened_to_pr.missing_end, result.pr_to_merge.missing_end) == (1, 1)
 
 
+def test_durations_of_every_interval_are_sorted() -> None:
+    issues = [
+        _issue(vuln="a", origin=0, opened=10, closed=90, reason="resolved"),
+        _issue(vuln="b", origin=9, opened=10, closed=20, reason="resolved"),
+    ]
+    prs = [_pr(30, 80, vuln="a"), _pr(12, 14, vuln="b")]
+    result = _run(issues, prs)
+    for stats in (result.detection, result.opened_to_pr, result.pr_to_merge, result.fix):
+        assert len(stats.durations) == 2
+        assert list(stats.durations) == sorted(stats.durations)
+
+
 def test_overdue_counts_open_issues_past_due_only() -> None:
     issues = [
         _issue(vuln="a", due=100),  # open, past due
