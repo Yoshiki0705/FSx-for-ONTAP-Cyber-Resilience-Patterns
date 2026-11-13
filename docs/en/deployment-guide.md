@@ -156,8 +156,7 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 
 ### Not measured
 
-- No deployment of these templates. The cases above used standalone resources with the same key policy and topic policy.
-- Whether changing the key of an existing topic updates it in place.
+- The cases above used standalone resources. A deployment of these templates, including an in-place update of an existing topic from `aws/sns` to `AlertTopicKey`, was run once and is recorded in [Verifying the Alert Path After Deployment](alert-path-verification.md#results).
 - The key's monthly cost. The key is deleted with the stack after a 30-day waiting period.
 - The hub topic was tested with the rule and the topic in one account. Events forwarded from a spoke account to the hub bus were not tested.
 
@@ -171,7 +170,7 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 - `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the execution continues to `WaitForApproval` and stores the error in `$.alertError`, which the approval message carries. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on a mocked failure (retries used up): the failure was caught and the next state was `WaitForApproval`. A deployed execution was not run.
 - CloudWatch metrics for Step Functions are delivered on a best-effort basis, so a datapoint can arrive late or not at all ([Step Functions metrics](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)).
 
-Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. Not measured: a deployment of this template, a failure of the real quarantine workflow, and the 300-second period.
+Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. A deployment of this template with the 300-second period was run once on 2026-11-13: a failed execution of the quarantine workflow raised the alarm about 49 seconds after it started ([results](alert-path-verification.md#results)).
 
 ## VPC Endpoint Conflict Matrix
 

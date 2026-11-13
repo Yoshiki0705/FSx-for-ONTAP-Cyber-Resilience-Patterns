@@ -44,11 +44,13 @@ Commit `7654c64` is the state before the alert topic key change. `fsxn-cyber-new
 Run these in `fsxn-cyber-old`. This is the pipeline-only deployment from the Quickstart, without FSx for ONTAP.
 
 ```
-./scripts/deploy.sh dev package
+./scripts/package-lambdas.sh --upload --bucket "$LAMBDA_ARTIFACT_BUCKET"
 ./scripts/deploy.sh dev network
 ./scripts/deploy.sh dev events
 ./scripts/deploy.sh dev observability
 ```
+
+`./scripts/deploy.sh dev package` builds the packages in `lambda-packages/` and uploads nothing. The `events` stack reads the Lambda code from the bucket, so upload the packages with `package-lambdas.sh --upload`. Turn on encryption and block public access on the bucket first.
 
 The update in Step 3 then starts from a stack that has a topic encrypted with `aws/sns`.
 
@@ -67,7 +69,7 @@ aws cloudformation describe-change-set --stack-name fsxn-cyber-resilience-events
 | `Modify` and `False` | Go to Step 3 |
 | `True` or `Conditional` | Stop. A replaced topic gets a new ARN and loses its subscriptions |
 
-The expected result is `Modify` and `False`. This was not checked. The same table should also list `AlertTopicKey`, `SecurityAlertTopicPolicy` and `QuarantineExecutionsFailedAlarm` as `Add`.
+The expected result is `Modify` and `False`. The same table lists `AlertTopicKey`, `AlertTopicKeyAlias`, `SecurityAlertTopicPolicy` and `QuarantineExecutionsFailedAlarm` as `Add`, and `QuarantineStateMachine` and `StepFunctionsExecutionRole` as `Modify` and `False`. The result of one run is under "Results".
 
 ## Step 3: Apply the Update
 
@@ -106,7 +108,7 @@ Read each result with `aws sqs receive-message --queue-url <queue URL> --wait-ti
 | C3 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | The execution ends `SUCCEEDED`, and the queue holds `ERROR: Quarantine Workflow Failed`. The volume does not exist, so the snapshot fails and `NotifyFailure` publishes through the role |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{}'` | The execution ends `FAILED`. After a few minutes `fsxn-cyber-resilience-quarantine-executions-failed-dev` reaches `ALARM` and the queue holds the notification |
 
-The event in C2 uses a source and detail type that the quarantine rule does not match, so it starts no workflow. The time C4 takes was not measured. A test with a 60-second period took 104 seconds.
+The event in C2 uses a source and detail type that the quarantine rule does not match, so it starts no workflow. `receive-message` does not always return every waiting message in one call. If you see nothing, read two or three more times. The rule's `Invocations` and `FailedInvocations` in `AWS/Events` show whether it delivered.
 
 How to read a failure:
 
@@ -124,7 +126,7 @@ aws cloudformation describe-stacks --stack-name fsxn-cyber-resilience-hub-dev --
 aws events describe-event-bus --name fsxn-cyber-resilience-hub-dev --query Policy --output text
 ```
 
-Subscribe a queue to the hub topic as in Step 4, then send an event to the hub bus:
+Subscribe a queue to the hub topic as in Step 4 (add the hub topic ARN to `aws:SourceArn` in the queue policy), then send an event to the hub bus:
 
 ```
 aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.fpolicy","DetailType":"MalwareDetected","Detail":"{}","EventBusName":"fsxn-cyber-resilience-hub-dev"}]'
@@ -152,8 +154,24 @@ Wait for each deletion with `aws cloudformation wait stack-delete-complete --sta
 - A failed stack update rolls back by itself (Step 3). Find the cause in `aws cloudformation describe-stack-events` before you retry.
 - A failed check (Step 5) does not need a stack rollback. Find the cause with the reading above, and do not move the templates to a production environment until the check passes.
 
+## Results
+
+This procedure was run once on 2026-11-13 (JST) in one account in `ap-northeast-1`. The previous version was commit `7654c64` and the new version commit `a83a24e`.
+
+| Check | Result |
+|-------|--------|
+| Topic key of the previous version (Step 1) | `alias/aws/sns` |
+| `SecurityAlertTopic` in Step 2 | `Modify` and `False`. The topic was not replaced, and after the update its key was `AlertTopicKey` |
+| C1 | The `ALARM` notification arrived in the queue, and the history showed `Successfully executed action` |
+| C2 | The event body arrived in the queue. The rule showed 1 `Invocations` and 0 `FailedInvocations` |
+| C3 | The execution ended `SUCCEEDED`, going from `CreateForensicSnapshot` to `NotifyFailure`, and `ERROR: Quarantine Workflow Failed` arrived in the queue |
+| C4 | The execution ended `FAILED` (`States.Runtime`). The alarm action ran about 49 seconds after the execution started, and the notification arrived in the queue |
+| Bus policy (Step 6) | `"Principal":"*"` with a `StringEquals` condition on `aws:PrincipalOrgID` holding the organization ID |
+| Hub topic (Step 6) | The event body arrived in the queue |
+
+The C4 time is from one observation and depends on when the metric arrives. It was not reproduced.
+
 ## Not Measured
 
-- No run of this procedure. The commands follow the deployment script and the template outputs, and the checks C1 to C4 were not run in a deployed stack.
-- Whether the topic update in Step 2 is in place.
-- The time C4 takes with the 300-second period.
+- The four items listed under "What This Checks" (the approval path, `NotificationFailed`, `ComplianceCollectorRole`, and events forwarded from a spoke account).
+- The charge for a key pending deletion.
