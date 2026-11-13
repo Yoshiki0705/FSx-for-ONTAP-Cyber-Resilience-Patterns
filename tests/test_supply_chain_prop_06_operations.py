@@ -50,12 +50,20 @@ def _check(inputs: models.PlanInputs, data: st.DataObject) -> Counter[str]:
     assert len(by_key) == len(settled) == len(created)
 
     changed = data.draw(st.booleans(), label="feed values change")
-    choices = {key: data.draw(st.sampled_from(["open", "closed", "deleted"]), label=str(key[1])) for key in by_key}
-    issues = tuple(
-        replace(i, state="closed") if choices[(i.repo, i.vuln_id)] == "closed" else i
-        for i in settled
-        if choices[(i.repo, i.vuln_id)] != "deleted"
-    )
+    states = ["open", "closed", "deleted", "open_twin_closed", "open_twin_open"]
+    choices = {key: data.draw(st.sampled_from(states), label=str(key[1])) for key in by_key}
+    built: list[models.ManagedIssue] = []
+    for i in settled:
+        choice = choices[(i.repo, i.vuln_id)]
+        if choice == "closed":
+            built.append(replace(i, state="closed"))
+        elif choice.startswith("open_twin"):
+            # A duplicate of the same marker; the twin has the lower number so a wrong pick shows.
+            twin_state = "closed" if choice.endswith("closed") else "open"
+            built += [replace(i, number=i.number + 1000), replace(i, state=twin_state)]  # type: ignore[arg-type]
+        elif choice != "deleted":
+            built.append(i)
+    issues = tuple(built)
     feeds = inputs.feeds
     if changed:
         epss = {
@@ -70,7 +78,7 @@ def _check(inputs: models.PlanInputs, data: st.DataObject) -> Counter[str]:
             assert ops == ["reopen"], (repo, vuln_id, ops)
         elif choice == "deleted":
             assert ops == ["create"], (repo, vuln_id, ops)
-        else:
+        else:  # open, or open next to a duplicate: only one Issue is touched
             assert ops == (["update"] if changed else []), (repo, vuln_id, ops)
         event(f"{choice}/{'changed' if changed else 'same'}")
         seen[f"{choice}/{'changed' if changed else 'same'}"] += 1
@@ -109,6 +117,10 @@ def test_property_6_cases_all_occur() -> None:
         seen.update(_check(inputs, data))
 
     run()
-    wanted = [f"{s}/{c}" for s in ("open", "closed", "deleted") for c in ("changed", "same")]
+    wanted = [
+        f"{s}/{c}"
+        for s in ("open", "closed", "deleted", "open_twin_closed", "open_twin_open")
+        for c in ("changed", "same")
+    ]
     missing = [k for k in (*wanted, "overflow", "summary") if seen[k] == 0]
     assert not missing, f"never seen: {missing}; counts {sorted(seen.items())}"
