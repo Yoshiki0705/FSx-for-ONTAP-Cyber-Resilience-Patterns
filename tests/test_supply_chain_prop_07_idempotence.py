@@ -104,8 +104,33 @@ def test_planning_stays_empty_after_the_feeds_change_and_the_result_is_applied(i
     assert planner.plan(_settle(changed, second)).actions == ()
 
 
+# Feature: cyber-resilience-phase4-supply-chain, Property 7: 計画の冪等性
+@settings(max_examples=100, deadline=None)
+@given(st.sampled_from(_LIMITS).flatmap(_sized))
+def test_planning_stays_empty_after_closed_issues_are_reopened(inputs: models.PlanInputs) -> None:
+    """Close the finding Issues of a settled state by hand, plan (reopens expected), settle, plan again.
+
+    **Validates: Requirements 8.5, 27.5**
+    """
+    first = planner.plan(inputs)
+    if first.overflow_counts:
+        event("overflow: skipped")
+        return
+    settled = _settle(inputs, first)
+    closed = replace(
+        settled,
+        issues=tuple(replace(i, state="closed") if i.kind == "finding" else i for i in settled.issues),
+    )
+    second = planner.plan(closed)
+    if second.overflow_counts:
+        event("overflow: skipped")
+        return
+    event(f"reopens={min(sum(a.op == 'reopen' for a in second.actions), 3)}")
+    assert planner.plan(_settle(closed, second)).actions == ()
+
+
 def test_the_property_is_not_vacuous() -> None:
-    """Across the generated inputs, non-overflowing runs create, close, reopen and update before settling."""
+    """Across the generated inputs, non-overflowing runs create and close, and from a settled state update and reopen."""
     seen: Counter[str] = Counter()
 
     @settings(max_examples=150, deadline=None)
@@ -123,9 +148,14 @@ def test_the_property_is_not_vacuous() -> None:
         settled = _settle(inputs, first)
         second = planner.plan(replace(settled, feeds=replace(settled.feeds, epss=epss)))
         seen.update(f"derived-{a.op}" for a in second.actions)
+        closed = replace(
+            settled,
+            issues=tuple(replace(i, state="closed") if i.kind == "finding" else i for i in settled.issues),
+        )
+        seen.update(f"closed-{a.op}" for a in planner.plan(closed).actions)
 
     run()
-    needed = ("checked", "create", "close", "reopen", "derived-update")
+    needed = ("checked", "create", "close", "derived-update", "closed-reopen")
     missing = [k for k in needed if seen[k] == 0]
     assert not missing, f"never seen: {missing}; counts {sorted(seen.items())}"
     assert seen["checked"] > seen["overflow"]
