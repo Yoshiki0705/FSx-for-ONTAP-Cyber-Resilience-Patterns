@@ -157,12 +157,17 @@ EMPTY_INDEX = PackageIndex({}, frozenset())
 # ---------------------------------------------------------------- version judgement
 
 
+# A placeholder is a word closed by ">" (``<version>``); "<" followed by a digit or "=" is a comparison.
+_PLACEHOLDER = re.compile(r"<[A-Za-z_][^<>]*>")
+
+
 def _is_local_or_placeholder(spec: str) -> bool:
     return (
         not spec
         or spec in {".", ".."}
-        or spec.startswith(("./", "../", "/", "~", "file:", "<", "[", "{"))
-        or any(c in spec for c in "${<")
+        or spec.startswith(("./", "../", "/", "~", "file:", "[", "{"))
+        or any(c in spec for c in "${")
+        or _PLACEHOLDER.search(spec) is not None
     )
 
 
