@@ -1,0 +1,5 @@
+{
+  "extends": [
+    "github>Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook//renovate/supply-chain-automerge#supply-chain-preset-v1.0.0"
+  ]
+}
