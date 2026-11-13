@@ -64,7 +64,12 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run cfn-lint
-        run: cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml
+        # `make lint` is the one definition of the template list and of the exit-code rule
+        # (cfn-lint exits 4/8 for warnings/informational findings, which pass; any run with the
+        # error bit set, such as exit 2, fails). Calling cfn-lint directly here failed on W1011 in
+        # shared/templates/demo-ad-environment.yaml, which `make test` already tolerated.
+        # CI has no .venv, so VENV points make at the directory pip installed cfn-lint into.
+        run: make lint VENV="$(dirname "$(command -v cfn-lint)")"
 
       # The binary, not the Node action: aws-cloudformation/cloudformation-guard action-v0.0.5
       # runs a 3.1.1 wasm build, ignores `show-summary` (it is not an input), and stayed green

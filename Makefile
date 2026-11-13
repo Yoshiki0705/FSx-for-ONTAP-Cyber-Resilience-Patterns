@@ -22,8 +22,11 @@ setup: ## Install development dependencies (creates .venv if not present)
 # -------------------------------------------------------------------
 # Validation
 # -------------------------------------------------------------------
+# cfn-lint exit code is a bitmask: 2 error, 4 warning, 8 informational (1 fatal). Warnings and
+# informational findings pass; any error or fatal bit fails. `-le 12` also passed a run whose
+# only finding was an error (exit 2), so it is not used. CI runs this target (`make lint`).
 lint: ## Run cfn-lint on all templates
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$(($$? & 3)) -eq 0
 
 # The templates cfn-guard evaluates: the same three globs as cfn-lint (CI runs `make guard`, so
 # there is one list). tests/test_cfn_guard_coverage.py reads this line.
@@ -51,7 +54,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # Testing
 # -------------------------------------------------------------------
 test: check-evidence ai-style check-sensitive check-supply-chain ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak + supply-chain gates)
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$(($$? & 3)) -eq 0
 	$(PYTEST) tests/ shared/tests/ -v --tb=short
 
 # A claim that a vendor cannot do something, used as a design premise, with nobody

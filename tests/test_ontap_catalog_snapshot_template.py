@@ -142,4 +142,5 @@ def test_every_sam_template_under_solutions_is_covered_by_the_lint_gates() -> No
     makefile = (ROOT / "Makefile").read_text()
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     assert "solutions/*/template.yaml" in makefile, "Makefile lint/test must include solutions/*/template.yaml"
-    assert "solutions/*/template.yaml" in ci, "CI must lint solutions/*/template.yaml"
+    # CI takes the template list from `make lint` rather than carrying its own copy.
+    assert "run: make lint" in ci, "CI must lint through `make lint`, which lists solutions/*/template.yaml"

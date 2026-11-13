@@ -22,6 +22,7 @@ files on disk. No list of templates is written down here.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -78,9 +79,9 @@ def makefile_lint_patterns(makefile_text: str, target: str) -> list[str]:
     return _lint_patterns(_recipe(makefile_text, target))
 
 
-def ci_lint_patterns(ci_text: str) -> list[str]:
-    """Patterns the ``run: cfn-lint ...`` step of ``ci.yml`` hands to ``cfn-lint``."""
-    return _lint_patterns([line for line in ci_text.splitlines() if re.match(r"\s*run:\s*cfn-lint\s", line)])
+def ci_runs_make_lint(ci_text: str) -> bool:
+    """True when a ``run:`` step of ``ci.yml`` calls ``make lint`` (the one list and exit-code rule)."""
+    return bool(re.search(r"^\s*run:\s*make lint(\s|$)", ci_text, re.MULTILINE))
 
 
 def makefile_guard_patterns(makefile_text: str) -> list[str]:
@@ -133,11 +134,29 @@ def test_lint_scope_is_derived_and_non_empty(lint_scope: set[str]) -> None:
 
 
 def test_lint_scope_agrees_across_makefile_and_ci(makefile_text: str, ci_text: str) -> None:
-    """``make lint``, ``make test`` and the CI cfn-lint step name the same templates."""
+    """``make lint`` and ``make test`` name the same templates, and CI runs ``make lint``."""
     lint = _expand(ROOT, makefile_lint_patterns(makefile_text, "lint"))
     test = _expand(ROOT, makefile_lint_patterns(makefile_text, "test"))
-    ci = _expand(ROOT, ci_lint_patterns(ci_text))
-    assert lint == test == ci, {"lint": sorted(lint), "test": sorted(test), "ci": sorted(ci)}
+    assert lint == test, {"lint": sorted(lint), "test": sorted(test)}
+    assert ci_runs_make_lint(ci_text), "ci.yml has no `run: make lint` step; it would carry its own list and exit rule"
+    assert not re.search(r"^\s*run:\s*cfn-lint\s", ci_text, re.MULTILINE), "ci.yml calls cfn-lint directly"
+
+
+def test_make_lint_and_make_test_share_the_exit_code_rule(makefile_text: str) -> None:
+    """Both recipes mask cfn-lint's exit code to the error/fatal bits, so warnings pass and errors fail."""
+    for target in ("lint", "test"):
+        recipe = "\n".join(_recipe(makefile_text, target))
+        assert "|| test $$(($$? & 3)) -eq 0" in recipe, f"the {target} recipe has no error-bit rule"
+        assert "-le 12" not in recipe, f"the {target} recipe still passes an errors-only run (exit 2)"
+
+
+@pytest.mark.parametrize(
+    ("rc", "passes"), [(0, True), (4, True), (8, True), (12, True), (1, False), (2, False), (6, False), (14, False)]
+)
+def test_exit_code_rule_passes_warnings_and_fails_errors(rc: int, passes: bool) -> None:
+    """The shell expression used by both recipes, run on each cfn-lint exit code."""
+    result = subprocess.run(["sh", "-c", f"(exit {rc}) || test $(($? & 3)) -eq 0"], check=False)
+    assert (result.returncode == 0) is passes
 
 
 def test_every_disk_template_is_in_lint_scope(lint_scope: set[str]) -> None:
