@@ -33,6 +33,8 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [Companion Repository Integration Guide](docs/en/companion-repos-integration.md): How this repository's patterns relate to the adoption, observability, S3 Access Points and RAG repositories.
 - [Cyber Resilience Framework Mapping](docs/en/cyber-resilience-framework-mapping.md): The only CSF 2.0 mapping in this repository, including exfiltration, management-plane compromise and the storage-layer boundary.
 - [Cyber Resilience Framework Mapping (JA)](docs/ja/cyber-resilience-framework-mapping.md): Japanese counterpart with the same sections.
+- [Supply-Chain Adoption Guide](docs/en/supply-chain-adoption-guide.md): How to adopt the software supply-chain controls (SBOM, vulnerability aggregation, cooldown). Thresholds and rules live in the machine-readable [Supply-Chain Policy File](docs/agent/supply-chain-policy.json).
+- [Supply-Chain Adoption Guide (JA)](docs/ja/supply-chain-adoption-guide.md): Japanese counterpart with the same sections.
 - [Storage-Layer Decisions with AWS Continuum and Security Agent](docs/architecture/continuum-security-agent-and-storage.md): Three decision trees (which data a penetration test may touch, which storage detections react during a test, where to roll back as automated remediation is raised) and a platform table covering FSx for ONTAP, on-premises ONTAP, Cloud Volumes ONTAP, Google Cloud NetApp Volumes and Azure NetApp Files. Continuum itself was not tried; platform cells state what was and was not read.
 
 ## Storage-native security (ONTAP)

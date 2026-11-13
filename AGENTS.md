@@ -10,6 +10,7 @@
 4. Public documents do not name incidents, companies or providers. Describe trends the way the "Threat Types Considered" section of the framework mapping does.
 5. Before calling work done, run `make test` (check-evidence, ai-style, check-sensitive, check-supply-chain, cfn-lint, pytest). `make test` is offline; `make check-pinned-sha-exist` asks GitHub whether pinned Action SHAs exist, needs a token, and is not part of it. CI runs `.github/workflows/ci.yml` and `gitleaks.yml`.
 6. [`docs/agent/decision-record-playbook.md`](docs/agent/decision-record-playbook.md): for multi-step tasks (new pattern, verification, IaC change) — where decision records go (`.private/tasks/`, gitignored), the evidence tier vocabulary (reuse the ledger's four: documented / verified / hypothesis / open), when to call an auditor, measuring variance before claiming an effect, and the recurring-task checklists.
+7. [`docs/agent/supply-chain-policy.json`](docs/agent/supply-chain-policy.json) and `docs/{ja,en}/supply-chain-adoption-guide.md` ([JA](docs/ja/supply-chain-adoption-guide.md) / [EN](docs/en/supply-chain-adoption-guide.md)): the supply-chain policy (thresholds, cooldown values, VEX rules) and the guide that explains it. Change values in the policy file, not in the guide.
 
 ## Project Overview
 
