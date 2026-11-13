@@ -397,12 +397,12 @@ High 以上（KEV 非掲載）の <!-- policy:response_target.fix_days_high -->1
 
 ### 他の資料の期限との比較
 
-Response_Target の参照値を置き換えるときの材料として、公的な資料の期限を要約する。これらの期限は、それぞれの資料が対象とする組織や制度の参加者に課すもので、この programme にも Service_Owner にも適用されない。どの値が正しいかの判断でもない。1 行目の 2 件のうち、評価制度の 1 件の出典は [Programme_Document](cyber-resilience-programme.md) の参考文献にある。もう 1 件と 2 行目の指令は、名称を載せない要約で、この文書の参考文献には含めていない。
+Response_Target の参照値を置き換えるときの材料として、公的な資料の期限を要約する。これらの期限は、それぞれの資料が対象とする組織や制度の参加者に課すもので、この programme にも Service_Owner にも適用されない。どの値が正しいかの判断でもない。各行の出典は、表の「出典」列の番号で[参考文献](#参考文献)に示す。
 
-| 区分の考え方 | 期限の例 | 起点 | 適用される相手 |
-|---|---|---|---|
-| CVSS の基本値またはベンダーの重大度で区分する公的な例（2 件） | High 以上（CVSS 7 以上）で 14 日 | 更新のリリース | 認証や評価の制度に参加する組織 |
-| 公開の有無、KEV 掲載、攻撃者の自動化の可否、技術的な影響の 4 つの変数で区分する公的な指令（CVSS は使わない） | 3 日、14 日、60 日、次のシステム更新時 | KEV への追加と、資産での特定の早い方 | その指令が定める行政機関 |
+| 区分の考え方 | 期限の例 | 起点 | 適用される相手 | 出典 |
+|---|---|---|---|---|
+| CVSS の基本値またはベンダーの重大度で区分する公的な例（2 件） | High 以上（CVSS 7 以上）で 14 日 | 更新のリリース | 認証や評価の制度に参加する組織 | [27]、[28] |
+| 公開の有無、KEV 掲載、攻撃者の自動化の可否、技術的な影響の 4 つの変数で区分する公的な指令（CVSS は使わない） | 3 日、14 日、60 日、次のシステム更新時 | KEV への追加と、資産での特定の早い方 | その指令が定める行政機関 | [29] |
 
 この programme の修正の起点は Issue の起票で、起点から起票までの検出の目標（24 時間）が前にある。そのため、表の期限と同じ起点では比べられない。KEV 掲載の 7 日は、表の 2 行目の 3 日と 14 日の間にある。
 
@@ -441,33 +441,36 @@ Check は Well-Architected の OPS09-BP01（運用の目標を指標で測る）
 
 ## 参考文献
 
-この文書が依拠する文献を、名称（発行主体が付けた原題）、発行主体、公開日と版、URL、参照日（その URL の内容を確認した日）の順に並べる。日付が表示されていない文献は、その旨を書く。名称は日英どちらの版でも原題のままである。`[E-nnn]` で引いた文献は、[evidence-ledger.json](../agent/evidence-ledger.json) の出典の欄にも同じ URL がある。
+この文書が依拠する文献を、名称（発行主体が付けた原題）、発行主体、公開日と版、URL、参照日（その URL の内容を確認した日）の順に並べる。日付が表示されていない文献は、その旨を書く。名称は日英どちらの版でも原題のままである。番号は本文の `[n]` に対応する。`[E-nnn]` で引いた文献は、[evidence-ledger.json](../agent/evidence-ledger.json) の出典の欄にも同じ URL がある。
 
-| 名称 | 発行主体 | 公開日・版 | URL | 参照日 |
-|---|---|---|---|---|
-| Minimum Release Age | Renovate | 日付の表示なし | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-13 |
-| Configuration Options | Renovate | 日付の表示なし | [docs.renovatebot.com](https://docs.renovatebot.com/configuration-options/) | 2026-11-13 |
-| config (npm CLI v11) | npm | v11 | [docs.npmjs.com](https://docs.npmjs.com/cli/v11/using-npm/config) | 2026-11-13 |
-| OpenVEX Specification | OpenVEX | v0.2.0 | [github.com/openvex](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 |
-| Using artifact attestations | GitHub | 日付の表示なし | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) | 2026-11-10 |
-| gh attestation verify | GitHub | 日付の表示なし | [cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 |
-| Build: Track Basics | OpenSSF SLSA | v1.2 | [slsa.dev](https://slsa.dev/spec/v1.2/build-track-basics) | 2026-11-12 |
-| REST API endpoints for software bill of materials (SBOM) | GitHub | API 版 2026-03-10 | [docs.github.com](https://docs.github.com/en/rest/dependency-graph/sboms) | 2026-11-13 |
-| Exporting SBOMs with Amazon Inspector | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/sbom-export.html) | 2026-11-13 |
-| Amazon Inspector integration with AWS Security Hub CSPM | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/securityhub-integration.html) | 2026-11-13 |
-| Amazon Inspector Lambda standard scanning | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning_resources_lambda.html) | 2026-11-13 |
-| Scanning AWS Lambda functions with Amazon Inspector | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html) | 2026-11-13 |
-| AWS Security Hub FAQs | AWS | 日付の表示なし | [aws.amazon.com](https://aws.amazon.com/security-hub/faqs/) | 2026-11-13 |
-| Software bill of materials (AWS Security Hub User Guide) | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-sbom.html) | 2026-11-13 |
-| AWS Security Hub now provides an SBOM inventory for your compute resources | AWS | 2026-11-06 | [aws.amazon.com](https://aws.amazon.com/about-aws/whats-new/2026/11/security-hub-sbom-inventory/) | 2026-11-12 |
-| AWS Security Hub Pricing | AWS | 日付の表示なし | [aws.amazon.com](https://aws.amazon.com/security-hub/pricing/) | 2026-11-12 |
-| GetSoftwareV2 (AWS Security Hub API Reference) | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html) | 2026-11-13 |
-| AWS Well-Architected Framework | AWS | v13（2024-11-06） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) | 2026-11-13 |
-| What is AWS Well-Architected? | AWS | 2026-10-01（ページの Last updated） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/userguide/well-architected.html) | 2026-11-10 |
-| Well-architected best practices for software supply chain security | AWS Security Blog | 公開日の表示を取得できなかった | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 |
-| OpenSSF Malicious Packages | OpenSSF | 日付の表示なし | [github.com/ossf](https://github.com/ossf/malicious-packages) | 2026-11-10 |
-| OSV.dev Data Sources | OSV.dev | 日付の表示なし | [google.github.io](https://google.github.io/osv.dev/data/) | 2026-11-10 |
-| Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 |
-| GET /epss (FIRST.Org REST API Documentation) | FIRST | API は BETA と表示 | [api.first.org](https://api.first.org/epss/) | 2026-11-12 |
-| Cyber Resilience Act - Reporting obligations | European Commission | 日付の表示なし | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-10 |
-| MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance (CSAI Foundation) | 2026-05-04（研究ノート。文書自身が AI 支援で作成され、CSA の正式なレビューを経ていないと記載している） | [labs.cloudsecurityalliance.org](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 |
+| 番号 | 名称 | 発行主体 | 公開日・版 | URL | 参照日 |
+|---|---|---|---|---|---|
+| 1 | Minimum Release Age | Renovate | 日付の表示なし | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-13 |
+| 2 | Configuration Options | Renovate | 日付の表示なし | [docs.renovatebot.com](https://docs.renovatebot.com/configuration-options/) | 2026-11-13 |
+| 3 | config (npm CLI v11) | npm | v11 | [docs.npmjs.com](https://docs.npmjs.com/cli/v11/using-npm/config) | 2026-11-13 |
+| 4 | OpenVEX Specification | OpenVEX | v0.2.0 | [github.com/openvex](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 |
+| 5 | Using artifact attestations | GitHub | 日付の表示なし | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) | 2026-11-10 |
+| 6 | gh attestation verify | GitHub | 日付の表示なし | [cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 |
+| 7 | Build: Track Basics | OpenSSF SLSA | v1.2 | [slsa.dev](https://slsa.dev/spec/v1.2/build-track-basics) | 2026-11-12 |
+| 8 | REST API endpoints for software bill of materials (SBOM) | GitHub | API 版 2026-03-10 | [docs.github.com](https://docs.github.com/en/rest/dependency-graph/sboms) | 2026-11-13 |
+| 9 | Exporting SBOMs with Amazon Inspector | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/sbom-export.html) | 2026-11-13 |
+| 10 | Amazon Inspector integration with AWS Security Hub CSPM | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/securityhub-integration.html) | 2026-11-13 |
+| 11 | Amazon Inspector Lambda standard scanning | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning_resources_lambda.html) | 2026-11-13 |
+| 12 | Scanning AWS Lambda functions with Amazon Inspector | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html) | 2026-11-13 |
+| 13 | AWS Security Hub FAQs | AWS | 日付の表示なし | [aws.amazon.com](https://aws.amazon.com/security-hub/faqs/) | 2026-11-13 |
+| 14 | Software bill of materials (AWS Security Hub User Guide) | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-sbom.html) | 2026-11-13 |
+| 15 | AWS Security Hub now provides an SBOM inventory for your compute resources | AWS | 2026-11-06 | [aws.amazon.com](https://aws.amazon.com/about-aws/whats-new/2026/11/security-hub-sbom-inventory/) | 2026-11-12 |
+| 16 | AWS Security Hub Pricing | AWS | 日付の表示なし | [aws.amazon.com](https://aws.amazon.com/security-hub/pricing/) | 2026-11-12 |
+| 17 | GetSoftwareV2 (AWS Security Hub API Reference) | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html) | 2026-11-13 |
+| 18 | AWS Well-Architected Framework | AWS | v13（2024-11-06） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) | 2026-11-13 |
+| 19 | What is AWS Well-Architected? | AWS | 2026-10-01（ページの Last updated） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/userguide/well-architected.html) | 2026-11-10 |
+| 20 | Well-architected best practices for software supply chain security | AWS Security Blog | 公開日の表示を取得できなかった | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 |
+| 21 | OpenSSF Malicious Packages | OpenSSF | 日付の表示なし | [github.com/ossf](https://github.com/ossf/malicious-packages) | 2026-11-10 |
+| 22 | OSV.dev Data Sources | OSV.dev | 日付の表示なし | [google.github.io](https://google.github.io/osv.dev/data/) | 2026-11-10 |
+| 23 | Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 |
+| 24 | GET /epss (FIRST.Org REST API Documentation) | FIRST | API は BETA と表示 | [api.first.org](https://api.first.org/epss/) | 2026-11-12 |
+| 25 | Cyber Resilience Act - Reporting obligations | European Commission | 日付の表示なし | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-10 |
+| 26 | MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance (CSAI Foundation) | 2026-05-04（研究ノート。文書自身が AI 支援で作成され、CSA の正式なレビューを経ていないと記載している） | [labs.cloudsecurityalliance.org](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 |
+| 27 | ★3・★4要求事項・評価基準（Ver.1.1:2026年10月28日） | 経済産業省 | Ver 1.1、2026-10-28（種別: documented） | [xlsx](https://www.meti.go.jp/policy/netsecurity/docs/scs/SCS-400-criteria-v1.1.xlsx) | 2026-11-12 |
+| 28 | Cyber Essentials: Requirements for IT Infrastructure v3.3 | NCSC（UK National Cyber Security Centre） | v3.3、2026 年 4 月（種別: documented。読んだ節は Security Update Management） | [ncsc.gov.uk](https://www.ncsc.gov.uk/files/cyber-essentials-requirements-for-it-infrastructure-v3-3.pdf) | 2026-11-13 |
+| 29 | BOD 26-04: Prioritizing Security Updates Based on Risk | CISA | 2026-06-10（種別: documented。Table 1 は画像で、2026-11-12 に画像を見て読んだ） | [cisa.gov](https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk) | 2026-11-13 |

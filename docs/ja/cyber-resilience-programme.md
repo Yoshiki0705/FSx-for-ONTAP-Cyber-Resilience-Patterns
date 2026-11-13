@@ -156,6 +156,8 @@ Service_Owner が参照値を自分の値に置き換えるときの比較の材
 |---|---|---|---|---|
 | このプロジェクトの Response_Target | KEV 掲載、悪意のあるパッケージ、CVSS の重大度 | 上の段落のとおり | Issue の起票 | Policy_File |
 | 企業向けの評価制度（★3 の評価基準） | ベンダーが重大・高リスクとする脆弱性、CVSS の基本値 7.0 以上、レベルの記載がない更新 | 14 日。期限内にできない場合は、適用までのリスク低減策。制度は開始前（2026-10-28 のページは 2026 年度末頃の開始を目指すと書く） | アップデートのリリース | [21] |
+| 認証制度の技術要件（英国） | 「critical」または「high risk」とされる脆弱性（CVSS v3 の基本値 7 以上、またはベンダーの区分） | 14 日 | リリース | [30] |
+| 行政機関向けの指令（米国） | 公開の有無、KEV 掲載、攻撃者の自動化の可否、技術的な影響の 4 つの変数（CVSS は使わない） | 3 日、14 日、60 日、次のシステム更新時 | KEV への追加と、資産での特定の早い方 | [31] |
 | 政府機関向けの基準 | 製品、セグメント、深刻度（CVSS など）を踏まえて、各機関が事前に定める適用基準 | 日数を定めない | 計画の実施予定時期 | [22] |
 | 金融分野のガイドライン | システムの重要度、リスク、深刻度 | 日数を定めない。対応期限の設定と対応実績の管理を求める | 定めなし | [23] |
 | EU の製品規則 | 悪用の信頼できる証拠がある脆弱性（報告の対象） | 修正は「遅滞なく」で、日数を定めない | 製造者が気づいた時点 | [25] |
@@ -211,5 +213,7 @@ Service_Owner が参照値を自分の値に置き換えるときの比較の材
 | 27 | Planning a NIST-aligned ransomware recovery strategy on AWS、Building isolated, immutable backups for ransomware recovery on AWS、Test backups and restore critical workloads after ransomware on AWS | AWS（AWS re:Post。AWS Support による 3 回のシリーズ） | 2026-10-15 | [第 1 回](https://repost.aws/articles/ARatcO81HOTyCDYQbX5h30pg/planning-a-nist-aligned-ransomware-recovery-strategy-on-aws)、[第 2 回](https://repost.aws/articles/AR9O5kMiZdRL2CBrdXqUI38g/building-isolated-immutable-backups-for-ransomware-recovery-on-aws)、[第 3 回](https://repost.aws/articles/ARU6N19cQrQi66Oj-RiasMPQ/test-backups-and-restore-critical-workloads-after-ransomware-on-aws) | 2026-11-12 | documented |
 | 28 | 令和７年におけるサイバー空間をめぐる脅威の情勢等について | 警察庁 | 令和 8 年 3 月 | [PDF](https://www.npa.go.jp/publications/statistics/cybersecurity/data/R7/R07_cyber_jousei.pdf) | 2026-11-12 | documented（ランサムウェア被害報告件数のグラフ） |
 | 29 | Configuring S3 Object Lock、Locking objects with Object Lock、AWS Backup Vault Lock、Recover deleted EBS volumes, EBS snapshots, and EBS-backed AMIs with Recycle Bin、How SnapLock works | AWS | 日付の表示なし | [S3 設定](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-configure.html)、[S3 概要](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)、[Backup Vault Lock](https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html)、[EBS ごみ箱](https://docs.aws.amazon.com/ebs/latest/userguide/recycle-bin.html)、[SnapLock](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/snaplock.html) | 2026-11-12 | documented |
+| 30 | Cyber Essentials: Requirements for IT Infrastructure v3.3 | NCSC（UK National Cyber Security Centre） | v3.3、2026 年 4 月 | [ncsc.gov.uk](https://www.ncsc.gov.uk/files/cyber-essentials-requirements-for-it-infrastructure-v3-3.pdf) | 2026-11-13 | documented（Security Update Management の節） |
+| 31 | BOD 26-04: Prioritizing Security Updates Based on Risk | CISA | 2026-06-10 | [cisa.gov](https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk) | 2026-11-13 | documented（Table 1 は画像で、2026-11-12 に画像を見て読んだ） |
 
 [3] は 6.2（SBOM の保管）と第 7 章（脆弱性管理の手順）に限って引く。[17] と [18] は実務者の議論の出典で、仕様や指針の出典にしない。

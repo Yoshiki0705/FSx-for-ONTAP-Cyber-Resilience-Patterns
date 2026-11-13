@@ -397,12 +397,12 @@ The 24-hour detection target is this programme's internal target. It is not the 
 
 ### Comparison with other deadlines
 
-As material for replacing the reference values of the Response_Target, the deadlines of public documents are summarized. These deadlines are imposed by each document on the organizations or scheme participants it covers, and apply neither to this programme nor to a Service_Owner. They are not a judgment about which value is correct. Of the two examples in the first row, the source of the evaluation-scheme one is in the references of the [Programme_Document](cyber-resilience-programme.md). The other one and the directive in the second row are summaries that do not name their sources, and they are not in this guide's references.
+As material for replacing the reference values of the Response_Target, the deadlines of public documents are summarized. These deadlines are imposed by each document on the organizations or scheme participants it covers, and apply neither to this programme nor to a Service_Owner. They are not a judgment about which value is correct. The source of each row is given by the number in the Source column, which refers to the [References](#references).
 
-| How it divides cases | Example deadlines | Starting point | Who it applies to |
-|---|---|---|---|
-| Public examples (2) that divide by CVSS base score or vendor severity | 14 days for High and above (CVSS 7 or higher) | Release of the update | Organizations that take part in a certification or evaluation scheme |
-| A public directive that divides by four variables: whether exposed, KEV listing, whether an attacker can automate, and technical impact (CVSS is not used) | 3 days, 14 days, 60 days, or the next system update | The earlier of the KEV addition and identification on the asset | The agencies the directive covers |
+| How it divides cases | Example deadlines | Starting point | Who it applies to | Source |
+|---|---|---|---|---|
+| Public examples (2) that divide by CVSS base score or vendor severity | 14 days for High and above (CVSS 7 or higher) | Release of the update | Organizations that take part in a certification or evaluation scheme | [27], [28] |
+| A public directive that divides by four variables: whether exposed, KEV listing, whether an attacker can automate, and technical impact (CVSS is not used) | 3 days, 14 days, 60 days, or the next system update | The earlier of the KEV addition and identification on the asset | The agencies the directive covers | [29] |
 
 In this programme, the starting point of a fix is Issue creation, and the 24-hour detection target comes before it. The deadlines in the table therefore cannot be compared from the same starting point. The 7 days for KEV listing lies between the 3 days and 14 days in the second row.
 
@@ -441,33 +441,36 @@ A workload owner can review their own workload with the [AWS Well-Architected To
 
 ## References
 
-The documents this guide relies on are listed in this order: name (the original title given by the publisher), publisher, publication date and version, URL, and the date checked (the day the content of that URL was confirmed). Where no date is shown, that is stated. Names are kept in the original title in both the Japanese and English versions. A document cited with `[E-nnn]` has the same URL in the source field of [evidence-ledger.json](../agent/evidence-ledger.json).
+The documents this guide relies on are listed in this order: name (the original title given by the publisher), publisher, publication date and version, URL, and the date checked (the day the content of that URL was confirmed). Where no date is shown, that is stated. Names are kept in the original title in both the Japanese and English versions. The numbers match the `[n]` marks in the text. A document cited with `[E-nnn]` has the same URL in the source field of [evidence-ledger.json](../agent/evidence-ledger.json).
 
-| Name | Publisher | Date and version | URL | Date checked |
-|---|---|---|---|---|
-| Minimum Release Age | Renovate | No date shown | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-13 |
-| Configuration Options | Renovate | No date shown | [docs.renovatebot.com](https://docs.renovatebot.com/configuration-options/) | 2026-11-13 |
-| config (npm CLI v11) | npm | v11 | [docs.npmjs.com](https://docs.npmjs.com/cli/v11/using-npm/config) | 2026-11-13 |
-| OpenVEX Specification | OpenVEX | v0.2.0 | [github.com/openvex](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 |
-| Using artifact attestations | GitHub | No date shown | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) | 2026-11-10 |
-| gh attestation verify | GitHub | No date shown | [cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 |
-| Build: Track Basics | OpenSSF SLSA | v1.2 | [slsa.dev](https://slsa.dev/spec/v1.2/build-track-basics) | 2026-11-12 |
-| REST API endpoints for software bill of materials (SBOM) | GitHub | API version 2026-03-10 | [docs.github.com](https://docs.github.com/en/rest/dependency-graph/sboms) | 2026-11-13 |
-| Exporting SBOMs with Amazon Inspector | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/sbom-export.html) | 2026-11-13 |
-| Amazon Inspector integration with AWS Security Hub CSPM | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/securityhub-integration.html) | 2026-11-13 |
-| Amazon Inspector Lambda standard scanning | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning_resources_lambda.html) | 2026-11-13 |
-| Scanning AWS Lambda functions with Amazon Inspector | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html) | 2026-11-13 |
-| AWS Security Hub FAQs | AWS | No date shown | [aws.amazon.com](https://aws.amazon.com/security-hub/faqs/) | 2026-11-13 |
-| Software bill of materials (AWS Security Hub User Guide) | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-sbom.html) | 2026-11-13 |
-| AWS Security Hub now provides an SBOM inventory for your compute resources | AWS | 2026-11-06 | [aws.amazon.com](https://aws.amazon.com/about-aws/whats-new/2026/11/security-hub-sbom-inventory/) | 2026-11-12 |
-| AWS Security Hub Pricing | AWS | No date shown | [aws.amazon.com](https://aws.amazon.com/security-hub/pricing/) | 2026-11-12 |
-| GetSoftwareV2 (AWS Security Hub API Reference) | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html) | 2026-11-13 |
-| AWS Well-Architected Framework | AWS | v13 (2024-11-06) | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) | 2026-11-13 |
-| What is AWS Well-Architected? | AWS | 2026-10-01 (the page's Last updated) | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/userguide/well-architected.html) | 2026-11-10 |
-| Well-architected best practices for software supply chain security | AWS Security Blog | The publication date could not be obtained | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 |
-| OpenSSF Malicious Packages | OpenSSF | No date shown | [github.com/ossf](https://github.com/ossf/malicious-packages) | 2026-11-10 |
-| OSV.dev Data Sources | OSV.dev | No date shown | [google.github.io](https://google.github.io/osv.dev/data/) | 2026-11-10 |
-| Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 |
-| GET /epss (FIRST.Org REST API Documentation) | FIRST | The API is shown as BETA | [api.first.org](https://api.first.org/epss/) | 2026-11-12 |
-| Cyber Resilience Act - Reporting obligations | European Commission | No date shown | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-10 |
-| MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance (CSAI Foundation) | 2026-05-04 (research note; the document states that it was produced with AI assistance and has not had formal CSA review) | [labs.cloudsecurityalliance.org](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 |
+| No. | Name | Publisher | Date and version | URL | Date checked |
+|---|---|---|---|---|---|
+| 1 | Minimum Release Age | Renovate | No date shown | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-13 |
+| 2 | Configuration Options | Renovate | No date shown | [docs.renovatebot.com](https://docs.renovatebot.com/configuration-options/) | 2026-11-13 |
+| 3 | config (npm CLI v11) | npm | v11 | [docs.npmjs.com](https://docs.npmjs.com/cli/v11/using-npm/config) | 2026-11-13 |
+| 4 | OpenVEX Specification | OpenVEX | v0.2.0 | [github.com/openvex](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 |
+| 5 | Using artifact attestations | GitHub | No date shown | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) | 2026-11-10 |
+| 6 | gh attestation verify | GitHub | No date shown | [cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 |
+| 7 | Build: Track Basics | OpenSSF SLSA | v1.2 | [slsa.dev](https://slsa.dev/spec/v1.2/build-track-basics) | 2026-11-12 |
+| 8 | REST API endpoints for software bill of materials (SBOM) | GitHub | API version 2026-03-10 | [docs.github.com](https://docs.github.com/en/rest/dependency-graph/sboms) | 2026-11-13 |
+| 9 | Exporting SBOMs with Amazon Inspector | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/sbom-export.html) | 2026-11-13 |
+| 10 | Amazon Inspector integration with AWS Security Hub CSPM | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/securityhub-integration.html) | 2026-11-13 |
+| 11 | Amazon Inspector Lambda standard scanning | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning_resources_lambda.html) | 2026-11-13 |
+| 12 | Scanning AWS Lambda functions with Amazon Inspector | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html) | 2026-11-13 |
+| 13 | AWS Security Hub FAQs | AWS | No date shown | [aws.amazon.com](https://aws.amazon.com/security-hub/faqs/) | 2026-11-13 |
+| 14 | Software bill of materials (AWS Security Hub User Guide) | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-sbom.html) | 2026-11-13 |
+| 15 | AWS Security Hub now provides an SBOM inventory for your compute resources | AWS | 2026-11-06 | [aws.amazon.com](https://aws.amazon.com/about-aws/whats-new/2026/11/security-hub-sbom-inventory/) | 2026-11-12 |
+| 16 | AWS Security Hub Pricing | AWS | No date shown | [aws.amazon.com](https://aws.amazon.com/security-hub/pricing/) | 2026-11-12 |
+| 17 | GetSoftwareV2 (AWS Security Hub API Reference) | AWS | No date shown | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html) | 2026-11-13 |
+| 18 | AWS Well-Architected Framework | AWS | v13 (2024-11-06) | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) | 2026-11-13 |
+| 19 | What is AWS Well-Architected? | AWS | 2026-10-01 (the page's Last updated) | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/userguide/well-architected.html) | 2026-11-10 |
+| 20 | Well-architected best practices for software supply chain security | AWS Security Blog | The publication date could not be obtained | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 |
+| 21 | OpenSSF Malicious Packages | OpenSSF | No date shown | [github.com/ossf](https://github.com/ossf/malicious-packages) | 2026-11-10 |
+| 22 | OSV.dev Data Sources | OSV.dev | No date shown | [google.github.io](https://google.github.io/osv.dev/data/) | 2026-11-10 |
+| 23 | Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 |
+| 24 | GET /epss (FIRST.Org REST API Documentation) | FIRST | The API is shown as BETA | [api.first.org](https://api.first.org/epss/) | 2026-11-12 |
+| 25 | Cyber Resilience Act - Reporting obligations | European Commission | No date shown | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-10 |
+| 26 | MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance (CSAI Foundation) | 2026-05-04 (research note; the document states that it was produced with AI assistance and has not had formal CSA review) | [labs.cloudsecurityalliance.org](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 |
+| 27 | ★3・★4要求事項・評価基準（Ver.1.1:2026年10月28日） (Japanese only) | METI | Ver 1.1, 2026-10-28 (evidence: documented) | [xlsx](https://www.meti.go.jp/policy/netsecurity/docs/scs/SCS-400-criteria-v1.1.xlsx) | 2026-11-12 |
+| 28 | Cyber Essentials: Requirements for IT Infrastructure v3.3 | NCSC (UK National Cyber Security Centre) | v3.3, April 2026 (evidence: documented; the section read is Security Update Management) | [ncsc.gov.uk](https://www.ncsc.gov.uk/files/cyber-essentials-requirements-for-it-infrastructure-v3-3.pdf) | 2026-11-13 |
+| 29 | BOD 26-04: Prioritizing Security Updates Based on Risk | CISA | 2026-06-10 (evidence: documented; Table 1 is an image, read as an image on 2026-11-12) | [cisa.gov](https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk) | 2026-11-13 |
