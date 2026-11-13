@@ -82,7 +82,7 @@ Accountability is a view that cuts across the three pillars. It means being able
 - The decisions made when a compromise is detected
 - The record up to recovery
 
-In sibling repositories the same word is also used for the A in RACI (the accountable party). Here it carries only the meaning above. The explanation is split into (1) who is responsible (the Service_Owner's organization decides), (2) what the explanation rests on (the integrity and provenance of records), and (3) whom to tell (a legal function decides whether notification is required; this project gives no such judgment).
+Accountability is also used for the A in RACI (the accountable party). Here it carries only the meaning above. The explanation is split into (1) who is responsible (the Service_Owner's organization decides), (2) what the explanation rests on (the integrity and provenance of records), and (3) whom to tell (a legal function decides whether notification is required; this project gives no such judgment).
 
 Accountability does not belong to the third pillar alone. It spans the first pillar's records (SBOM, Issues, VEX, run results) and the second pillar's recovery (the record of recovery-point decisions). The number and order of the pillars (1, 2, 3) do not change. Accountability starts from records in normal operation, so it sits before recovery. This order follows the event report [17] that describes three axes (defense, recovery, accountability) and the links between them.
 
