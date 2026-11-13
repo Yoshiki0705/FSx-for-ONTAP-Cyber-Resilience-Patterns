@@ -149,9 +149,9 @@ The summary of the environment holds every variable name; the values of
 ``GIT_CONFIG_COUNT``, ``GIT_CONFIG_KEY_<n>`` and ``GIT_CONFIG_VALUE_<n>``, which show the
 push URL override (temporary paths in the tests); whether ``GH_CONFIG_DIR``,
 ``AWS_CONFIG_FILE`` and ``AWS_SHARED_CREDENTIALS_FILE`` name an empty directory or file;
-whether ``AWS_EC2_METADATA_DISABLED`` is ``true``; and the first entry of ``PATH`` as
-``path_first`` (a directory, which shows that the harness put a repository's tool directory
-first). No other value is written: not the AWS variables, not tokens, not ``HOME``.
+whether ``AWS_EC2_METADATA_DISABLED`` is ``true``; and the SHA-256 of the first entry of ``PATH`` as
+``path_first_sha256`` (the entry is a directory under ``HOME`` or the system, so only its hash is
+written; a test compares it with the hash of the directory that the harness should put first). No other value is written: not the AWS variables, not tokens, not ``HOME``.
 
 Exit codes: 0 or ``FAKE_KIRO_EXIT_CODE``; 1 for ``whoami-fail`` and ``version-fail``; 2 for a
 usage error; 3 when a behavior fails (a git command other than the push fails, or a file
@@ -704,7 +704,9 @@ def environment_summary(environ: Mapping[str, str]) -> dict[str, Any]:
         "aws_config_file": _file_state(environ.get("AWS_CONFIG_FILE")),
         "aws_shared_credentials_file": _file_state(environ.get("AWS_SHARED_CREDENTIALS_FILE")),
         "aws_ec2_metadata_disabled": environ.get("AWS_EC2_METADATA_DISABLED") == "true",
-        "path_first": environ.get("PATH", "").split(":")[0],
+        "path_first_sha256": hashlib.sha256(
+            environ.get("PATH", "").split(":")[0].encode("utf-8")
+        ).hexdigest(),
     }
 
 

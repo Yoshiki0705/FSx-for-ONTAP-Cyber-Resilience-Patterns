@@ -20,6 +20,7 @@ What is checked, each against the failure it prevents:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
@@ -158,7 +159,8 @@ def test_the_ledger_is_copied_read_only_and_the_tools_are_first_on_the_path(
     assert not os.access(worktree / LEDGER / "issues.jsonl", os.W_OK)
     assert stat.S_IMODE((worktree / LEDGER).stat().st_mode) & 0o222 == 0
     assert change.git_text(sb, "-C", str(worktree), "status", "--porcelain") == ""
-    assert ended.chat["start"]["env"]["path_first"] == str(sb.main_tree / TOOLS)
+    first = hashlib.sha256(str(sb.main_tree / TOOLS).encode("utf-8")).hexdigest()
+    assert ended.chat["start"]["env"]["path_first_sha256"] == first
 
 
 def test_a_ledger_that_git_does_not_ignore_in_the_worktree_holds_the_item_before_the_agent_starts(
