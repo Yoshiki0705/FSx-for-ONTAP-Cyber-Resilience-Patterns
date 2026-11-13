@@ -1,27 +1,20 @@
 """cfn-guard must look at every CloudFormation template that cfn-lint looks at.
 
-The Makefile ``guard`` target loops over ``templates/*.yaml`` and the CI step
-passes ``data: 'templates/'``. ``cfn-lint`` is given ``templates/*.yaml`` and
-``solutions/*/template.yaml``. A template that only the second list names is
-never evaluated against ``security/guard-rules/``, and nothing says so: the
-guard target ends each iteration with ``|| true``.
+cfn-lint is given three globs (``templates/*.yaml``, ``solutions/*/template.yaml``,
+``shared/templates/*.yaml``) by the Makefile ``lint`` and ``test`` recipes and by
+``ci.yml``. The Makefile ``guard`` target takes its templates from ``GUARD_GLOBS``,
+and CI runs ``make guard``, so there is one list for the guard. A template that only
+cfn-lint names is never evaluated against ``security/guard-rules/``.
 
 These tests derive every list at run time, from the Makefile, ``ci.yml`` and the
 files on disk. No list of templates is written down here.
 
 * The lint scope parsed from the Makefile (two recipes) and from ``ci.yml`` must
   agree, and must not be empty.
-* Every CloudFormation template on disk should be inside the lint scope.
-* The set of files the guard loop reaches should equal the lint scope.
-
-Two of these fail today and are marked ``xfail(strict=True)``. Strict means a fix
-turns them into a hard failure (XPASS), which forces removing the marker.
-
-* ``test_guard_scope_covers_lint_scope``: the Makefile loop is one level only.
-  Fixed by task 20.3, which changes the Makefile and ``ci.yml``.
-* ``test_every_disk_template_is_in_lint_scope``: a template under
-  ``shared/templates/`` is outside the cfn-lint scope as well. Decided at the
-  task 20.2 checkpoint.
+* Every CloudFormation template on disk is inside the lint scope.
+* The files ``GUARD_GLOBS`` reaches include the whole lint scope.
+* ``ci.yml`` runs the guard through ``make guard`` and the ``guard`` recipe does not
+  swallow a failing exit code.
 
 **Validates: Requirements 24.7, 24.8**
 """
@@ -91,18 +84,14 @@ def ci_lint_patterns(ci_text: str) -> list[str]:
 
 
 def makefile_guard_patterns(makefile_text: str) -> list[str]:
-    """Patterns the Makefile ``guard`` loop iterates over (``for x in <patterns>; do``)."""
-    patterns: list[str] = []
-    for line in _recipe(makefile_text, "guard"):
-        match = re.search(r"for\s+\w+\s+in\s+([^;]+);\s*do", line)
-        if match:
-            patterns += match.group(1).split()
-    return patterns
+    """Patterns of the Makefile ``GUARD_GLOBS`` variable, which the ``guard`` loop iterates."""
+    match = re.search(r"^GUARD_GLOBS\s*:?=\s*(.+)$", makefile_text, re.MULTILINE)
+    return match.group(1).split() if match else []
 
 
-def ci_guard_patterns(ci_text: str) -> list[str]:
-    """Paths the CI guard step reads (``data:`` of the cloudformation-guard action)."""
-    return re.findall(r"^\s*data:\s*['\"]?([^'\"\s]+)['\"]?\s*$", ci_text, re.MULTILINE)
+def ci_runs_make_guard(ci_text: str) -> bool:
+    """True when a ``run:`` step of ``ci.yml`` is ``make guard``."""
+    return bool(re.search(r"^\s*run:\s*make guard\s*$", ci_text, re.MULTILINE))
 
 
 def disk_cfn_templates(root: Path) -> set[str]:
@@ -151,26 +140,12 @@ def test_lint_scope_agrees_across_makefile_and_ci(makefile_text: str, ci_text: s
     assert lint == test == ci, {"lint": sorted(lint), "test": sorted(test), "ci": sorted(ci)}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "shared/templates/demo-ad-environment.yaml is a CloudFormation template that cfn-lint "
-        "is not given (task 20.2 checkpoint: add its pattern to lint, or record why it is excluded)"
-    ),
-)
 def test_every_disk_template_is_in_lint_scope(lint_scope: set[str]) -> None:
     """Every CloudFormation template on disk is inside the cfn-lint scope."""
     missing = disk_cfn_templates(ROOT) - lint_scope
     assert not missing, f"CloudFormation templates cfn-lint does not read: {sorted(missing)}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "the Makefile guard loop is `templates/*.yaml` only, so solutions/*/template.yaml is "
-        "never evaluated (fixed by task 20.3, which changes the Makefile and ci.yml)"
-    ),
-)
 def test_guard_scope_covers_lint_scope(makefile_text: str, lint_scope: set[str]) -> None:
     """The files the Makefile guard loop reaches include every file cfn-lint reads."""
     guard = _expand(ROOT, makefile_guard_patterns(makefile_text))
@@ -178,13 +153,22 @@ def test_guard_scope_covers_lint_scope(makefile_text: str, lint_scope: set[str])
     assert guard >= lint_scope, f"cfn-lint reads but guard does not: {sorted(lint_scope - guard)}"
 
 
-def test_ci_guard_reads_a_directory_that_holds_templates(ci_text: str) -> None:
-    """The CI guard step names a data path (guards against the parser matching nothing)."""
-    assert ci_guard_patterns(ci_text), "no `data:` input found for the cfn-guard step in ci.yml"
+def test_ci_runs_the_makefile_guard_target(ci_text: str) -> None:
+    """CI evaluates guard through ``make guard``, so the Makefile list is the CI list."""
+    assert ci_runs_make_guard(ci_text), "ci.yml has no `run: make guard` step"
+    assert "cloudformation-guard@" not in ci_text, "the Node action reads its own `data:` list"
+
+
+def test_guard_recipe_does_not_swallow_failures(makefile_text: str) -> None:
+    """The ``guard`` recipe has no ``|| true``, no stderr discard, and ends with the collected code."""
+    recipe = "\n".join(_recipe(makefile_text, "guard"))
+    assert "|| true" not in recipe
+    assert "2>/dev/null" not in recipe
+    assert "exit $$rc" in recipe
 
 
 def test_helpers_see_what_they_should(tmp_path: Path) -> None:
-    """The helpers tell a one-level loop from a two-level lint list (so the xfail is not vacuous)."""
+    """The helpers tell a one-level loop from a two-level lint list (so the scope tests are not vacuous)."""
     (tmp_path / "templates").mkdir()
     (tmp_path / "solutions" / "a").mkdir(parents=True)
     (tmp_path / "templates" / "t.yaml").write_text("AWSTemplateFormatVersion: x\n", encoding="utf-8")
@@ -194,7 +178,7 @@ def test_helpers_see_what_they_should(tmp_path: Path) -> None:
     (tmp_path / "solutions" / "a" / "other.yaml").write_text("key: value\n", encoding="utf-8")
     makefile = (
         "lint:\n\t$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12\n\n"
-        "guard:\n\t@for t in templates/*.yaml; do \\\n\t\techo $$t; \\\n\tdone\n"
+        "GUARD_GLOBS := templates/*.yaml\n\nguard:\n\t@for t in $(GUARD_GLOBS); do \\\n\t\techo $$t; \\\n\tdone\n"
     )
     lint = _expand(tmp_path, makefile_lint_patterns(makefile, "lint"))
     guard = _expand(tmp_path, makefile_guard_patterns(makefile))

@@ -64,16 +64,29 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run cfn-lint
-        run: cfn-lint templates/*.yaml solutions/*/template.yaml
+        run: cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml
 
+      # The binary, not the Node action: aws-cloudformation/cloudformation-guard action-v0.0.5
+      # runs a 3.1.1 wasm build, ignores `show-summary` (it is not an input), and stayed green
+      # while the rule files did not parse. A pinned binary also serves tests/test_guard_rules.py,
+      # which needs cfn-guard on PATH. The sha256 is the `digest` GitHub reports for the 3.2.0
+      # release asset (gh api repos/aws-cloudformation/cloudformation-guard/releases/tags/3.2.0).
+      - name: Install cfn-guard 3.2.0 (sha256 checked)
+        env:
+          CFN_GUARD_ASSET: cfn-guard-v3-x86_64-ubuntu-latest
+          CFN_GUARD_SHA256: 9f8c4d9f15f7dd54a37ea70a5237ba00aba682fb1e6521a744d12259961dfc13
+        run: |
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/cfn-guard.tar.gz" \
+            "https://github.com/aws-cloudformation/cloudformation-guard/releases/download/3.2.0/${CFN_GUARD_ASSET}.tar.gz"
+          echo "${CFN_GUARD_SHA256}  $RUNNER_TEMP/cfn-guard.tar.gz" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/cfn-guard-bin"
+          tar -xzf "$RUNNER_TEMP/cfn-guard.tar.gz" -C "$RUNNER_TEMP/cfn-guard-bin" --strip-components=1 "${CFN_GUARD_ASSET}/cfn-guard"
+          echo "$RUNNER_TEMP/cfn-guard-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/cfn-guard-bin/cfn-guard" --version
+      # Same recipe as local: three template globs, every template evaluated, non-zero if any
+      # fails. The summary line prints how many templates were evaluated.
       - name: Run cfn-guard
-        uses: aws-cloudformation/cloudformation-guard@0e1dc63f667c80e3b9ed1aea2ba1cf6c8d588298 # action-v0.0.5
-        with:
-          rules: 'security/guard-rules/'
-          data: 'templates/'
-          show-summary: 'fail'
-          checkout: 'false'
-
+        run: make guard
       # Findings recorded in templates/.checkov.baseline pass; a new finding fails the job.
       # Checkov comes from requirements-dev.txt, the same pin that `make security` uses.
       - name: Run Checkov (CloudFormation, baseline)

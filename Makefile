@@ -23,16 +23,23 @@ setup: ## Install development dependencies (creates .venv if not present)
 # Validation
 # -------------------------------------------------------------------
 lint: ## Run cfn-lint on all templates
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$? -le 12
 
-guard: ## Run cfn-guard on all templates
-	@for tmpl in templates/*.yaml; do \
-		echo "Checking $$tmpl..."; \
-		cfn-guard validate \
-			--data "$$tmpl" \
-			--rules security/guard-rules/ \
-			--show-summary fail 2>/dev/null || true; \
-	done
+# The templates cfn-guard evaluates: the same three globs as cfn-lint (CI runs `make guard`, so
+# there is one list). tests/test_cfn_guard_coverage.py reads this line.
+GUARD_GLOBS := templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml
+# Every template is evaluated even after one fails; the target ends non-zero if any did.
+# Exit 5 (a rule file that does not parse) counts as a failure too. The old `|| true`
+# turned both into a clean run.
+guard: ## Run cfn-guard on all templates (non-zero if any template fails)
+	@rc=0; n=0; \
+	for tmpl in $(GUARD_GLOBS); do \
+		if [ ! -f "$$tmpl" ]; then echo "No such template: $$tmpl"; rc=1; continue; fi; \
+		echo "Checking $$tmpl..."; n=$$((n+1)); \
+		cfn-guard validate --data "$$tmpl" --rules security/guard-rules/ --show-summary fail || rc=1; \
+	done; \
+	echo "cfn-guard evaluated $$n templates"; \
+	exit $$rc
 
 validate: ## Validate templates with AWS CloudFormation API (requires credentials)
 	@for tmpl in templates/*.yaml; do \
@@ -44,7 +51,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # Testing
 # -------------------------------------------------------------------
 test: check-evidence ai-style check-sensitive check-supply-chain ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak + supply-chain gates)
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$? -le 12
 	$(PYTEST) tests/ shared/tests/ -v --tb=short
 
 # A claim that a vendor cannot do something, used as a design premise, with nobody
