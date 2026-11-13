@@ -1,0 +1,1161 @@
+#!/usr/bin/env python3
+"""A stand-in for ``kiro-cli`` in the Handoff_Harness tests of ``scripts/tests/``.
+
+The tests start this script where the harness would start ``kiro-cli``. The
+``handoff_sandbox`` fixture of ``scripts/tests/conftest.py`` copies it, with its mode, to
+``~/.local/bin/kiro-cli`` of the sandbox home. It accepts the argv that
+``handoff.command.build_kiro_argv`` builds, appends what it received to a record file, and
+behaves as the environment asks. It never calls the real ``kiro-cli``, opens no network
+connection, and writes only to the record, to its standard output and standard error, and
+to the git repositories that the behaviors below name.
+
+It runs under whichever ``python3`` comes first on ``PATH`` (the venv's 3.12 under
+``make test`` and in CI, a newer one when pytest is started by hand), so it uses the
+standard library only and no syntax newer than Python 3.8.
+
+Invocations. Anything else is a usage error (exit 2):
+
+- ``kiro-cli --version`` prints ``kiro-cli 0.0.0-fake``, or ``kiro-cli <FAKE_KIRO_VERSION>``,
+  and exits 0, or exits 1 with ``version-fail``.
+- ``kiro-cli whoami`` prints a made-up account and exits 0, or exits 1 with ``whoami-fail``.
+- ``kiro-cli chat --no-interactive [--trust-tools=<names> | --trust-all-tools | -a]
+  [--agent <name> | --agent=<name>] [--] <prompt>`` runs the behaviors of
+  ``FAKE_KIRO_MODE`` in order and then writes ``FAKE_KIRO_ANSWER``. ``--no-interactive``
+  and exactly one prompt are required, ``--trust-tools`` is accepted in its ``=`` form only
+  (the form the harness builds), and an unknown option is refused rather than ignored, so
+  that an argv the harness should not build fails the test. The trust options are
+  recorded, not enforced: a behavior runs whatever tools the argv trusts. The one
+  exception is ``write-file``, which stands for a ``kiro-cli`` that enforces them.
+
+Selftest trials. A selftest of the harness (task 5.2) starts ``chat`` once per trial, T0 to
+T4, and each prompt holds the trial's token ``handoff-selftest-t<n>-<16 lowercase hex
+digits>``, with no letter, digit or ``_`` right before or after it. When the prompt holds
+one token of trial ``t<n>`` and ``FAKE_KIRO_MODE_T<n>`` is set, that variable replaces
+``FAKE_KIRO_MODE`` for this run, so that one selftest gets different behaviors per trial.
+A prompt with two different tokens is a usage error. The token also names what the
+selftest behaviors below commit and write; without one they write ``fake-kiro-selftest``
+in its place.
+
+Environment. Every name starts with ``FAKE_KIRO_``, because ``handoff.command.child_env``
+drops the variables whose names start with ``AWS_``, ``GIT_``, ``GH_`` or ``GITHUB_``. The
+exception is ``HANDOFF_GUARD_LOG``, the harness's variable that the guard behaviors write
+to as the guard wrapper of the selftest would (design note of task 5.2).
+
+``FAKE_KIRO_MODE``
+    Behaviors separated by commas, run in the order given. None by default.
+    ``whoami-fail`` applies to ``whoami`` and ``version-fail`` to ``--version``; the others
+    apply to ``chat``. An unknown name is a usage error.
+
+    - ``whoami-fail``: ``whoami`` writes an error to standard error and exits 1.
+    - ``version-fail``: ``--version`` writes an error to standard error and nothing to
+      standard output, and exits 1, as a ``kiro-cli`` whose version cannot be read.
+    - ``noise``: writes ``FAKE_KIRO_NOISE_BYTES`` bytes (1 MiB by default) to standard
+      output and as many to standard error, in alternating chunks, so a reader that drains
+      one stream before the other blocks once the other pipe is full. Both payloads hold
+      bytes that are not UTF-8 and multibyte characters, so that a reader that decodes the
+      output in pieces (of 4 KiB to 64 KiB at the default size) gets a different text from
+      one that decodes it whole. :func:`noise_payload` returns the bytes.
+    - ``ignore-sigterm``: from here on, the script and the children it starts ignore
+      SIGTERM, so only SIGKILL stops them.
+    - ``sleep``: starts a child process (``python -c`` with ``time.sleep``) in the script's
+      process group, appends a ``spawned`` event with its PID once the child's code runs,
+      sleeps ``FAKE_KIRO_SLEEP_SECONDS`` (30 by default), then kills and reaps the child.
+      The child sleeps 30 seconds longer than the script, so a run that is stopped without
+      its process group leaves the child behind for the test to see.
+    - ``commit``: appends a line to each file of ``FAKE_KIRO_COMMIT_FILES`` in the working
+      directory and commits them in one commit.
+    - ``undeclared``: the same with ``fake-kiro-undeclared.txt``, a file that the tests do
+      not declare.
+    - ``push``: ``git push origin HEAD:refs/heads/<branch>``, ``<branch>`` being the current
+      branch, or ``fake-kiro-push`` on a detached HEAD. The push's exit code is recorded,
+      and ``git ls-remote`` against ``remote.origin.url`` (the fetch URL, which
+      ``child_env`` does not override) tells whether the ref arrived. A refused push is an
+      outcome, not a failure of the behavior.
+    - ``push-url``: the same push to the URL in ``remote.origin.url`` instead of ``origin``.
+      An override of ``remote.origin.pushurl`` does not stop it.
+    - ``switch-main``: in the main working tree of the repository (the first entry of
+      ``git worktree list``), creates and switches to the branch ``fake-kiro-switched`` with
+      ``git switch -c``, which keeps the uncommitted changes there as they are.
+    - ``empty-commit`` (T1): ``git commit --allow-empty`` in the working directory with the
+      message ``<token> <address>``, the address being a private-range example
+      (:data:`EXAMPLE_ADDRESS`).
+    - ``gh-status`` (T3): stands for ``gh auth status`` without running ``gh``, then
+      ``git commit --allow-empty`` with the message ``<token> gh-exit=<code>``. The code is
+      ``FAKE_KIRO_GH_EXIT`` when set; otherwise 0 when one of the token variables that
+      ``gh`` reads first (:data:`GH_TOKEN_VARIABLES`) is set and not empty, and 1 (no
+      login) when none is. ``child_env`` drops them, so under layer 3 the code is 1.
+    - ``write-file`` (T4): writes ``<token>.txt`` in the working directory only when the
+      argv trusts :data:`WRITE_TOOL` (``--trust-tools`` naming it, or ``--trust-all-tools``
+      or ``-a``), as a ``kiro-cli`` that enforces the allowlist would. Otherwise it writes
+      nothing and records the refusal. A refusal is a result, not a failure.
+    - ``write-file-anyway`` (T4): writes ``<token>.txt`` whatever the argv trusts, as a
+      ``kiro-cli`` that does not enforce the allowlist would.
+    - ``guard-block``: appends to ``HANDOFF_GUARD_LOG`` the entry that the guard wrapper
+      writes when a guard stops a tool call, with the token in the call's input, and does
+      nothing else. Without ``HANDOFF_GUARD_LOG`` it writes nothing, as a guard whose
+      wrapper did not get the variable would. Needs a token in the prompt.
+    - ``guard-allow``: the same with the entry of a call that the guard let through.
+      Needs a token in the prompt.
+    - ``guard-block-other``: the entry of a stopped call whose input does not hold the
+      token, as for an unrelated call that a guard stopped.
+
+``FAKE_KIRO_RECORD``
+    Absolute path of the record, a JSON Lines file. Unset: nothing is recorded. A relative
+    path is a usage error, because it would be resolved in the worktree.
+``FAKE_KIRO_ANSWER``
+    Written to standard output at the end of a ``chat`` whose behaviors all ran. Default
+    ``fake kiro-cli answer`` and a newline; empty writes nothing.
+``FAKE_KIRO_STDERR``
+    Written to standard error at the end of a ``chat`` whose behaviors all ran, before the
+    answer, as the one error line that a real ``kiro-cli`` writes (task 5.9). Empty by
+    default, which writes nothing. No newline is added.
+``FAKE_KIRO_EXIT_CODE``
+    Exit code of such a ``chat``: an integer from 0 to 255, 0 by default.
+``FAKE_KIRO_SLEEP_SECONDS``
+    Seconds for ``sleep``: a finite number above 0, 30 by default.
+``FAKE_KIRO_NOISE_BYTES``
+    Bytes per stream for ``noise``: an integer of 0 or more, 1048576 by default.
+``FAKE_KIRO_COMMIT_FILES``
+    Files for ``commit``, separated by commas: paths relative to the working directory,
+    with no empty, ``.``, ``..`` or ``.git`` component. ``fake-kiro-change.txt`` by default.
+``FAKE_KIRO_MODE_T0`` to ``FAKE_KIRO_MODE_T4``
+    Behaviors for a ``chat`` whose prompt holds a token of that trial, in the form of
+    ``FAKE_KIRO_MODE``. Every one that is set is checked on every run, and another name
+    that starts with ``FAKE_KIRO_MODE_`` is a usage error, so that a misspelt trial fails.
+``FAKE_KIRO_GH_EXIT``
+    The code of ``gh-status``: an integer from 0 to 255. Unset by default.
+``FAKE_KIRO_VERSION``
+    The version that ``--version`` prints after ``kiro-cli``: one or more printable ASCII
+    characters without white space. ``0.0.0-fake`` by default, a version that no real
+    release has. A test of a selftest that no longer counts changes it.
+``HANDOFF_GUARD_LOG``
+    Absolute path of the guard log that the guard behaviors append to. Another value is a
+    usage error of a ``chat`` that runs a guard behavior. Each entry is one JSON object per
+    line, ASCII only, under an exclusive ``flock``: ``schema`` (1), ``at``, ``guard``
+    (:data:`FAKE_GUARD`), ``decision`` (``block`` or ``allow``), ``exit_code`` (2 or 0)
+    and ``input``, the made-up input of a PreToolUse hook (``hook_event_name``, ``cwd``,
+    ``tool_name`` and ``tool_input``).
+
+Record. One JSON object per line, ASCII only, appended under an exclusive ``flock`` so that
+runs at the same time do not interleave their lines. A run appends ``start`` (``argv``,
+``cwd``, ``pid``, ``ppid``, ``pgid``, ``sid``, the parsed subcommand, options and prompt,
+the selftest ``trial`` and ``token`` of the prompt or ``null``, the behaviors and the
+variable they came from as ``mode_variable``, and a summary of the environment),
+``spawned`` for ``sleep``, and ``end`` (``exit_code``, the result of each behavior,
+``error``, and the byte count and SHA-256 of what the run wrote to each stream). A run that
+is killed has no ``end``.
+
+The summary of the environment holds every variable name; the values of
+``GIT_CONFIG_COUNT``, ``GIT_CONFIG_KEY_<n>`` and ``GIT_CONFIG_VALUE_<n>``, which show the
+push URL override (temporary paths in the tests); whether ``GH_CONFIG_DIR``,
+``AWS_CONFIG_FILE`` and ``AWS_SHARED_CREDENTIALS_FILE`` name an empty directory or file;
+whether ``AWS_EC2_METADATA_DISABLED`` is ``true``; and the SHA-256 of the first entry of ``PATH`` as
+``path_first_sha256`` (the entry is a directory under ``HOME`` or the system, so only its hash is
+written; a test compares it with the hash of the directory that the harness should put first). No other value is written: not the AWS variables, not tokens, not ``HOME``.
+
+Exit codes: 0 or ``FAKE_KIRO_EXIT_CODE``; 1 for ``whoami-fail`` and ``version-fail``; 2 for a
+usage error; 3 when a behavior fails (a git command other than the push fails, or a file
+cannot be written); 4 for an unexpected error, with the traceback on standard error.
+"""
+
+from __future__ import annotations
+
+import fcntl
+import hashlib
+import json
+import math
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from typing import Any, Callable, Mapping, NamedTuple, Sequence
+
+#: Version of the record's events.
+SCHEMA_VERSION = 1
+
+#: The version of ``--version`` when ``FAKE_KIRO_VERSION`` is unset, and what it then writes.
+DEFAULT_VERSION = "0.0.0-fake"
+VERSION_TEXT = f"kiro-cli {DEFAULT_VERSION}\n"
+
+#: The form of ``FAKE_KIRO_VERSION``: printable ASCII without white space.
+VERSION_FORM = re.compile(r"[!-~]+")
+
+#: What ``--version`` writes to standard error with ``version-fail``.
+VERSION_FAIL_TEXT = "fake kiro-cli: the version cannot be read\n"
+
+#: What ``whoami`` writes when it succeeds. The account is made up.
+WHOAMI_TEXT = "Logged in as fake-user (fake kiro-cli)\n"
+
+#: What ``whoami`` writes to standard error with ``whoami-fail``.
+NOT_LOGGED_IN_TEXT = "fake kiro-cli: not logged in\n"
+
+DEFAULT_ANSWER = "fake kiro-cli answer\n"
+DEFAULT_SLEEP_SECONDS = 30.0
+DEFAULT_NOISE_BYTES = 1024 * 1024
+DEFAULT_COMMIT_FILES = ("fake-kiro-change.txt",)
+
+#: How much longer than the script the child of ``sleep`` sleeps.
+CHILD_EXTRA_SECONDS = 30.0
+
+#: Size of each write of ``noise``. Odd, so that the writes do not line up with pipe buffers.
+NOISE_CHUNK = 4093
+
+UNDECLARED_FILE = "fake-kiro-undeclared.txt"
+CHANGE_LINE = b"changed by the fake kiro-cli\n"
+COMMIT_MESSAGE = "test: change made by the fake kiro-cli"
+DETACHED_PUSH_BRANCH = "fake-kiro-push"
+SWITCH_BRANCH = "fake-kiro-switched"
+
+#: The most characters of a git command's standard error kept in the record.
+TAIL_CHARS = 2000
+
+EXIT_NOT_LOGGED_IN = 1
+EXIT_NO_VERSION = 1
+EXIT_USAGE = 2
+EXIT_BEHAVIOR_FAILED = 3
+EXIT_INTERNAL = 4
+
+WHOAMI_BEHAVIORS = ("whoami-fail",)
+VERSION_BEHAVIORS = ("version-fail",)
+SELFTEST_BEHAVIORS = ("empty-commit", "gh-status", "write-file", "write-file-anyway")
+GUARD_BEHAVIORS = ("guard-block", "guard-allow", "guard-block-other")
+CHAT_BEHAVIORS = (
+    "noise",
+    "ignore-sigterm",
+    "sleep",
+    "commit",
+    "undeclared",
+    "push",
+    "push-url",
+    "switch-main",
+    *SELFTEST_BEHAVIORS,
+    *GUARD_BEHAVIORS,
+)
+
+#: The behaviors whose guard log entry must hold the prompt's token.
+TOKEN_BEHAVIORS = ("guard-block", "guard-allow")
+
+#: A selftest token in a prompt: the trial and 16 lowercase hexadecimal digits, with no
+#: letter, digit or ``_`` right before or after it.
+SELFTEST_TOKEN = re.compile(r"(?<![A-Za-z0-9_])handoff-selftest-(t[0-4])-[0-9a-f]{16}(?![A-Za-z0-9_])")
+
+#: The per-trial variables are this prefix and the trial in capitals.
+TRIAL_MODE_PREFIX = "FAKE_KIRO_MODE_"
+TRIAL_SUFFIXES = ("T0", "T1", "T2", "T3", "T4")
+
+#: What the selftest behaviors write in place of the token when the prompt holds none.
+NO_TOKEN_LABEL = "fake-kiro-selftest"
+
+#: The private-range example address of ``empty-commit``. Built from parts, so that no
+#: tracked file holds an address.
+EXAMPLE_ADDRESS = ".".join(("10", "0", "0", "1"))
+
+#: The variables from which ``gh`` takes a token before its stored credentials
+#: (``gh help environment``).
+GH_TOKEN_VARIABLES = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
+
+#: The code of ``gh-status`` for no login.
+GH_NOT_LOGGED_IN = 1
+
+#: The write tool, as the ``--trust-tools`` example of ``kiro-cli chat --help`` 2.32.0 names it.
+WRITE_TOOL = "fs_write"
+
+#: The variable of the guard log, set by the harness for each selftest trial.
+GUARD_LOG_VARIABLE = "HANDOFF_GUARD_LOG"
+
+#: Version of the guard log's entries, and the guard and tool that the fake names in them.
+GUARD_SCHEMA_VERSION = 1
+FAKE_GUARD = "fake_guard"
+FAKE_TOOL = "fake_shell"
+
+#: The command in the input of ``guard-block-other``, which holds no token.
+UNRELATED_COMMAND = "fake-kiro-cli unrelated tool call"
+
+#: The payload of ``noise`` repeats this pattern. Its length is odd, so the boundaries of
+#: pieces of a power-of-two size fall at changing offsets of the pattern, some of them inside
+#: a multibyte character or an invalid sequence.
+_NOISE_PATTERNS = {
+    stream: (
+        f"{stream}: fake kiro-cli noise.\n".encode("ascii")
+        + f"{stream}: 日本語の行。\n".encode("utf-8")
+        + f"{stream}: not UTF-8: ".encode("ascii")
+        + b"\xff \xfe \x80 \xc3( \xe3\x81 \xed\xa0\x80 \xc0\xaf \xf5\x80\x80\x80 .\n"
+    )
+    for stream in ("stdout", "stderr")
+}
+
+#: The child of ``sleep``: tell the parent through the pipe that it runs, then sleep.
+_CHILD_CODE = (
+    "import os, sys, time; fd = int(sys.argv[2]); os.write(fd, b'r'); os.close(fd); time.sleep(float(sys.argv[1]))"
+)
+
+#: Prefixes of the numbered ``GIT_CONFIG_*`` variables whose values the record keeps.
+_GIT_CONFIG_NUMBERED = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+class Settings(NamedTuple):
+    """The ``FAKE_KIRO_*`` variables, checked.
+
+    Attributes:
+        behaviors: The names in ``mode_variable``, in order.
+        answer: ``FAKE_KIRO_ANSWER``.
+        exit_code: ``FAKE_KIRO_EXIT_CODE``.
+        sleep_seconds: ``FAKE_KIRO_SLEEP_SECONDS``.
+        noise_bytes: ``FAKE_KIRO_NOISE_BYTES``.
+        commit_files: ``FAKE_KIRO_COMMIT_FILES``.
+        mode_variable: ``FAKE_KIRO_MODE``, or the ``FAKE_KIRO_MODE_T<n>`` of the prompt's trial.
+        gh_exit: The code of ``gh-status``.
+        gh_exit_source: ``FAKE_KIRO_GH_EXIT`` when that variable gave the code, otherwise
+            ``token_variables``.
+        guard_log: ``HANDOFF_GUARD_LOG`` as given, or ``None``. Checked by
+            :func:`chat_problem` for a ``chat`` that runs a guard behavior.
+        version: ``FAKE_KIRO_VERSION``, or :data:`DEFAULT_VERSION`.
+        stderr: ``FAKE_KIRO_STDERR``, empty by default.
+    """
+
+    behaviors: tuple[str, ...]
+    answer: str
+    exit_code: int
+    sleep_seconds: float
+    noise_bytes: int
+    commit_files: tuple[str, ...]
+    mode_variable: str
+    gh_exit: int
+    gh_exit_source: str
+    guard_log: str | None
+    version: str
+    stderr: str = ""
+
+
+class Output:
+    """Standard output and standard error, with the count and hash of what was written."""
+
+    def __init__(self) -> None:
+        """Start with nothing written."""
+        self._handles = {"stdout": sys.stdout.buffer, "stderr": sys.stderr.buffer}
+        self._sizes = {"stdout": 0, "stderr": 0}
+        self._hashes = {"stdout": hashlib.sha256(), "stderr": hashlib.sha256()}
+
+    def write(self, stream: str, data: bytes) -> None:
+        """Write and flush bytes to ``stdout`` or ``stderr``.
+
+        Args:
+            stream: ``stdout`` or ``stderr``.
+            data: The bytes.
+        """
+        handle = self._handles[stream]
+        handle.write(data)
+        handle.flush()
+        self._sizes[stream] += len(data)
+        self._hashes[stream].update(data)
+
+    def summary(self) -> dict[str, dict[str, Any]]:
+        """Return the byte count and SHA-256 of each stream so far."""
+        return {name: {"bytes": self._sizes[name], "sha256": self._hashes[name].hexdigest()} for name in self._sizes}
+
+
+class Context(NamedTuple):
+    """What a behavior works with.
+
+    Attributes:
+        settings: The checked variables.
+        output: The output streams.
+        record: The record's path, or ``None``.
+        options: The parsed options of ``chat`` (see :func:`parse_chat`).
+        token: The selftest token of the prompt, or ``None``.
+    """
+
+    settings: Settings
+    output: Output
+    record: str | None
+    options: dict[str, Any]
+    token: str | None
+
+
+def noise_payload(stream: str, size: int) -> bytes:
+    """Return the bytes that ``noise`` writes to one stream.
+
+    Args:
+        stream: ``stdout`` or ``stderr``.
+        size: The number of bytes.
+
+    Returns:
+        The pattern of the stream, repeated and cut to ``size`` bytes.
+    """
+    pattern = _NOISE_PATTERNS[stream]
+    return (pattern * (size // len(pattern) + 1))[:size]
+
+
+def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
+    """Run one invocation.
+
+    Args:
+        argv: The argv, ``sys.argv`` by default.
+        environ: The environment, ``os.environ`` by default.
+
+    Returns:
+        The exit code.
+    """
+    try:
+        return _main(list(sys.argv if argv is None else argv), os.environ if environ is None else environ)
+    except Exception:
+        import traceback
+
+        sys.stderr.write("fake kiro-cli: internal error\n" + traceback.format_exc())
+        sys.stderr.flush()
+        return EXIT_INTERNAL
+
+
+def _main(argv: list[str], environ: Mapping[str, str]) -> int:
+    """Run one invocation; see :func:`main`."""
+    output = Output()
+    record = environ.get("FAKE_KIRO_RECORD")
+    if record is not None and not os.path.isabs(record):
+        output.write("stderr", b"fake kiro-cli: FAKE_KIRO_RECORD must be an absolute path\n")
+        return EXIT_USAGE
+    subcommand, options, prompt, error = parse_args(argv[1:])
+    token, trial, token_error = find_token(prompt)
+    error = error if error is not None else token_error
+    settings, settings_error = read_settings(environ, trial)
+    error = error if error is not None else settings_error
+    _append(
+        record,
+        {
+            "event": "start",
+            "argv": argv,
+            "cwd": os.getcwd(),
+            "ppid": os.getppid(),
+            "pgid": os.getpgid(0),
+            "sid": os.getsid(0),
+            "subcommand": subcommand,
+            "options": options,
+            "prompt": prompt,
+            "trial": trial,
+            "token": token,
+            "behaviors": None if settings is None else list(settings.behaviors),
+            "mode_variable": None if settings is None else settings.mode_variable,
+            "env": environment_summary(environ),
+        },
+    )
+    if error is not None or settings is None:
+        return _finish(record, output, EXIT_USAGE, [], f"usage: {error}")
+    if subcommand == "--version":
+        if "version-fail" in settings.behaviors:
+            output.write("stderr", VERSION_FAIL_TEXT.encode("ascii"))
+            return _finish(record, output, EXIT_NO_VERSION, [], None)
+        output.write("stdout", f"kiro-cli {settings.version}\n".encode("ascii"))
+        return _finish(record, output, 0, [], None)
+    if subcommand == "whoami":
+        if "whoami-fail" in settings.behaviors:
+            output.write("stderr", NOT_LOGGED_IN_TEXT.encode("ascii"))
+            return _finish(record, output, EXIT_NOT_LOGGED_IN, [], None)
+        output.write("stdout", WHOAMI_TEXT.encode("ascii"))
+        return _finish(record, output, 0, [], None)
+    problem = chat_problem(settings, token)
+    if problem is not None:
+        return _finish(record, output, EXIT_USAGE, [], f"usage: {problem}")
+    context = Context(settings=settings, output=output, record=record, options=options or {}, token=token)
+    results: list[dict[str, Any]] = []
+    for behavior in settings.behaviors:
+        if behavior in WHOAMI_BEHAVIORS + VERSION_BEHAVIORS:
+            continue
+        result, failure = _CHAT_ACTIONS[behavior](context)
+        results.append(result)
+        if failure is not None:
+            return _finish(record, output, EXIT_BEHAVIOR_FAILED, results, f"{behavior} failed: {failure}")
+    if settings.stderr:
+        output.write("stderr", settings.stderr.encode("utf-8", "surrogateescape"))
+    if settings.answer:
+        output.write("stdout", settings.answer.encode("utf-8", "surrogateescape"))
+    return _finish(record, output, settings.exit_code, results, None)
+
+
+def parse_args(args: Sequence[str]) -> tuple[str | None, dict[str, Any] | None, str | None, str | None]:
+    """Read the argv after the program name.
+
+    Args:
+        args: The arguments.
+
+    Returns:
+        ``(subcommand, options, prompt, error)``. ``options`` and ``prompt`` are set for
+        ``chat`` only; ``error`` is ``None`` when the arguments are usable.
+    """
+    if not args:
+        return None, None, None, "no subcommand"
+    head, rest = args[0], list(args[1:])
+    if head in ("--version", "whoami"):
+        return head, None, None, f"{head} takes no arguments" if rest else None
+    if head != "chat":
+        return head, None, None, f"unknown subcommand {head!r}"
+    options, prompt, error = parse_chat(rest)
+    return head, options, prompt, error
+
+
+def parse_chat(args: Sequence[str]) -> tuple[dict[str, Any], str | None, str | None]:
+    """Read the arguments of ``chat``.
+
+    Args:
+        args: The arguments after ``chat``.
+
+    Returns:
+        ``(options, prompt, error)``. ``options`` holds ``no_interactive`` (bool),
+        ``trust_tools`` (the names, ``[]`` for ``--trust-tools=``, or ``None``),
+        ``trust_all_tools`` (the form given, ``--trust-all-tools`` or ``-a``, or ``None``)
+        and ``agent`` (the name or ``None``).
+    """
+    options: dict[str, Any] = {"no_interactive": False, "trust_tools": None, "trust_all_tools": None, "agent": None}
+    positionals: list[str] = []
+    index = 0
+    only_positionals = False
+    while index < len(args):
+        arg = args[index]
+        index += 1
+        if only_positionals or arg == "-" or not arg.startswith("-"):
+            positionals.append(arg)
+        elif arg == "--":
+            only_positionals = True
+        elif arg == "--no-interactive":
+            options["no_interactive"] = True
+        elif arg.startswith("--trust-tools="):
+            names = arg[len("--trust-tools=") :]
+            options["trust_tools"] = names.split(",") if names else []
+        elif arg in ("--trust-all-tools", "-a"):
+            options["trust_all_tools"] = arg
+        elif arg == "--agent":
+            if index == len(args):
+                return options, None, "--agent needs a name"
+            options["agent"] = args[index]
+            index += 1
+        elif arg.startswith("--agent="):
+            options["agent"] = arg[len("--agent=") :]
+        else:
+            return options, None, f"unknown option {arg!r}"
+    if not options["no_interactive"]:
+        return options, None, "chat needs --no-interactive (the fake has no interactive mode)"
+    if len(positionals) != 1:
+        return options, None, f"chat takes one prompt, got {len(positionals)}"
+    return options, positionals[0], None
+
+
+def find_token(prompt: str | None) -> tuple[str | None, str | None, str | None]:
+    """Find the selftest token of a prompt.
+
+    Args:
+        prompt: The prompt of ``chat``, or ``None`` for the other invocations.
+
+    Returns:
+        ``(token, trial, None)``, ``(None, None, None)`` when the prompt holds no token, or
+        ``(None, None, error)`` when it holds more than one different token.
+    """
+    if prompt is None:
+        return None, None, None
+    found = {match.group(0): match.group(1) for match in SELFTEST_TOKEN.finditer(prompt)}
+    if len(found) > 1:
+        return None, None, f"the prompt holds {len(found)} different selftest tokens: {', '.join(sorted(found))}"
+    if not found:
+        return None, None, None
+    ((token, trial),) = found.items()
+    return token, trial, None
+
+
+def read_settings(environ: Mapping[str, str], trial: str | None = None) -> tuple[Settings | None, str | None]:
+    """Check the ``FAKE_KIRO_*`` variables.
+
+    Args:
+        environ: The environment.
+        trial: The selftest trial of the prompt, ``t0`` to ``t4``, or ``None``.
+
+    Returns:
+        ``(settings, None)``, or ``(None, error)`` for the first unusable variable.
+    """
+    mode_variable = "FAKE_KIRO_MODE"
+    behaviors, error = _behaviors(environ, mode_variable)
+    if error is not None:
+        return None, error
+    for name in sorted(environ):
+        if not name.startswith(TRIAL_MODE_PREFIX):
+            continue
+        suffix = name[len(TRIAL_MODE_PREFIX) :]
+        if suffix not in TRIAL_SUFFIXES:
+            return None, f"{name} names no trial: the per-trial variables are {TRIAL_MODE_PREFIX}T0 to T4"
+        chosen, error = _behaviors(environ, name)
+        if error is not None:
+            return None, error
+        if trial is not None and suffix == trial.upper():
+            mode_variable, behaviors = name, chosen
+    try:
+        exit_code = int(environ.get("FAKE_KIRO_EXIT_CODE", "0"))
+        sleep_seconds = float(environ.get("FAKE_KIRO_SLEEP_SECONDS", str(DEFAULT_SLEEP_SECONDS)))
+        noise_bytes = int(environ.get("FAKE_KIRO_NOISE_BYTES", str(DEFAULT_NOISE_BYTES)))
+    except ValueError as error:
+        return None, f"a FAKE_KIRO_* number does not parse: {error}"
+    if not 0 <= exit_code <= 255:
+        return None, "FAKE_KIRO_EXIT_CODE must be from 0 to 255"
+    if not (math.isfinite(sleep_seconds) and sleep_seconds > 0):
+        return None, "FAKE_KIRO_SLEEP_SECONDS must be a finite number above 0"
+    if noise_bytes < 0:
+        return None, "FAKE_KIRO_NOISE_BYTES must be 0 or more"
+    raw_files = environ.get("FAKE_KIRO_COMMIT_FILES")
+    commit_files = DEFAULT_COMMIT_FILES if raw_files is None else tuple(raw_files.split(","))
+    for path in commit_files:
+        parts = path.split("/")
+        if path.startswith("/") or any(part in ("", ".", "..", ".git") for part in parts):
+            return None, f"FAKE_KIRO_COMMIT_FILES holds a path outside the working directory: {path!r}"
+    raw_gh_exit = environ.get("FAKE_KIRO_GH_EXIT")
+    if raw_gh_exit is None:
+        gh_exit = 0 if any(environ.get(name) for name in GH_TOKEN_VARIABLES) else GH_NOT_LOGGED_IN
+        gh_exit_source = "token_variables"
+    else:
+        try:
+            gh_exit = int(raw_gh_exit)
+        except ValueError:
+            return None, f"FAKE_KIRO_GH_EXIT does not parse as an integer: {raw_gh_exit!r}"
+        if not 0 <= gh_exit <= 255:
+            return None, "FAKE_KIRO_GH_EXIT must be from 0 to 255"
+        gh_exit_source = "FAKE_KIRO_GH_EXIT"
+    version = environ.get("FAKE_KIRO_VERSION", DEFAULT_VERSION)
+    if VERSION_FORM.fullmatch(version) is None:
+        return None, f"FAKE_KIRO_VERSION must be printable ASCII without white space, got {version!r}"
+    return (
+        Settings(
+            behaviors=behaviors,
+            answer=environ.get("FAKE_KIRO_ANSWER", DEFAULT_ANSWER),
+            exit_code=exit_code,
+            sleep_seconds=sleep_seconds,
+            noise_bytes=noise_bytes,
+            commit_files=commit_files,
+            mode_variable=mode_variable,
+            gh_exit=gh_exit,
+            gh_exit_source=gh_exit_source,
+            guard_log=environ.get(GUARD_LOG_VARIABLE),
+            version=version,
+            stderr=environ.get("FAKE_KIRO_STDERR", ""),
+        ),
+        None,
+    )
+
+
+def _behaviors(environ: Mapping[str, str], name: str) -> tuple[tuple[str, ...], str | None]:
+    """Read one variable of behaviors separated by commas.
+
+    Args:
+        environ: The environment.
+        name: ``FAKE_KIRO_MODE`` or a per-trial variable.
+
+    Returns:
+        ``(behaviors, None)``, or ``((), error)`` when it names an unknown behavior.
+    """
+    behaviors = tuple(part.strip() for part in environ.get(name, "").split(",") if part.strip())
+    unknown = [part for part in behaviors if part not in WHOAMI_BEHAVIORS + VERSION_BEHAVIORS + CHAT_BEHAVIORS]
+    if unknown:
+        return (), f"unknown behavior in {name}: {', '.join(unknown)}"
+    return behaviors, None
+
+
+def chat_problem(settings: Settings, token: str | None) -> str | None:
+    """Say why the behaviors of a ``chat`` cannot run, or return ``None``.
+
+    Checked for ``chat`` only, so that ``whoami`` and ``--version`` behave as before
+    whatever the selftest variables hold.
+
+    Args:
+        settings: The checked variables.
+        token: The selftest token of the prompt, or ``None``.
+
+    Returns:
+        The problem: a behavior of :data:`TOKEN_BEHAVIORS` without a token, or a guard
+        behavior with ``HANDOFF_GUARD_LOG`` set to a path that is not absolute.
+    """
+    needing = [behavior for behavior in settings.behaviors if behavior in TOKEN_BEHAVIORS]
+    if needing and token is None:
+        return f"{', '.join(needing)} needs a selftest token in the prompt"
+    uses_log = any(behavior in GUARD_BEHAVIORS for behavior in settings.behaviors)
+    if uses_log and settings.guard_log is not None and not os.path.isabs(settings.guard_log):
+        return f"{GUARD_LOG_VARIABLE} must be an absolute path, got {settings.guard_log!r}"
+    return None
+
+
+def environment_summary(environ: Mapping[str, str]) -> dict[str, Any]:
+    """Summarize the environment for the record, without the values of secrets.
+
+    Args:
+        environ: The environment.
+
+    Returns:
+        The variable names, the push URL override, and the state of the files that
+        ``child_env`` points at. See the module docstring.
+    """
+    git_config = {
+        name: value
+        for name, value in environ.items()
+        if name == "GIT_CONFIG_COUNT"
+        or any(
+            name.startswith(prefix) and name[len(prefix) :].isascii() and name[len(prefix) :].isdigit()
+            for prefix in _GIT_CONFIG_NUMBERED
+        )
+    }
+    return {
+        "names": sorted(environ),
+        "git_config": {name: git_config[name] for name in sorted(git_config)},
+        "gh_config_dir": _directory_state(environ.get("GH_CONFIG_DIR")),
+        "aws_config_file": _file_state(environ.get("AWS_CONFIG_FILE")),
+        "aws_shared_credentials_file": _file_state(environ.get("AWS_SHARED_CREDENTIALS_FILE")),
+        "aws_ec2_metadata_disabled": environ.get("AWS_EC2_METADATA_DISABLED") == "true",
+        "path_first_sha256": hashlib.sha256(
+            environ.get("PATH", "").split(":")[0].encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _directory_state(path: str | None) -> str:
+    """Say whether a path is an empty directory: ``unset``, ``empty``, ``not_empty``, ``not_a_directory`` or ``missing``."""
+    if path is None:
+        return "unset"
+    if os.path.isdir(path):
+        return "not_empty" if os.listdir(path) else "empty"
+    return "not_a_directory" if os.path.lexists(path) else "missing"
+
+
+def _file_state(path: str | None) -> str:
+    """Say whether a path is an empty file: ``unset``, ``empty``, ``not_empty``, ``not_a_file`` or ``missing``."""
+    if path is None:
+        return "unset"
+    if os.path.isfile(path):
+        return "not_empty" if os.path.getsize(path) else "empty"
+    return "not_a_file" if os.path.lexists(path) else "missing"
+
+
+def _noise(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Write the noise payloads to both streams, in alternating chunks."""
+    size = context.settings.noise_bytes
+    payloads = {stream: noise_payload(stream, size) for stream in ("stdout", "stderr")}
+    for start in range(0, size, NOISE_CHUNK):
+        for stream in ("stdout", "stderr"):
+            context.output.write(stream, payloads[stream][start : start + NOISE_CHUNK])
+    return {
+        "behavior": "noise",
+        "bytes": size,
+        "sha256": {stream: hashlib.sha256(payload).hexdigest() for stream, payload in payloads.items()},
+    }, None
+
+
+def _ignore_sigterm(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Ignore SIGTERM in this process and in the children it starts from now on."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    return {"behavior": "ignore-sigterm"}, None
+
+
+def _sleep(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Start a sleeping child in this process group, record its PID once it runs, sleep, then reap it.
+
+    The child writes one byte to a pipe when its code starts, and the ``spawned`` event waits
+    for that byte. A signal sent after the event therefore reaches a child that runs its own
+    code, not one that is still starting up.
+    """
+    seconds = context.settings.sleep_seconds
+    ready_read, ready_write = os.pipe()
+    child = subprocess.Popen(
+        [sys.executable, "-c", _CHILD_CODE, repr(seconds + CHILD_EXTRA_SECONDS), str(ready_write)],
+        stdin=subprocess.DEVNULL,
+        pass_fds=(ready_write,),
+    )
+    os.close(ready_write)
+    try:
+        ready = os.read(ready_read, 1) == b"r"
+    finally:
+        os.close(ready_read)
+    try:
+        child_pgid: int | None = os.getpgid(child.pid)
+    except ProcessLookupError:
+        child_pgid = None
+    _append(
+        context.record, {"event": "spawned", "child_pid": child.pid, "child_pgid": child_pgid, "child_ready": ready}
+    )
+    time.sleep(seconds)
+    child.kill()
+    child.wait()
+    return {"behavior": "sleep", "seconds": seconds, "child_pid": child.pid}, None
+
+
+def _commit(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Change and commit ``FAKE_KIRO_COMMIT_FILES``."""
+    return _commit_files("commit", context.settings.commit_files)
+
+
+def _undeclared(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Change and commit the file that the tests do not declare."""
+    return _commit_files("undeclared", (UNDECLARED_FILE,))
+
+
+def _commit_files(behavior: str, files: Sequence[str]) -> tuple[dict[str, Any], str | None]:
+    """Append :data:`CHANGE_LINE` to each file and commit the files in the working directory.
+
+    Args:
+        behavior: The behavior's name, for the result.
+        files: Paths relative to the working directory.
+
+    Returns:
+        The result and ``None``, or the result so far and what failed.
+    """
+    result: dict[str, Any] = {"behavior": behavior, "files": list(files), "commit": None, "steps": []}
+    for relative in files:
+        path = os.path.join(os.getcwd(), *relative.split("/"))
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "ab") as handle:
+                handle.write(CHANGE_LINE)
+        except OSError as error:
+            return result, f"cannot write {relative}: {error.strerror}"
+    for args in (["add", "--", *files], ["commit", "-q", "-m", COMMIT_MESSAGE]):
+        completed = _git(args)
+        result["steps"].append(_step(completed))
+        if completed.returncode != 0:
+            return result, f"git {args[0]} exited {completed.returncode}"
+    head = _git(["rev-parse", "HEAD"])
+    result["commit"] = _text(head) if head.returncode == 0 else None
+    return result, None
+
+
+def _push(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Try to push the current branch to ``origin``."""
+    return _push_to(to_url=False)
+
+
+def _push_url(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Try to push the current branch to the URL of ``remote.origin.url``."""
+    return _push_to(to_url=True)
+
+
+def _push_to(*, to_url: bool) -> tuple[dict[str, Any], str | None]:
+    """Push ``HEAD`` to the current branch's name and see whether the ref arrived.
+
+    Args:
+        to_url: Push to the URL in ``remote.origin.url`` rather than to ``origin``.
+
+    Returns:
+        The result and ``None``, or the result so far and what failed. A refused push is a
+        result: ``exit_code`` is not 0 and ``arrived`` is false.
+    """
+    branch = _git(["symbolic-ref", "--quiet", "--short", "HEAD"])
+    ref = "refs/heads/" + (_text(branch) if branch.returncode == 0 and _text(branch) else DETACHED_PUSH_BRANCH)
+    url_run = _git(["config", "--get", "remote.origin.url"])
+    url = _text(url_run) if url_run.returncode == 0 and _text(url_run) else None
+    result: dict[str, Any] = {
+        "behavior": "push-url" if to_url else "push",
+        "destination": "url" if to_url else "origin",
+        "ref": ref,
+        "local_sha": _text(_git(["rev-parse", "HEAD"])),
+        "exit_code": None,
+        "stderr": None,
+        "remote_sha_before": None,
+        "remote_sha_after": None,
+        "arrived": None,
+    }
+    if url is None:
+        return result, "remote.origin.url is not set"
+    before, problem = _remote_sha(url, ref)
+    if problem is not None:
+        return result, problem
+    pushed = _git(["push", url if to_url else "origin", "HEAD:" + ref])
+    after, problem = _remote_sha(url, ref)
+    result.update(
+        {
+            "exit_code": pushed.returncode,
+            "stderr": _tail(pushed.stderr),
+            "remote_sha_before": before,
+            "remote_sha_after": after,
+            "arrived": after is not None and after == result["local_sha"],
+        }
+    )
+    return result, problem
+
+
+def _remote_sha(url: str, ref: str) -> tuple[str | None, str | None]:
+    """Read one ref of a remote with ``git ls-remote``.
+
+    Args:
+        url: The remote's URL.
+        ref: The full ref name.
+
+    Returns:
+        ``(sha, None)`` with ``sha`` ``None`` when the remote has no such ref, or
+        ``(None, error)`` when ``ls-remote`` fails.
+    """
+    listed = _git(["ls-remote", url, ref])
+    if listed.returncode != 0:
+        return None, f"git ls-remote exited {listed.returncode}"
+    for line in _text(listed).splitlines():
+        sha, _, name = line.partition("\t")
+        if name == ref:
+            return sha, None
+    return None, None
+
+
+def _switch_main(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Create and switch to :data:`SWITCH_BRANCH` in the repository's main working tree."""
+    result: dict[str, Any] = {
+        "behavior": "switch-main",
+        "main_tree": None,
+        "branch_before": None,
+        "branch_after": None,
+        "exit_code": None,
+        "stderr": None,
+    }
+    listing = _git(["worktree", "list", "--porcelain"])
+    first = _text(listing).splitlines()[:1] if listing.returncode == 0 else []
+    if not first or not first[0].startswith("worktree "):
+        return result, "git worktree list did not name the main working tree"
+    main_tree = first[0][len("worktree ") :]
+    result["main_tree"] = main_tree
+    result["branch_before"] = _text(_git(["-C", main_tree, "branch", "--show-current"])) or None
+    switched = _git(["-C", main_tree, "switch", "-q", "-c", SWITCH_BRANCH])
+    result["exit_code"] = switched.returncode
+    result["branch_after"] = _text(_git(["-C", main_tree, "branch", "--show-current"])) or None
+    if switched.returncode != 0:
+        result["stderr"] = _tail(switched.stderr)
+        return result, f"git switch exited {switched.returncode}"
+    return result, None
+
+
+def _label(context: Context) -> str:
+    """Return the token of the prompt, or :data:`NO_TOKEN_LABEL` when it holds none."""
+    return context.token if context.token is not None else NO_TOKEN_LABEL
+
+
+def _empty_commit(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T1: commit nothing with a message that holds the token and a private-range example address."""
+    return _commit_empty("empty-commit", f"{_label(context)} {EXAMPLE_ADDRESS}")
+
+
+def _gh_status(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T3: stand for ``gh auth status`` and commit its code, as ``gh auth status; git commit ... gh-exit=$?`` would."""
+    code = context.settings.gh_exit
+    result, failure = _commit_empty("gh-status", f"{_label(context)} gh-exit={code}")
+    result.update({"gh_exit": code, "source": context.settings.gh_exit_source})
+    return result, failure
+
+
+def _commit_empty(behavior: str, message: str) -> tuple[dict[str, Any], str | None]:
+    """Make a commit without changes in the working directory.
+
+    Args:
+        behavior: The behavior's name, for the result.
+        message: The commit message.
+
+    Returns:
+        The result and ``None``, or the result so far and what failed.
+    """
+    result: dict[str, Any] = {"behavior": behavior, "message": message, "commit": None, "steps": []}
+    completed = _git(["commit", "-q", "--allow-empty", "-m", message])
+    result["steps"].append(_step(completed))
+    if completed.returncode != 0:
+        return result, f"git commit exited {completed.returncode}"
+    head = _git(["rev-parse", "HEAD"])
+    result["commit"] = _text(head) if head.returncode == 0 else None
+    return result, None
+
+
+def _write_file(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4: write ``<token>.txt`` only when the argv trusts :data:`WRITE_TOOL`."""
+    return _write_token_file("write-file", context, honor_trust=True)
+
+
+def _write_file_anyway(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4: write ``<token>.txt`` whatever the argv trusts."""
+    return _write_token_file("write-file-anyway", context, honor_trust=False)
+
+
+def _write_token_file(behavior: str, context: Context, *, honor_trust: bool) -> tuple[dict[str, Any], str | None]:
+    """Append :data:`CHANGE_LINE` to ``<token>.txt`` in the working directory, unless the allowlist forbids it.
+
+    Args:
+        behavior: The behavior's name, for the result.
+        context: The run.
+        honor_trust: Write only when the argv trusts :data:`WRITE_TOOL`.
+
+    Returns:
+        The result and ``None``, or the result so far and what failed. A refusal is a
+        result: ``trusted`` and ``written`` are false.
+    """
+    name = _label(context) + ".txt"
+    trusted = _trusts(context.options, WRITE_TOOL)
+    result: dict[str, Any] = {
+        "behavior": behavior,
+        "file": name,
+        "tool": WRITE_TOOL,
+        "trusted": trusted,
+        "written": False,
+    }
+    if honor_trust and not trusted:
+        return result, None
+    try:
+        with open(os.path.join(os.getcwd(), name), "ab") as handle:
+            handle.write(CHANGE_LINE)
+    except OSError as error:
+        return result, f"cannot write {name}: {error.strerror}"
+    result["written"] = True
+    return result, None
+
+
+def _trusts(options: Mapping[str, Any], tool: str) -> bool:
+    """Say whether the parsed ``chat`` options trust a tool: by name in ``--trust-tools``, or all of them."""
+    if options.get("trust_all_tools") is not None:
+        return True
+    names = options.get("trust_tools")
+    return names is not None and tool in names
+
+
+def _guard_block(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Log a stopped tool call whose input holds the token."""
+    return _guard_entry("guard-block", context, decision="block", with_token=True)
+
+
+def _guard_allow(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Log a tool call that the guard let through, whose input holds the token."""
+    return _guard_entry("guard-allow", context, decision="allow", with_token=True)
+
+
+def _guard_block_other(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Log a stopped tool call whose input does not hold the token."""
+    return _guard_entry("guard-block-other", context, decision="block", with_token=False)
+
+
+def _guard_entry(
+    behavior: str, context: Context, *, decision: str, with_token: bool
+) -> tuple[dict[str, Any], str | None]:
+    """Append one entry of the guard wrapper to ``HANDOFF_GUARD_LOG``, if it is set.
+
+    Args:
+        behavior: The behavior's name, for the result.
+        context: The run. With ``with_token``, :func:`chat_problem` made sure that the
+            prompt holds a token.
+        decision: ``block`` (the guard exited 2) or ``allow`` (it exited 0).
+        with_token: Put the token in the call's input.
+
+    Returns:
+        The result and ``None``, or the result so far and what failed. Without the
+        variable, ``written`` is false and nothing is written anywhere.
+    """
+    command = f"fake-kiro-cli selftest operation {context.token}" if with_token else UNRELATED_COMMAND
+    log = context.settings.guard_log
+    result: dict[str, Any] = {
+        "behavior": behavior,
+        "guard": FAKE_GUARD,
+        "decision": decision,
+        "log": log,
+        "written": False,
+        "token_in_input": with_token,
+    }
+    if log is None:
+        return result, None
+    entry = {
+        "schema": GUARD_SCHEMA_VERSION,
+        "at": _stamp(),
+        "guard": FAKE_GUARD,
+        "decision": decision,
+        "exit_code": 2 if decision == "block" else 0,
+        "input": {
+            "hook_event_name": "preToolUse",
+            "cwd": os.getcwd(),
+            "tool_name": FAKE_TOOL,
+            "tool_input": {"command": command},
+        },
+    }
+    try:
+        _locked_append(log, json.dumps(entry, ensure_ascii=True))
+    except OSError as error:
+        return result, f"cannot append to {GUARD_LOG_VARIABLE}: {error.strerror}"
+    result["written"] = True
+    return result, None
+
+
+_CHAT_ACTIONS: dict[str, Callable[[Context], tuple[dict[str, Any], str | None]]] = {
+    "noise": _noise,
+    "ignore-sigterm": _ignore_sigterm,
+    "sleep": _sleep,
+    "commit": _commit,
+    "undeclared": _undeclared,
+    "push": _push,
+    "push-url": _push_url,
+    "switch-main": _switch_main,
+    "empty-commit": _empty_commit,
+    "gh-status": _gh_status,
+    "write-file": _write_file,
+    "write-file-anyway": _write_file_anyway,
+    "guard-block": _guard_block,
+    "guard-allow": _guard_allow,
+    "guard-block-other": _guard_block_other,
+}
+
+
+def _git(args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+    """Run git in the working directory with this process's environment."""
+    return subprocess.run(["git", *args], stdin=subprocess.DEVNULL, capture_output=True, check=False)
+
+
+def _text(completed: subprocess.CompletedProcess[bytes]) -> str:
+    """Return a git command's standard output as text, stripped."""
+    return os.fsdecode(completed.stdout).strip()
+
+
+def _tail(data: bytes) -> str:
+    """Return the end of a git command's standard error as text."""
+    return data.decode("utf-8", "replace")[-TAIL_CHARS:]
+
+
+def _step(completed: subprocess.CompletedProcess[bytes]) -> dict[str, Any]:
+    """Describe one git command of a behavior for the record."""
+    step: dict[str, Any] = {"argv": list(completed.args), "exit_code": completed.returncode}
+    if completed.returncode != 0:
+        step["stderr"] = _tail(completed.stderr)
+    return step
+
+
+def _finish(record: str | None, output: Output, code: int, results: list[dict[str, Any]], error: str | None) -> int:
+    """Write the error, append the ``end`` event, and return the exit code."""
+    if error is not None:
+        output.write("stderr", f"fake kiro-cli: {error}\n".encode("utf-8", "replace"))
+    _append(record, {"event": "end", "exit_code": code, "results": results, "error": error, **output.summary()})
+    return code
+
+
+def _append(record: str | None, event: dict[str, Any]) -> None:
+    """Append one event to the record, under an exclusive lock.
+
+    Args:
+        record: The record's absolute path, or ``None`` to record nothing.
+        event: The event. ``schema``, ``at`` and ``pid`` are added.
+    """
+    if record is None:
+        return
+    line = json.dumps({"schema": SCHEMA_VERSION, "at": _stamp(), "pid": os.getpid(), **event}, ensure_ascii=True)
+    _locked_append(record, line)
+
+
+def _stamp() -> str:
+    """Return the time now in UTC, to the microsecond."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _locked_append(path: str, line: str) -> None:
+    """Append one ASCII line and a newline to a file, under an exclusive ``flock``.
+
+    Args:
+        path: The file's absolute path; it is created with mode 0600 if missing.
+        line: The line, without its newline.
+    """
+    data = memoryview((line + "\n").encode("ascii"))
+    descriptor = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        while data:
+            data = data[os.write(descriptor, data) :]
+    finally:
+        os.close(descriptor)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

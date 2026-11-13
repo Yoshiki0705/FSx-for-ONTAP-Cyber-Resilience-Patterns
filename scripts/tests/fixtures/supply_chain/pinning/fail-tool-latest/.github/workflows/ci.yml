@@ -1,0 +1,9 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: go install github.com/google/osv-scanner/cmd/osv-scanner@latest
+      - run: pip install syft
+      - run: trivy-version=latest ./install.sh

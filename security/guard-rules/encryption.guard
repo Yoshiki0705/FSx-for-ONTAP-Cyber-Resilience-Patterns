@@ -1,18 +1,27 @@
-# CloudFormation Guard Rules - Encryption
+# CloudFormation Guard Rules - Encryption (cfn-guard 3.x syntax)
 # Ensures all applicable resources use encryption.
+#
+# Each rule selects resources by type with a filter query and runs only when
+# the template has at least one such resource (no resource of that type: SKIP).
+
+let s3_buckets = Resources.*[ Type == 'AWS::S3::Bucket' ]
+let sqs_queues = Resources.*[ Type == 'AWS::SQS::Queue' ]
+let sns_topics = Resources.*[ Type == 'AWS::SNS::Topic' ]
 
 # Rule: S3 buckets must have encryption enabled
-rule s3_bucket_encryption when AWS::S3::Bucket {
-  Properties.BucketEncryption EXISTS
+rule s3_bucket_encryption when %s3_buckets !empty {
+  %s3_buckets.Properties.BucketEncryption exists
 }
 
 # Rule: SQS queues must use KMS encryption
-rule sqs_kms_encryption when AWS::SQS::Queue {
-  Properties.KmsMasterKeyId EXISTS OR
-  Properties.SqsManagedSseEnabled == true
+rule sqs_kms_encryption when %sqs_queues !empty {
+  %sqs_queues.Properties {
+    KmsMasterKeyId exists or
+    SqsManagedSseEnabled == true
+  }
 }
 
 # Rule: SNS topics should use KMS encryption
-rule sns_kms_encryption when AWS::SNS::Topic {
-  Properties.KmsMasterKeyId EXISTS
+rule sns_kms_encryption when %sns_topics !empty {
+  %sns_topics.Properties.KmsMasterKeyId exists
 }

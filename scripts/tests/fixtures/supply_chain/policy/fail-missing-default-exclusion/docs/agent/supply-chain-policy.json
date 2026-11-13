@@ -1,0 +1,81 @@
+{
+  "automerge": {
+    "enabled_repositories": [],
+    "exclude": [
+      "vulnerability_fix",
+      "runtime_dependencies",
+      "minor",
+      "major",
+      "digest_only",
+      "unknown_dep_type",
+      "hub_reusable_workflow"
+    ],
+    "include": [
+      {
+        "dep_types": [
+          "devDependencies"
+        ],
+        "manager": "npm",
+        "update_types": [
+          "patch"
+        ]
+      },
+      {
+        "dep_types": [],
+        "manager": "github-actions",
+        "update_types": [
+          "patch"
+        ]
+      }
+    ]
+  },
+  "cooldown_days": {
+    "default": 3,
+    "major": 7
+  },
+  "dependency_scope": {
+    "non_production_paths": [
+      "tests/",
+      "docs/"
+    ]
+  },
+  "excluded_repositories": [
+    "aws-samples/baseline-environment-on-aws",
+    "aws-samples/baseline-environment-on-aws-for-financial-services-institute",
+    "Yoshiki0705/baseline-environment-on-aws",
+    "example-owner/other"
+  ],
+  "issue_limits": {
+    "max_new_issues_per_repo_per_run": 10
+  },
+  "opening_threshold": {
+    "epss_used_for_opening": false,
+    "min_cvss_severity": "HIGH",
+    "open_if_kev_listed": true,
+    "open_if_malicious": true
+  },
+  "package_manager_wait": {
+    "default_days": 3,
+    "major_days": 7
+  },
+  "response_target": {
+    "detect_hours": 24,
+    "fix_days_high": 14,
+    "fix_days_kev_or_malicious": 7
+  },
+  "schema_version": 1,
+  "target_repositories": [
+    "example-owner/repo-a",
+    "example-owner/repo-b"
+  ],
+  "vex": {
+    "approver_role": "VEX_Reviewer",
+    "directory": ".vex",
+    "exclude_statuses": [
+      "not_affected",
+      "fixed"
+    ],
+    "malicious_never_suppressed": true,
+    "one_statement_per_document": true
+  }
+}

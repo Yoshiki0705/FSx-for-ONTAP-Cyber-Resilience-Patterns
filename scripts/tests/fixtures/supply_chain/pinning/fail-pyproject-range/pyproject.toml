@@ -1,0 +1,5 @@
+[project]
+name = "example"
+dependencies = [
+  "boto3>=1.34",
+]

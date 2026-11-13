@@ -1,0 +1,5 @@
+# runtime
+boto3==1.35.49
+moto[all]==5.0.9 ; python_version >= '3.12'
+cryptography==42.0.5 \
+    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

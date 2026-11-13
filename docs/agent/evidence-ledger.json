@@ -363,7 +363,10 @@
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
         "AGENTS.md",
-        "docs/articles/04-operating-at-scale.md"
+        "docs/articles/04-operating-at-scale.md",
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md",
+        "docs/management-planes-cyber-resilience.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
     },
@@ -1313,6 +1316,434 @@
         "docs/ja/deployment-guide.md"
       ],
       "note": "Tested with the rule and the topic in one account. Events forwarded from another account to the bus were not tested."
+    },
+    {
+      "id": "E-042",
+      "claim": "Cloud Volumes ONTAP upgrades: NetApp documents upgrading only from the NetApp Console, saying that using ONTAP System Manager or the ONTAP CLI might affect system stability. It also says that reverting or downgrading Cloud Volumes ONTAP to a previous release is not supported.",
+      "subject": "NetApp Cloud Volumes ONTAP upgrade path and revert",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/storage-management-cloud-volumes-ontap/task-updating-ontap-cloud.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Upgrade overview: upgrade only from the Console; System Manager or CLI might affect stability. Reverting or downgrading is not supported."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
+      "note": "The page says 'might affect system stability', not that it fails. Applies to Cloud Volumes ONTAP, not FSx for ONTAP."
+    },
+    {
+      "id": "E-043",
+      "claim": "An ONTAP Select node cannot be reverted to a version earlier than the one it was originally installed with; a node first installed at 9.17.1 cannot be reverted at all. The Deploy utility cannot upgrade existing ONTAP Select nodes.",
+      "subject": "NetApp ONTAP Select node revert",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap-select/concept_adm_upgrading_nodes.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Revert an ONTAP Select node: cannot revert to a version prior to the one originally installed. The Deploy utility cannot be used to upgrade existing nodes."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
+      "note": "Applies to ONTAP Select, not FSx for ONTAP."
+    },
+    {
+      "id": "E-044",
+      "claim": "The GitHub REST endpoint that exports a repository SBOM synchronously (GET /repos/{owner}/{repo}/dependency-graph/sbom) is documented as closing down and not accessible after November 13, 2026; GitHub points to the asynchronous generate-report and fetch-report flow.",
+      "subject": "GitHub REST API synchronous SBOM export",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.github.com/en/rest/dependency-graph/sboms",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Closing-down notice on the synchronous operation: not accessible after November 13, 2026; migrate to the asynchronous flow. Generated reports may be retained up to one week."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "A closing-down notice, not a capability the product lacks. The asynchronous endpoints remain."
+    },
+    {
+      "id": "E-045",
+      "claim": "Renovate with the default minimumReleaseAgeBehaviour (timestamp-required) holds digest updates indefinitely for registries that return no release timestamps (the page names GHCR, Quay and ECR); minimumReleaseAgeBehaviour=timestamp-optional raises them without an age check.",
+      "subject": "Renovate minimumReleaseAge on registries without release timestamps",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Digest updates: registries which do not return release timestamps (such as GHCR, Quay or ECR) cannot be aged; with timestamp-required these digest updates are held indefinitely."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "Observed from the documentation only; not reproduced against a registry."
+    },
+    {
+      "id": "E-046",
+      "claim": "Amazon Inspector Code Security findings are not available to the Amazon Inspector integration with AWS Security Hub CSPM; they can be read in the Amazon Inspector console and API.",
+      "subject": "Amazon Inspector Code Security and Security Hub CSPM integration",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/inspector/latest/user/securityhub-integration.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Note: findings generated by Amazon Inspector Code Security are not available for this integration; available in the Inspector console and API."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "The page covers Security Hub CSPM. Whether the separate AWS Security Hub (OCSF) receives them is not stated there."
+    },
+    {
+      "id": "E-047",
+      "claim": "Amazon Inspector Lambda standard scanning does not scan the AWS SDK dependency installed by default in the Lambda runtime; it scans only dependencies uploaded with the function code or inherited from a layer.",
+      "subject": "Amazon Inspector Lambda standard scanning, runtime-bundled AWS SDK",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/inspector/latest/user/scanning_resources_lambda.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Note: Lambda standard scanning does not scan the AWS SDK dependency installed by default in the Lambda runtime environment."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "A function that bundles nothing but the runtime's SDK has no scanned dependencies."
+    },
+    {
+      "id": "E-048",
+      "claim": "Amazon Inspector does not support scanning Lambda functions encrypted with customer managed keys; this applies to Lambda standard scanning and Lambda code scanning.",
+      "subject": "Amazon Inspector Lambda scanning, customer managed keys",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Note: Inspector does not support scanning Lambda functions encrypted with customer managed keys, for both standard and code scanning."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "Whether a given function is encrypted with a customer managed key is a property of that account; check it per function."
+    },
+    {
+      "id": "E-049",
+      "claim": "Amazon Inspector Lambda scanning excludes functions that have not been invoked or updated in the last 90 days, and only scans the $LATEST version; scanning resumes if the function is invoked again or its code changes.",
+      "subject": "Amazon Inspector Lambda scanning eligibility",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/inspector/latest/user/scanning-lambda.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Eligibility: invoked or updated in the last 90 days, marked $LATEST, not excluded by tags. Functions idle for 90 days are automatically excluded."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "Same page as the customer managed key limitation."
+    },
+    {
+      "id": "E-050",
+      "claim": "The enhanced AWS Security Hub (OCSF) does not receive findings from third-party partner tools. Third-party partner and custom findings in the AWS Security Finding Format go to AWS Security Hub CSPM.",
+      "subject": "AWS Security Hub versus Security Hub CSPM, finding sources",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://aws.amazon.com/security-hub/faqs/",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Findings differ in sources, types, format and event delivery. The enhanced Security Hub does not receive findings from third-party partner tools; CSPM integrations with partner tools continue."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "The FAQ page was retrieved whole and the Q&As on finding sources, format and event delivery were read; the other Q&As were not read line by line."
+    },
+    {
+      "id": "E-051",
+      "claim": "AWS Resilience Hub's list of supported storage resources names Amazon EBS, Amazon EFS, Amazon S3 and Amazon FSx for Windows File Server. Amazon FSx for NetApp ONTAP is not on the list, and unlisted resources are described as not fully supported at this time.",
+      "subject": "AWS Resilience Hub supported resources, FSx for ONTAP",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/resilience-hub/latest/userguide/supported-resources.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Storage list: EBS, EFS, S3, FSx for Windows File Server. Unsupported resources may be supported in the future."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [],
+      "note": "Absence from a positive list, not a sentence naming FSx for ONTAP. The page says unsupported resources may be added later; recheck before relying on it."
+    },
+    {
+      "id": "E-052",
+      "claim": "Amazon Inspector SBOM export does not support agent-based Amazon EC2 Windows instances; agentless Amazon EC2 Windows instances are supported from February 28, 2026.",
+      "subject": "Amazon Inspector SBOM export, EC2 Windows",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/inspector/latest/user/sbom-export.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Tip: from February 28, 2026 agentless EC2 Windows instances are supported; exporting SBOMs for agent-based EC2 Windows instances is currently not supported."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "The page says 'currently'; recheck before relying on it. It does not say whether the Security Hub SBOM inventory lists agent-based Windows instances."
+    },
+    {
+      "id": "E-053",
+      "claim": "The AWS Security Hub GetSoftwareV2 response returns PackageName, PackageType, PackageVersion and ResourceCount for each package. It has no purl, license, supplier or hash field.",
+      "subject": "AWS Security Hub GetSoftwareV2 response fields",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Response elements: Software array of SoftwareResult. The response syntax lists PackageName, PackageType, PackageVersion, ResourceCount."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "The SoftwareResult object page was not opened; the field list is read from the response syntax in this page."
+    },
+    {
+      "id": "E-054",
+      "claim": "The AWS Security Hub SBOM inventory documents compute resources (virtual machines, container images, serverless functions) that Amazon Inspector scans, and shows software only for the resource types Amazon Inspector scans. Neither the Inspector scan targets nor the inventory types name FSx for ONTAP or ONTAP; the inventory therefore is not expected to list them.",
+      "subject": "AWS Security Hub SBOM inventory coverage, FSx for ONTAP and ONTAP",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-sbom.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Inventory covers virtual machines, container images, serverless functions; shows software only for resource types Inspector scans. FSx for ONTAP is not mentioned either way."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "Inference from two lists that do not name FSx for ONTAP. Not stated by AWS and not tried. Absence from a list is not a statement of absence."
+    },
+    {
+      "id": "E-055",
+      "claim": "Renovate's GitHub vulnerabilityAlerts path reads GitHub Dependabot alerts and requires the dependency graph and Dependabot alerts to be enabled (plus read permission on Dependabot alerts for the app); in a repository with Dependabot alerts disabled it is therefore not expected to raise fix pull requests.",
+      "subject": "Renovate vulnerabilityAlerts and GitHub Dependabot alerts",
+      "tier": "hypothesis",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.renovatebot.com/configuration-options/",
+          "retrieved": "2026-11-13",
+          "read": "selective",
+          "note": "vulnerabilityAlerts: for this to work you must enable the dependency graph and Dependabot alerts; once met and alerts exist, Renovate tries to raise fix PRs. The page is about 10,000 lines and was read for this section only."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "The documented part is the precondition. The no-pull-request result when alerts are disabled was read from the Renovate source in an earlier survey (selective) and was not run, so the tier is hypothesis."
+    },
+    {
+      "id": "E-056",
+      "claim": "npm with min-release-age (or before) set: when the window blocks a patched version that npm audit fix would install, npm keeps the vulnerable version, warns, and exits with a non-zero code; the fix is to add the package to min-release-age-exclude or relax the window.",
+      "subject": "npm min-release-age and npm audit fix",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.npmjs.com/cli/v11/using-npm/config",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "min-release-age: when the window stops npm audit fix installing a patched version, npm keeps the vulnerable version, warns, and exits non-zero. min-release-age-exclude exempts packages."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
+      "note": "Documentation for npm CLI v11 as shown on the page; not run here."
+    },
+    {
+      "id": "E-057",
+      "claim": "When snapshot locking is enabled on an ONTAP volume, ONTAP can be upgraded but cannot be reverted to an earlier version until all locked snapshots have reached their expiration date and been deleted and snapshot locking is disabled.",
+      "subject": "ONTAP Tamperproof Snapshot (snapshot locking) and revert",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/snaplock/snapshot-lock-concept.html",
+          "retrieved": "2026-11-13",
+          "read": "full",
+          "note": "Requirements: with snapshot locking enabled you can upgrade, but cannot revert to an earlier ONTAP version until all locked snapshots have expired and been deleted and snapshot locking is disabled."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Public vendor documentation answers this; no vendor inquiry needed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md",
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
+      "note": "Stated for ONTAP in general. Whether FSx for ONTAP exposes a revert path at all was not checked."
     }
   ]
 }

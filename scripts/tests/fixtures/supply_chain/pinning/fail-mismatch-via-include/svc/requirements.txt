@@ -1,0 +1,2 @@
+-r ../shared/base.txt
+requests==2.31.0

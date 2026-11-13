@@ -1,0 +1,12 @@
+Parameters:
+  AppPort:
+    Type: Number
+Resources:
+  Ingress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: sg-0123456789abcdef0
+      IpProtocol: tcp
+      FromPort: !Ref AppPort
+      ToPort: !Ref AppPort
+      CidrIp: 0.0.0.0/0

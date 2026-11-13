@@ -1,0 +1,9 @@
+{
+  "extends": [
+    "config:recommended",
+    "github>Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook//renovate/supply-chain#supply-chain-preset-v1.0.0"
+  ],
+  "labels": [
+    "dependencies"
+  ]
+}

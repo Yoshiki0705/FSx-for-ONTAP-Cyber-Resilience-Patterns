@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Supply-chain preset: cooldown, pinning, no automerge by default (pillar 1). Automerge rules live in supply-chain-automerge.json.",
+  "extends": [
+    "helpers:pinGitHubActionDigests"
+  ],
+  "internalChecksFilter": "strict",
+  "minimumReleaseAge": "2 days",
+  "minimumReleaseAgeBehaviour": "timestamp-required",
+  "automerge": false,
+  "platformAutomerge": true,
+  "ignoreTests": false,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ],
+    "automerge": false,
+    "minimumReleaseAge": null
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Major updates wait 7 days",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Default: no automerge",
+      "matchPackageNames": [
+        "*"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Hub reusable workflows are never automerged",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/**"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Optional second guard: never automerge vulnerability fixes (vulnerabilityAlerts.automerge=false is the primary control)",
+      "matchJsonata": [
+        "isVulnerabilityAlert = true"
+      ],
+      "automerge": false
+    }
+  ]
+}

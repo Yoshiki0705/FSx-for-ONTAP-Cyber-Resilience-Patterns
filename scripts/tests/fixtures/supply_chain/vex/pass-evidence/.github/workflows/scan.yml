@@ -1,0 +1,5 @@
+jobs:
+  scan:
+    steps:
+      - run: trivy fs --exit-code 1 .
+      # never pass --vex to the scanner

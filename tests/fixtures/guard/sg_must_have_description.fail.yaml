@@ -1,0 +1,5 @@
+Resources:
+  Sg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: vpc-0123456789abcdef0

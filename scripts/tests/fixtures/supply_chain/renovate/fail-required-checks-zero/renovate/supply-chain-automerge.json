@@ -1,0 +1,45 @@
+{
+  "extends": [
+    "github>Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook//renovate/supply-chain#supply-chain-preset-v1.0.0"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "hub",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/**"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "guard",
+      "matchJsonata": [
+        "isVulnerabilityAlert = true"
+      ],
+      "automerge": false
+    }
+  ]
+}

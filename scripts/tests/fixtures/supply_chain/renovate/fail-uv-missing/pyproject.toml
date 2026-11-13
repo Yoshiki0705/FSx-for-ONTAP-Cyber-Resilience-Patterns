@@ -1,0 +1,2 @@
+[tool.uv]
+index-strategy = "first-index"

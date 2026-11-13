@@ -1,0 +1,11 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker run --rm -e A=b ghcr.io/example/tool:1.2.3 --help
+      - uses: docker://alpine:latest
+      - run: echo ok
+    container:
+      image: node:20

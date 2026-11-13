@@ -8,8 +8,9 @@
 2. `docs/{ja,en}/cyber-resilience-framework-mapping.md` ([JA](docs/ja/cyber-resilience-framework-mapping.md) / [EN](docs/en/cyber-resilience-framework-mapping.md)): the only NIST CSF 2.0 mapping in this repository. Other documents link to it; do not copy its tables elsewhere.
 3. [`docs/agent/evidence-ledger.json`](docs/agent/evidence-ledger.json) and `make check-evidence`: register any "the vendor cannot / does not cover" claim in the ledger and cite it inline as `[E-nnn]`, in the same table cell as the claim. If you edit a line listed in `scripts/evidence_claims_baseline.json`, delete its fingerprint by hand; do not run `--update-baseline`.
 4. Public documents do not name incidents, companies or providers. Describe trends the way the "Threat Types Considered" section of the framework mapping does.
-5. Before calling work done, run `make test` (check-evidence, ai-style, check-sensitive, cfn-lint, pytest). CI runs `.github/workflows/ci.yml` and `gitleaks.yml`.
+5. Before calling work done, run `make test` (check-evidence, ai-style, check-sensitive, check-supply-chain, cfn-lint, pytest). `make test` is offline; `make check-pinned-sha-exist` asks GitHub whether pinned Action SHAs exist, needs a token, and is not part of it. CI runs `.github/workflows/ci.yml` and `gitleaks.yml`.
 6. [`docs/agent/decision-record-playbook.md`](docs/agent/decision-record-playbook.md): for multi-step tasks (new pattern, verification, IaC change) — where decision records go (`.private/tasks/`, gitignored), the evidence tier vocabulary (reuse the ledger's four: documented / verified / hypothesis / open), when to call an auditor, measuring variance before claiming an effect, and the recurring-task checklists.
+7. [`docs/agent/supply-chain-policy.json`](docs/agent/supply-chain-policy.json) and `docs/{ja,en}/supply-chain-adoption-guide.md` ([JA](docs/ja/supply-chain-adoption-guide.md) / [EN](docs/en/supply-chain-adoption-guide.md)): the supply-chain policy (thresholds, cooldown values, VEX rules) and the guide that explains it. Change values in the policy file, not in the guide.
 
 ## Project Overview
 
@@ -29,6 +30,10 @@ make lint
 # Test (Python Lambda + template validation)
 make test
 
+# Supply-chain gates only (selftest first; offline; also run by make test)
+make check-supply-chain
+# Pinned Action SHAs exist on GitHub (network + GITHUB_TOKEN/GH_TOKEN; not in make test)
+make check-pinned-sha-exist
 # Security scan (cfn-guard + gitleaks)
 make security
 
@@ -128,7 +133,7 @@ This project compares multiple security technologies. Always:
 
 > ユーザーレベル Kiro グローバル steering のミラー。steering 未ロードの環境でも従えるようにする。
 
-> CI: `.github/workflows/ci.yml`（根拠ゲート `check_evidence_claims.py`、文体ゲート `ai_style_rules.py`、漏洩ゲート `check_sensitive_patterns.py --tracked`、cfn-lint、pytest）と `gitleaks.yml`（シークレット）。ローカルでは `make test` が同じゲートを回す。命名・中立性・JA/EN parity を見る CI ゲートはないので、下の規則を手で確かめる。
+> CI: `.github/workflows/ci.yml`（根拠ゲート `check_evidence_claims.py`、文体ゲート `ai_style_rules.py`、漏洩ゲート `check_sensitive_patterns.py --tracked`、サプライチェーンのゲート `check_supply_chain.py`、cfn-lint、pytest）と `gitleaks.yml`（シークレット）。ローカルでは `make test` が同じゲートを回す。命名・中立性・JA/EN parity を見る CI ゲートはないので、下の規則を手で確かめる。
 
 ### Naming (NetApp / AWS)
 
@@ -167,5 +172,5 @@ This project compares multiple security technologies. Always:
 
 ```bash
 gitleaks detect --config .gitleaks.toml --no-git --source .
-make test   # check-evidence, ai-style, check-sensitive, cfn-lint, pytest (CI: .github/workflows/ci.yml)
+make test   # check-evidence, ai-style, check-sensitive, check-supply-chain, cfn-lint, pytest (CI: .github/workflows/ci.yml)
 ```

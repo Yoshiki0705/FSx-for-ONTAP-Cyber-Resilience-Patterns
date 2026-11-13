@@ -1,0 +1,4 @@
+jobs:
+  scan:
+    steps:
+      - run: trivy image --vex .vex/x.openvex.json example:1

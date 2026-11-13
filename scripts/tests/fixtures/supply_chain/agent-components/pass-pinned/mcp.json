@@ -1,0 +1,1 @@
+{"mcpServers": {"a": {"command": "npx", "args": ["--yes", "example-mcp@1.2.3"]}, "b": {"command": "uvx", "args": ["--from", "example-pkg==1.2.3", "example-cmd"]}, "c": {"command": "docker", "args": ["run", "-i", "--rm", "example/mcp@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}, "d": {"url": "https://example.com/mcp"}}}

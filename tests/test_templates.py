@@ -349,7 +349,8 @@ class TestSqsSourcedLambdaDlqSkip:
             r["Properties"]
             for r in res.values()
             if r["Type"] == "AWS::Lambda::EventSourceMapping"
-            and _values(r["Properties"]["FunctionName"]) == ["EventTransformerLambda"]
+            # the mappings invoke the "live" alias since the canary (Lambda_Canary_Reference)
+            and _values(r["Properties"]["FunctionName"]) == ["EventTransformerLambda.Alias"]
         ]
         assert len(mappings) == 2
         for m in mappings:

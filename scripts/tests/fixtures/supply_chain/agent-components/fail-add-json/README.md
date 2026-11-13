@@ -1,0 +1,3 @@
+```bash
+claude mcp add-json example '{"command":"npx","args":["-y","example-mcp"]}'
+```

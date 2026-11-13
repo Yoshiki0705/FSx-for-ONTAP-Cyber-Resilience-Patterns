@@ -4,7 +4,7 @@ VENV   := .venv/bin
 PYTHON := $(VENV)/python3
 PYTEST := $(VENV)/pytest
 
-.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive
+.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive check-supply-chain check-pinned-sha-exist
 
 # Default target
 help: ## Show this help
@@ -22,17 +22,27 @@ setup: ## Install development dependencies (creates .venv if not present)
 # -------------------------------------------------------------------
 # Validation
 # -------------------------------------------------------------------
+# cfn-lint exit code is a bitmask: 2 error, 4 warning, 8 informational (1 fatal). Warnings and
+# informational findings pass; any error or fatal bit fails. `-le 12` also passed a run whose
+# only finding was an error (exit 2), so it is not used. CI runs this target (`make lint`).
 lint: ## Run cfn-lint on all templates
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$(($$? & 3)) -eq 0
 
-guard: ## Run cfn-guard on all templates
-	@for tmpl in templates/*.yaml; do \
-		echo "Checking $$tmpl..."; \
-		cfn-guard validate \
-			--data "$$tmpl" \
-			--rules security/guard-rules/ \
-			--show-summary fail 2>/dev/null || true; \
-	done
+# The templates cfn-guard evaluates: the same three globs as cfn-lint (CI runs `make guard`, so
+# there is one list). tests/test_cfn_guard_coverage.py reads this line.
+GUARD_GLOBS := templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml
+# Every template is evaluated even after one fails; the target ends non-zero if any did.
+# Exit 5 (a rule file that does not parse) counts as a failure too. The old `|| true`
+# turned both into a clean run.
+guard: ## Run cfn-guard on all templates (non-zero if any template fails)
+	@rc=0; n=0; \
+	for tmpl in $(GUARD_GLOBS); do \
+		if [ ! -f "$$tmpl" ]; then echo "No such template: $$tmpl"; rc=1; continue; fi; \
+		echo "Checking $$tmpl..."; n=$$((n+1)); \
+		cfn-guard validate --data "$$tmpl" --rules security/guard-rules/ --show-summary fail || rc=1; \
+	done; \
+	echo "cfn-guard evaluated $$n templates"; \
+	exit $$rc
 
 validate: ## Validate templates with AWS CloudFormation API (requires credentials)
 	@for tmpl in templates/*.yaml; do \
@@ -43,8 +53,8 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak gates)
-	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
+test: check-evidence ai-style check-sensitive check-supply-chain ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak + supply-chain gates)
+	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml shared/templates/*.yaml || test $$(($$? & 3)) -eq 0
 	$(PYTEST) tests/ shared/tests/ -v --tb=short
 
 # A claim that a vendor cannot do something, used as a design premise, with nobody
@@ -69,6 +79,20 @@ ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings
 # from .sensitive-patterns.local (gitignored) when present; nothing real is tracked here.
 check-sensitive: ## Fail on account IDs, public IPs, emails, or home paths in tracked files
 	$(PYTHON) scripts/check_sensitive_patterns.py --tracked
+
+# Supply-chain gates: one subcommand per module in scripts/supply_chain_checks/. The selftest
+# runs first and must see each subcommand fail on its fixtures in scripts/tests/fixtures/
+# supply_chain/, because a gate never seen to fail is not evidence that it runs.
+check-supply-chain: ## Fail on supply-chain policy violations (selftest first)
+	$(PYTHON) scripts/check_supply_chain.py --selftest
+	$(PYTHON) scripts/check_supply_chain.py
+
+# Asks GitHub whether each SHA pinned in .github/workflows exists (needs the network and
+# GITHUB_TOKEN or GH_TOKEN). Deliberately NOT a prerequisite of `test` or `check-supply-chain`:
+# those stay offline. Exit 1 = a SHA does not exist, 2 = the check could not run.
+check-pinned-sha-exist: ## Ask GitHub that pinned Action SHAs exist (network + token; not in `make test`)
+	$(PYTHON) scripts/check_pinned_sha_exist.py
+
 test-cov: ## Run tests with coverage report
 	$(PYTEST) tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
 
