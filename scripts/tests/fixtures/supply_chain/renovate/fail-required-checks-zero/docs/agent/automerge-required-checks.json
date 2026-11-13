@@ -1,0 +1,5 @@
+{
+  "required_checks": {
+    "example-owner/repo-a": 0
+  }
+}

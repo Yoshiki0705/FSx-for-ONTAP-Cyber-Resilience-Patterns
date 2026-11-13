@@ -12,6 +12,9 @@ and the Policy_File, and checks:
   preset has a later rule that stops Hub reusable workflows, from being automerged;
 * the automerge rules (when present) equal ``automerge.include`` of the Policy_File, and the
   automerge preset is not referenced while ``automerge.enabled_repositories`` is empty;
+* every ``automerge.enabled_repositories`` entry has a recorded count of 1 or more required
+  status checks in ``docs/agent/automerge-required-checks.json`` (Requirement 14.4); the
+  gate is offline, so the maintainer's configuration check is the input;
 * the repository's config sets none of ``minimumReleaseAge``, ``automerge``,
   ``platformAutomerge`` or ``internalChecksFilter``, and does not set
   ``vulnerabilityAlerts.automerge`` to ``true``;
@@ -34,6 +37,7 @@ from supply_chain_checks._common import Report, Unparseable, Violation, use_supp
 PRESET_PATH = "renovate/supply-chain.json"
 AUTOMERGE_PRESET_PATH = "renovate/supply-chain-automerge.json"
 POLICY_PATH = "docs/agent/supply-chain-policy.json"
+REQUIRED_CHECKS_PATH = "docs/agent/automerge-required-checks.json"
 REPO_CONFIG_PATHS = ("renovate.json", ".github/renovate.json", ".renovaterc.json")
 HUB_PREFIX = "Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook"
 FORBIDDEN_REPO_KEYS = ("minimumReleaseAge", "automerge", "platformAutomerge", "internalChecksFilter")
@@ -212,7 +216,8 @@ def _check_preset(
                 "automerges without a later rule (matchJsonata isVulnerabilityAlert, automerge false) that excludes vulnerability fixes",
             )
         )
-    if (base or last >= 0) and not any(_is_hub_guard(r) for r in after):
+    # every preset keeps the Hub out of automerge; the automerge preset needs it even with no rules
+    if not any(_is_hub_guard(r) for r in after):
         out.append(
             Violation(
                 rel,
@@ -269,6 +274,41 @@ def _check_repo_config(out: list[Violation], rel: str, text: str, data: dict[str
                     rel, line, "automerge", "automerge preset referenced while automerge.enabled_repositories is empty"
                 )
             )
+
+
+def _check_required_checks(root: Path, out: list[Violation], policy: Any, policy_text: str) -> int:
+    """Each ``automerge.enabled_repositories`` entry needs >= 1 recorded required check (Requirement 14.4).
+
+    The gate cannot ask GitHub (it is offline), so the maintainer's configuration check
+    (Requirement 22.9) is recorded in ``REQUIRED_CHECKS_PATH`` as
+    ``{"required_checks": {"owner/repo": <count>}}``. Returns the number of files read.
+    """
+    enabled = [f"{r.owner}/{r.name}" for r in policy.automerge_enabled_repositories]
+    if not enabled:
+        return 0
+    scanned = 0
+    counts: dict[str, Any] = {}
+    if (root / REQUIRED_CHECKS_PATH).is_file():
+        _, data = _load_json(root, REQUIRED_CHECKS_PATH, 0)
+        scanned = 1
+        raw = data.get("required_checks")
+        if isinstance(raw, dict):
+            counts = {str(k).lower(): v for k, v in raw.items()}
+    for repo in enabled:
+        value = counts.get(repo.lower())
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+            continue
+        reason = "has no entry" if value is None else f"records {value!r}"
+        out.append(
+            Violation(
+                POLICY_PATH,
+                _line(policy_text, "enabled_repositories"),
+                "required_checks",
+                f"{repo} is in automerge.enabled_repositories but {REQUIRED_CHECKS_PATH} {reason}; "
+                "a required status check count of 1 or more must be confirmed first",
+            )
+        )
+    return scanned
 
 
 def _check_package_managers(root: Path, out: list[Violation], want: int) -> int:
@@ -370,7 +410,7 @@ def check(root: Path) -> Report:
         text, data = _load_json(root, AUTOMERGE_PRESET_PATH, scanned)
         scanned += 1
         granted += _check_preset(out, AUTOMERGE_PRESET_PATH, text, data, policy, base=False)
-    if granted:
+    if granted or (root / AUTOMERGE_PRESET_PATH).is_file():
         want_rules = {
             (r.manager, tuple(sorted(r.dep_types)), tuple(sorted(r.update_types))) for r in policy.automerge_include
         }
@@ -384,6 +424,7 @@ def check(root: Path) -> Report:
                     f"automerge rules {sorted(have)} differ from Policy_File automerge.include {sorted(want_rules)}",
                 )
             )
+    scanned += _check_required_checks(root, out, policy, policy_text)
     for rel in REPO_CONFIG_PATHS:
         if (root / rel).is_file():
             text, data = _load_json(root, rel, scanned)

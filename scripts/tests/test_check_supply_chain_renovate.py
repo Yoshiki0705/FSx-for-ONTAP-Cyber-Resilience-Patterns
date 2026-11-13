@@ -119,3 +119,35 @@ def test_a_preset_that_is_not_json_is_unparseable(checks: Path, tmp_path: Path) 
     (root / "renovate" / "supply-chain.json").write_text("{", encoding="utf-8")
     code, text = _run(checks, "--root", str(root))
     assert code == 2 and "not valid JSON" in text
+
+
+def test_the_hub_guard_before_the_allow_rules_does_not_count(checks: Path, tmp_path: Path) -> None:
+    """Later rules win in packageRules, so a Hub guard placed first is overridden by the allow rules."""
+    root = _copy("pass-with-automerge-preset", tmp_path)
+    preset = root / "renovate" / "supply-chain-automerge.json"
+    data = json.loads(preset.read_text(encoding="utf-8"))
+    rules = data["packageRules"]
+    data["packageRules"] = [r for r in rules if "matchPackageNames" in r] + [
+        r for r in rules if "matchPackageNames" not in r
+    ]
+    preset.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    code, text = _run(checks, "--root", str(root))
+    assert code == 1 and ": missing:" in text
+
+
+def test_required_checks_must_be_a_count_of_one_or_more_for_each_enabled_repository(
+    checks: Path, tmp_path: Path
+) -> None:
+    root = _copy("pass-with-automerge-preset", tmp_path)
+    record = root / "docs" / "agent" / "automerge-required-checks.json"
+    for bad in ({"EXAMPLE-OWNER/REPO-A": 0}, {"example-owner/repo-a": True}, {"example-owner/repo-a": "1"}, {}):
+        record.write_text(json.dumps({"required_checks": bad}), encoding="utf-8")
+        code, text = _run(checks, "--root", str(root))
+        assert code == 1 and ": required_checks:" in text, bad
+    record.write_text(json.dumps({"required_checks": {"EXAMPLE-OWNER/REPO-A": 2}}), encoding="utf-8")
+    assert _run(checks, "--root", str(root))[0] == 0
+
+
+def test_no_required_checks_record_is_needed_while_automerge_is_disabled(checks: Path) -> None:
+    code, text = _run(checks, "--root", str(FIXTURES / "pass-base-only"))
+    assert code == 0 and "required_checks" not in text

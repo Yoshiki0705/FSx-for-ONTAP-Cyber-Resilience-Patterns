@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Automerge preset: only for repositories listed in automerge.enabled_repositories of the Policy_File. Extend it AFTER supply-chain.json. Rule order matters: the exclusions come last.",
+  "packageRules": [
+    {
+      "description": "Automerge npm devDependencies patch updates",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge GitHub Actions patch updates",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Hub reusable workflows are never automerged (placed after the allow rules so it overrides them)",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/**"],
+      "automerge": false
+    },
+    {
+      "description": "Never automerge vulnerability fixes (placed after the allow rules; vulnerabilityAlerts.automerge=false in supply-chain.json is the primary control)",
+      "matchJsonata": ["isVulnerabilityAlert = true"],
+      "automerge": false
+    }
+  ]
+}
