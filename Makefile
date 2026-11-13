@@ -4,7 +4,7 @@ VENV   := .venv/bin
 PYTHON := $(VENV)/python3
 PYTEST := $(VENV)/pytest
 
-.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive
+.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive check-supply-chain
 
 # Default target
 help: ## Show this help
@@ -43,7 +43,7 @@ validate: ## Validate templates with AWS CloudFormation API (requires credential
 # -------------------------------------------------------------------
 # Testing
 # -------------------------------------------------------------------
-test: check-evidence ai-style check-sensitive ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak gates)
+test: check-evidence ai-style check-sensitive check-supply-chain ## Run all tests (cfn-lint + pytest + evidence + writing-quality + leak + supply-chain gates)
 	$(VENV)/cfn-lint templates/*.yaml solutions/*/template.yaml || test $$? -le 12
 	$(PYTEST) tests/ shared/tests/ -v --tb=short
 
@@ -69,6 +69,14 @@ ai-style: ## Fail on fail-tier writing-quality findings (D1/D2/D5/D14); warnings
 # from .sensitive-patterns.local (gitignored) when present; nothing real is tracked here.
 check-sensitive: ## Fail on account IDs, public IPs, emails, or home paths in tracked files
 	$(PYTHON) scripts/check_sensitive_patterns.py --tracked
+
+# Supply-chain gates: one subcommand per module in scripts/supply_chain_checks/. The selftest
+# runs first and must see each subcommand fail on its fixtures in scripts/tests/fixtures/
+# supply_chain/, because a gate never seen to fail is not evidence that it runs.
+check-supply-chain: ## Fail on supply-chain policy violations (selftest first)
+	$(PYTHON) scripts/check_supply_chain.py --selftest
+	$(PYTHON) scripts/check_supply_chain.py
+
 test-cov: ## Run tests with coverage report
 	$(PYTEST) tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
 
