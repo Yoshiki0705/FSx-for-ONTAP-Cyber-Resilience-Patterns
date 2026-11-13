@@ -91,7 +91,7 @@ def _is_sha(category: str) -> bool:
 @st.composite
 def _uses_case(draw: st.DrawFn) -> tuple[str, str, str, bool]:
     """Draw ``(shape, workflow line, expected, hub_sha)``; expected is pinned/unpinned/exempt."""
-    shape = draw(st.sampled_from(["local", "own-owner", "third-party", "hub"]))
+    shape = draw(st.sampled_from(["local", "own-owner", "third-party", "third-party", "hub", "hub"]))
     hub_sha = draw(st.booleans())
     subpath = draw(st.sampled_from(["", "", "/sub/dir", "/.github/workflows/x.yml"]))
     if shape == "local":
@@ -135,7 +135,7 @@ def _check_uses(shape: str, ref: str, expected: str, hub_sha: bool, line: str) -
     assert ref.split("@")[0] in found[0].detail
 
 
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=500, deadline=None)
 @given(data=st.data())
 def test_property_19_uses_classification(data: st.DataObject) -> None:
     """A third-party Action and a Reusable_Workflow are pinned only by a 40-digit SHA.
