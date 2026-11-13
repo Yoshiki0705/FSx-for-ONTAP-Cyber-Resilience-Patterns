@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: docker run --rm -e A=b ghcr.io/example/tool:1.2.3 --help
-      - uses: docker://alpine:latest
+      - uses: docker://alpine:latest@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
       - run: echo ok
     container:
-      image: node:20
+      image: node:20@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5
