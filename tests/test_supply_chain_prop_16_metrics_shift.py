@@ -54,6 +54,7 @@ def cases(draw: st.DrawFn) -> Case:
     """Issues with origins, due dates and closes, plus pull requests that may answer them."""
     repos = draw(sc.repo_lists(min_size=1, max_size=3))
     prs = draw(sc.pull_requests(repos, _VULN_IDS, 12))
+    detect_hours = draw(st.integers(1, 72))
     specs = draw(
         st.lists(
             st.tuples(
@@ -61,7 +62,9 @@ def cases(draw: st.DrawFn) -> Case:
                 st.integers(0, len(_VULN_IDS) - 1),
                 st.integers(0, 400),  # opened: whole days after EPOCH, the grid the pull requests use
                 st.sampled_from((0, 600)),  # plus minutes, so some pull requests fall before the Issue
-                st.one_of(st.none(), st.integers(-60, 6000)),  # origin: minutes before opened; None = unknown
+                st.one_of(
+                    st.none(), st.integers(-60, 6000), st.just(detect_hours * 60)
+                ),  # origin: minutes before opened; None = unknown
                 st.one_of(st.none(), st.integers(1, 30)),  # due: days after opened
                 st.one_of(st.none(), st.tuples(st.integers(0, 40000), st.sampled_from(_REASONS))),
                 st.sampled_from(_RUNS),
@@ -84,12 +87,17 @@ def cases(draw: st.DrawFn) -> Case:
                 close_reason=None if close is None else close[1],
             )
         )
+    dues = [i.due_at for i in issues if i.due_at is not None]
+    now_choices = [st.integers(0, 450 * 1440).map(sc.utc_at)]
+    if dues:  # now equal to a due date, so the "strictly past due" edge is drawn
+        now_choices.append(st.sampled_from(dues))
+    now = draw(st.one_of(*now_choices))
     extra_repos = tuple(draw(sc.repo_lists(prefix="idle", max_size=2)))
     return Case(
         issues=tuple(issues),
         prs=prs,
-        detect_hours=draw(st.integers(1, 72)),
-        now=sc.utc_at(draw(st.integers(0, 450 * 1440))),
+        detect_hours=detect_hours,
+        now=now,
         run_id="run-1",
         repos=extra_repos,
     )
@@ -170,6 +178,28 @@ def test_fix_actual_and_exclusions_follow_their_definitions(case: Case) -> None:
     assert result.detection.durations == tuple(
         sorted(i.opened_at - i.origin_at for i in issues if i.origin_at is not None)
     )
+
+    # The pull request that answers a resolved Issue: same repository and id, created at or after the
+    # Issue; the earliest merge wins, else the earliest creation.
+    to_pr, merge, no_pr, not_merged = [], [], 0, 0
+    for i in resolved:
+        answers = [p for p in case.prs if p.repo == i.repo and p.vuln_id == i.vuln_id and p.created_at >= i.opened_at]
+        if not answers:
+            no_pr += 1
+            continue
+        merged = [p for p in answers if p.merged_at is not None]
+        chosen = (
+            min(merged, key=lambda p: (p.merged_at, p.created_at))
+            if merged
+            else min(answers, key=lambda p: p.created_at)
+        )
+        to_pr.append(chosen.created_at - i.opened_at)
+        if chosen.merged_at is None:
+            not_merged += 1
+        else:
+            merge.append(chosen.merged_at - chosen.created_at)
+    assert result.opened_to_pr == metrics.IntervalStats(tuple(sorted(to_pr)), 0, no_pr)
+    assert result.pr_to_merge == metrics.IntervalStats(tuple(sorted(merge)), 0, no_pr + not_merged)
 
     # Intervals that start at a pull request or later only exist for resolved Issues.
     assert len(result.opened_to_pr.durations) <= len(resolved)
