@@ -1,0 +1,9 @@
+{
+  "name": "example",
+  "dependencies": {
+    "aws-cdk-lib": "2.140.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

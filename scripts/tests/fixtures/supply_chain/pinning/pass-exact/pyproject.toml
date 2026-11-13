@@ -1,0 +1,9 @@
+[project]
+name = "example"
+version = "0.1.0"
+dependencies = [
+  "boto3==1.35.49",
+]
+
+[project.optional-dependencies]
+dev = ["pydot>=2.0.0"]
