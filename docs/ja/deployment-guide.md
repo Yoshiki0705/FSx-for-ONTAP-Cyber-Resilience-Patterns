@@ -210,7 +210,8 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 |--------------------------|------|
 | パラメータ `ApprovalWebhookEndpoint` | Webhook の HTTPS の URL。`http://` はパラメータのパターンで拒否される |
 | パラメータ `ApprovalWebhookApiKeyName` と `ApprovalWebhookApiKeyValue` | ヘッダーの名前（既定 `x-api-key`）と値。値は `NoEcho` で、エンドポイントを指定したときに値が空だと、テンプレートのルールが拒否する |
-| `ApprovalWebhookConnection` | `API_KEY` の接続。EventBridge は、名前が `events!connection/` で始まる Secrets Manager のシークレットにキーを保存し、AWS 所有のキーで暗号化する |
+| `ApprovalWebhookConnection` | `API_KEY` の接続。EventBridge は、名前が `events!connection/` で始まる Secrets Manager のシークレットにキーを保存する。シークレットは、AWS 所有のキーで暗号化される。`ApprovalWebhookKmsKeyArn` を指定したときは、そのキーで暗号化される |
+| パラメータ `ApprovalWebhookKmsKeyArn` | そのシークレットを暗号化する KMS キーの ARN（任意、既定は空）。指定する前に次の小節を読む |
 | `ApprovalWebhookDestination` | エンドポイントへの `POST`。呼び出しは毎秒 1 回まで |
 | `ApprovalWebhookRule` と `ApprovalWebhookRuleRole` | このアラームの `aws.cloudwatch` / `CloudWatch Alarm State Change` のイベントだけに一致する。ロールは、この送信先への `events:InvokeApiDestination` だけを持つ |
 | `ApprovalWebhookDlq` と `ApprovalWebhookDlqPolicy` | SQS マネージドの暗号化を使う標準キュー。送信できるのはこのルールだけ |
@@ -235,7 +236,25 @@ AWS のドキュメントにある動き方は次のとおりです。
 
 その後、このテンプレートのデプロイを 1 回確かめました（[通知経路の確認](alert-path-verification.md#測定結果)の C6）。200 の応答での配信、400 の応答でのデッドレターキュー、デッドレターキューのアラームが予備のトピックに通知することです。デプロイでは、5xx の応答でのリトライは測っていません。
 
-`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`）があり、Event-Driven スタックに渡します。エンドポイントを指定してキーが空のときにスタックの作成を失敗させる、テンプレートのルールも持ちます。2026-11-14（日本時間）に `ap-northeast-1` で、同じルールと無料のリソース 1 つだけの試験用スタックを使い、1 回測りました。エンドポイントありでキーなしで作成すると、`Parameter validation failed: assertion error` で `ROLLBACK_COMPLETE` になり、リソースは作られませんでした。キーありでは作成できました。`main.yaml` の変更セットは、エンドポイントありでキーなしでも作成できました。失敗が現れるのは変更セットの作成時ではなく、スタックの作成時です。試験に使ったのはルールの文面で、`main.yaml` そのものではありません。`main.yaml` からのデプロイは実行していません。
+`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`、`ApprovalWebhookKmsKeyArn`）があり、Event-Driven スタックに渡します。エンドポイントを指定してキーが空のときにスタックの作成を失敗させる、テンプレートのルールも持ちます。2026-11-14（日本時間）に `ap-northeast-1` で、同じルールと無料のリソース 1 つだけの試験用スタックを使い、1 回測りました。エンドポイントありでキーなしで作成すると、`Parameter validation failed: assertion error` で `ROLLBACK_COMPLETE` になり、リソースは作られませんでした。キーありでは作成できました。`main.yaml` の変更セットは、エンドポイントありでキーなしでも作成できました。失敗が現れるのは変更セットの作成時ではなく、スタックの作成時です。試験に使ったのはルールの文面で、`main.yaml` そのものではありません。`main.yaml` からのデプロイは実行していません。
+
+### 接続のシークレットに対するカスタマー管理キーの指定
+
+`ApprovalWebhookKmsKeyArn` を指定すると、接続のシークレットを自分のキーで暗号化できます。キーは対称暗号化キーで、タグ `EventBridgeApiDestinations=true` が必要です。テンプレートはキーを作らないので、キーポリシーは利用者の管理下にあります。
+
+**タグがなくても、作成時には何も起きません。** タグがなくても接続は作られて `AUTHORIZED` と表示され、テンプレートの検査にもデプロイにもエラーは出ません。その後の配信がすべて失敗して `ApprovalWebhookDlq` に入るため、最初の信号はデッドレターキューのアラームです。
+
+2026-11-14（日本時間）に 1 アカウントの `ap-northeast-1` で、接続、API 送信先、ルール、デッドレターキューを持つ試験用スタックを使い、各 1 回測りました。キーポリシーは、アカウントに委任する既定のものです。
+
+| 場合 | 結果 |
+|------|------|
+| キーを指定しない（AWS 所有のキー） | 接続は `AUTHORIZED`。イベントは受信側に届き、デッドレターキューは空のまま |
+| タグ付きのキー | 接続は `AUTHORIZED` で、`KmsKeyIdentifier` が設定された。イベントは受信側に届き、デッドレターキューは空のまま |
+| 同じキーでタグなし | スタックは作成され、接続は `AUTHORIZED`。イベントは受信側に届かず、デッドレターキューに `ERROR_CODE` `UNKNOWN` のメッセージが 1 件入った。本文は `Unable to invoke ApiDestination endpoint: An error occurred while obtaining the connection authentication details for the API destination.` |
+
+キーポリシーの `kms:ResourceTag` の条件で、このタグにキーを限定することはできません。KMS が `These condition keys are not permitted in a key policy` でキーの作成を拒否しました。
+
+測っていないもの: アカウントに委任しないキーポリシー、接続の作成後にキーを無効化または削除したときの動き、デプロイする ID にキーで必要な権限、パラメータを指定した `main.yaml` からのデプロイです。カスタマー管理キーを使う通知経路のデプロイは、試験用スタックでしか実行していません。
 
 ## VPC Endpoint 競合マトリクス
 
