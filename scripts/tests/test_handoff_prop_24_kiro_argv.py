@@ -642,7 +642,7 @@ def test_property_24_kiro_argv() -> None:
     """
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=None, derandomize=True)
     @given(kiro_batches())
     def check(batch: tuple[KiroCase, ...]) -> None:
         for case in batch:
@@ -879,7 +879,7 @@ def test_property_24_push_and_pull_request_only_in_the_publish_plan() -> None:
     """
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=None, derandomize=True)
     @given(publish_cases())
     def check(case: PublishCase) -> None:
         seen.update(check_publish_case(case))

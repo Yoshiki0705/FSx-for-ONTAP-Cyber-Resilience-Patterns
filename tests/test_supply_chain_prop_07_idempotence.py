@@ -158,7 +158,7 @@ def test_the_property_is_not_vacuous() -> None:
     """Across the generated inputs, non-overflowing runs create and close, and from a settled state update and reopen."""
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=None, derandomize=True)
     @given(st.sampled_from(_LIMITS).flatmap(_sized))
     def run(inputs: models.PlanInputs) -> None:
         first = planner.plan(inputs)

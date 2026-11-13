@@ -40,7 +40,7 @@ def _check(doc: models.VexDocument) -> None:
 
 
 # Feature: cyber-resilience-phase4-supply-chain, Property 3: OpenVEX のラウンドトリップ
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=200, deadline=None, derandomize=True)
 @given(sc.vex_documents(max_size=6))
 def _round_trip(docs: tuple[models.VexDocument, ...]) -> None:
     event(f"documents={len(docs)}")

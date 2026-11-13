@@ -174,7 +174,7 @@ def test_the_property_is_not_vacuous() -> None:
     """Partial applies, second-run creates, open ``MAL-`` Issues, Q-11 pairs and duplicates all occur."""
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=None, derandomize=True)
     @given(_cases())
     def run(case: tuple[models.PlanInputs, frozenset[int]]) -> None:
         inputs, subset = case

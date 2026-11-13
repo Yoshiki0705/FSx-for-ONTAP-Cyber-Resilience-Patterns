@@ -586,7 +586,7 @@ def test_settled_inputs_with_new_feed_values_update_and_vex_closes() -> None:
     """
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=None, derandomize=True)
     @given(st.integers(1, 3).flatmap(_sized))
     def run(inputs: models.PlanInputs) -> None:
         first = planner.plan(inputs)

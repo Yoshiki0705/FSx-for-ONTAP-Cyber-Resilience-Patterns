@@ -421,7 +421,7 @@ def test_property_28_final_state_comes_from_the_observations_alone() -> None:
 
     drawn: Counter[str] = Counter()
 
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=None, derandomize=True)
     @given(case=cases(), reports=report_pairs())
     def check(case: ObservationsCase, reports: tuple[ReportText, ReportText]) -> None:
         drawn.update(check_run(case, reports, "drawn case"))
@@ -667,7 +667,7 @@ def test_property_28_conflict_list_is_the_folded_intersection() -> None:
 
     drawn: Counter[str] = Counter()
 
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=None, derandomize=True)
     @given(drawn_case=conflict_cases())
     def check(drawn_case: tuple[ObservationsCase, Sides]) -> None:
         case, sides = drawn_case
