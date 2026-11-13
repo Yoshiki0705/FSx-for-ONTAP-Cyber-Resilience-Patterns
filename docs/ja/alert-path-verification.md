@@ -132,7 +132,7 @@ aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.fpolicy","Det
 
 キューにイベントの本文が入れば、ハブのルールがハブのトピックに配信しています。
 
-バスポリシーも確認します。`OrganizationId` が空のとき、`HubEventBusPolicy` の `Condition` は `Value` を持ちません（`AWS::NoValue`）。その場合に CloudFormation が作るポリシーは、確認していません。`describe-event-bus` の出力で、プリンシパルと条件を読んでください。`OrganizationId` を空にして試す場合は、確認の直後にスタックを削除してください。
+バスポリシーも確認します。`describe-event-bus` の出力に、`"Principal":"*"` と、自分の組織 ID を持つ `aws:PrincipalOrgID` への `StringEquals` 条件が出ていることを確かめます。`OrganizationId` は必須で、`o-` の後に小文字の英数字 10〜32 文字が続く形式です。以前のテンプレートは空の値を受け付け、条件の `Value` を落としていました。ap-northeast-1 での 1 回のデプロイでは、EventBridge が `condition.value` の null を拒否し、ポリシーのリソースが作成に失敗しました。
 
 ## 手順 7: 後片付け
 
@@ -157,4 +157,3 @@ aws cloudformation delete-stack --stack-name fsxn-cyber-resilience-network-dev
 - この手順の実行。コマンドはデプロイスクリプトとテンプレートの出力に沿って書いたもので、C1〜C4 はデプロイしたスタックでは実行していません。
 - 手順 2 の、トピックの更新がその場で済むか。
 - 期間 300 秒での C4 の所要時間。
-- `OrganizationId` が空のときに作られるハブのバスポリシー。

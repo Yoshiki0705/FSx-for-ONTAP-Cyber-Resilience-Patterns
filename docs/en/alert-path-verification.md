@@ -132,7 +132,7 @@ aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.fpolicy","Det
 
 The event body in the queue means the hub rule delivers to the hub topic.
 
-Check the bus policy. When `OrganizationId` is empty, the `Condition` in `HubEventBusPolicy` gets no `Value` (`AWS::NoValue`). The policy CloudFormation creates in that case was not checked. Read the principal and condition in the `describe-event-bus` output. If you test with an empty `OrganizationId`, delete the stack right after the check.
+Check the bus policy. The `describe-event-bus` output must show `"Principal":"*"` together with a `StringEquals` condition on `aws:PrincipalOrgID` that holds your organization ID. `OrganizationId` is required and must match `o-` followed by 10 to 32 lowercase letters or digits. An earlier version of the template accepted an empty value and dropped the condition's `Value`; in one deployment (ap-northeast-1) EventBridge rejected that with a null `condition.value` error and the policy resource failed to create.
 
 ## Step 7: Clean Up
 
@@ -157,4 +157,3 @@ Wait for each deletion with `aws cloudformation wait stack-delete-complete --sta
 - No run of this procedure. The commands follow the deployment script and the template outputs, and the checks C1 to C4 were not run in a deployed stack.
 - Whether the topic update in Step 2 is in place.
 - The time C4 takes with the 300-second period.
-- The hub bus policy created when `OrganizationId` is empty.
