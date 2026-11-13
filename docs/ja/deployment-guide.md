@@ -235,6 +235,8 @@ AWS のドキュメントにある動き方は次のとおりです。
 
 その後、このテンプレートのデプロイを 1 回確かめました（[通知経路の確認](alert-path-verification.md#測定結果)の C6）。200 の応答での配信、400 の応答でのデッドレターキュー、デッドレターキューのアラームが予備のトピックに通知することです。デプロイでは、5xx の応答でのリトライは測っていません。
 
+`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`）があり、Event-Driven スタックに渡します。キーのないエンドポイントは、入れ子のスタックを作る前に `main.yaml` が拒否します。`main.yaml` からのデプロイは実行していません。
+
 ## VPC Endpoint 競合マトリクス
 
 ### 背景: Gateway Endpoint と Interface Endpoint の違い

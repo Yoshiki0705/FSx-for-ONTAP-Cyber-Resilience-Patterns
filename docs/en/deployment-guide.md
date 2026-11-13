@@ -235,6 +235,8 @@ Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per cas
 
 A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
 
+`main.yaml` exposes the same parameters as this section and the previous one (`FallbackNotificationEmail`, `ApprovalWaitingAlarmThresholdSeconds`, `ApprovalWebhookEndpoint`, `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue`) and passes them to the Event-Driven stack. It also rejects an endpoint without a key before any nested stack is created. A deployment through `main.yaml` has not been run.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints
