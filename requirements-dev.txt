@@ -2,7 +2,7 @@
 -r requirements.txt
 
 # CloudFormation validation
-cfn-lint==1.10.3
+cfn-lint==1.60.1
 pydot>=2.0.0
 
 # Testing
