@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "cooldown_days": {
+    "default": 3,
+    "major": 7
+  },
+  "response_target": {
+    "detect_hours": 24,
+    "fix_days_high": 14,
+    "fix_days_kev_or_malicious": 7
+  }
+}
