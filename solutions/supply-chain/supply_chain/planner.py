@@ -272,6 +272,29 @@ def _pick(candidates: Iterable[ManagedIssue]) -> ManagedIssue | None:
     return ordered[0] if ordered else None
 
 
+def _is_malware_ghsa_group(group: _Group) -> bool:
+    """True for a group of GHSA advisories without severity (the approximation of a GHSA malware advisory)."""
+    return (
+        not group.malicious
+        and group.vuln_id.startswith(_GHSA_PREFIX)
+        and all(f.cvss_severity is None for f in group.findings)
+    )
+
+
+def _continue_as_malicious(group: _Group, issue: ManagedIssue | None) -> _Group:
+    """Re-homes a malware GHSA group under the ``MAL-`` identifier of the open Issue it continues.
+
+    The Issue keeps its identifier and the GHSA identifier becomes an alias, as when ``MAL-`` and GHSA of one
+    package version are grouped (Q-11), so the Issue is updated instead of closed and created anew.
+    """
+    if issue is None or issue.vuln_id is None or group.malicious or not issue.vuln_id.startswith(MALICIOUS_PREFIX):
+        return group
+    if issue.vuln_id == group.vuln_id:
+        return group
+    aliases = tuple(sorted({*group.ids} - {issue.vuln_id}))
+    return _Group(group.repo, issue.vuln_id, aliases, group.findings, True)
+
+
 def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[dict[int, ManagedIssue], set[IssueId]]:
     """Maps group index to the Issue it continues, and returns every Issue number a group claims.
 
@@ -293,6 +316,7 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
             continue
         ids = set(group.ids)
         comps = {(c.purl, c.version) for c in group.components}
+        malware_like = group.malicious or _is_malware_ghsa_group(group)  # Q-11: continue an open MAL- Issue
         near = [
             i
             for i in pool
@@ -300,7 +324,12 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
             and _issue_id(i) not in claimed
             and (
                 i.vuln_id in ids
-                or (group.malicious and _issue_is_malicious(i) and comps & _state_components(i.body_state))
+                or (
+                    malware_like
+                    and (group.malicious or i.state == "open")  # a GHSA only continues an Issue that is open
+                    and _issue_is_malicious(i)
+                    and comps & _state_components(i.body_state)
+                )
             )
         ]
         picked = _pick(near)
@@ -529,6 +558,7 @@ def plan(inputs: PlanInputs) -> Plan:
     cls = _classify(run)
     groups, absorbed = _build_groups(cls.included, cls.rest)
     chosen, claimed = _assign(groups, inputs.issues)
+    groups = [_continue_as_malicious(g, chosen.get(n)) for n, g in enumerate(groups)]
     actions, overflow = _finding_actions(groups, chosen, run)
     summary_actions, overflow_counts = _summary_actions(overflow, run)
     close_actions, unconfirmed = _close_actions(inputs.issues, claimed, cls, run)
