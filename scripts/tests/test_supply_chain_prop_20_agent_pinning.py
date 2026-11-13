@@ -30,13 +30,9 @@ and the verdict of each example (``pytest --hypothesis-show-statistics``). The l
 from the same strategies with ``derandomize=True`` and checks that every form appears in every
 document kind and that every verdict is reached, so the check does not depend on a seed.
 
-Known gap, kept out of the strategies. The scanner treats a spec that holds ``<`` as a
-placeholder (``<name>``) and skips it, so a range with an upper bound that is quoted on a
-command line or written in the ``args`` of an MCP server (``'ruff<2'``, ``ruff>=1,<2``,
-``pkg@<=2.0.0``) is not reported. The generators therefore draw ranges without ``<``, and
-``test_a_range_with_an_upper_bound_is_reported`` states the property for the missing forms. It is
-``xfail(strict=True)``: it passes the day the scanner reports them, and then fails until the
-marker is removed.
+A range with an upper bound (``'ruff<2'``, ``ruff>=1,<2``, ``pkg@<=2.0.0``) is a range, not a
+placeholder: only a word closed by ``>`` (``<version>``) is skipped. The generators draw ``<``
+and ``<=``, and ``test_a_range_with_an_upper_bound_is_reported`` keeps the three examples.
 
 Every value is synthetic.
 """
@@ -82,13 +78,14 @@ _IMAGE = st.builds("{}{}/{}".format, st.sampled_from(["", "ghcr.io/", "docker.io
 _EXTRAS = st.sampled_from(["", "[extra]", "[a,b]"])
 _TRAILING = st.sampled_from([(), ("--stdio",), ("serve", "--port", "8080")])
 _NPM_RANGE = st.one_of(
-    st.builds("{}{}".format, st.sampled_from(["^", "~", ">=", ">"]), _NPM_EXACT),
+    st.builds("{}{}".format, st.sampled_from(["^", "~", ">=", ">", "<", "<="]), _NPM_EXACT),
     st.sampled_from(["*", "x", "1.x", "1.2.x", "1", "1.2"]),
     st.builds("{} - {}".format, _NPM_EXACT, _NPM_EXACT),
 )
 _PY_RANGE = st.one_of(
-    st.builds("{}{}".format, st.sampled_from([">=", ">", "~=", "!="]), _TRIPLE),
+    st.builds("{}{}".format, st.sampled_from([">=", ">", "~=", "!=", "<", "<="]), _TRIPLE),
     st.builds(lambda a, b: f">={a},!={b}", _TRIPLE, _TRIPLE),
+    st.builds(lambda a, b: f">={a},<{b}", _TRIPLE, _TRIPLE),
     st.builds("==%d.*".__mod__, st.integers(0, 99)),
 )
 _NUGET_RANGE = st.sampled_from(["*", "1.*", "[1.0,2.0)", "(,2.0]", "[1.0,)"])
@@ -446,7 +443,6 @@ _UPPER_BOUND = [
 ]
 
 
-@pytest.mark.xfail(strict=True, reason="a spec that holds '<' is skipped as a placeholder")
 @pytest.mark.parametrize(("line", "name"), _UPPER_BOUND)
 def test_a_range_with_an_upper_bound_is_reported(line: str, name: str) -> None:
     """A quoted range with ``<`` is a range, not a placeholder.
@@ -455,6 +451,23 @@ def test_a_range_with_an_upper_bound_is_reported(line: str, name: str) -> None:
     """
     found = ac.scan_command_line(line, "docs/guide.md", 1, "install-step", ac.EMPTY_INDEX)
     assert [(c.name, c.problem) for c in found] == [(name, "range")]
+
+
+@pytest.mark.parametrize("spec", ["ruff>=1,<2", "ruff<2"])
+def test_an_mcp_arg_with_an_upper_bound_is_reported(spec: str) -> None:
+    """The same range in the ``args`` of an MCP server is one ``range`` violation.
+
+    **Validates: Requirements 6.1, 6.2**
+    """
+    text = json.dumps({"mcpServers": {"tool": {"command": "uvx", "args": [spec]}}})
+    found = ac.scan_file(".mcp.json", text)
+    assert [(c.name, c.problem) for c in found] == [("ruff", "range")]
+
+
+@pytest.mark.parametrize("line", ["npx <package>@<version>", "uvx '<name>==1.0.0'", "npx 'pkg@<version>'"])
+def test_a_closed_angle_word_is_still_a_placeholder(line: str) -> None:
+    """``<word>`` is a documentation placeholder and is not reported."""
+    assert ac.scan_command_line(line, "docs/guide.md", 1, "install-step", ac.EMPTY_INDEX) == []
 
 
 # ---------------------------------------------------------------- the bin rule
