@@ -1208,6 +1208,24 @@ def _line_problem(text: str) -> str | None:
     return None
 
 
+def ref_name_problem(kind: str, name: str) -> str | None:
+    """Tell what keeps a name from being the ``name`` of a :class:`RequiredRef` of this kind, or ``None``.
+
+    Args:
+        kind: ``tag`` or ``sha``.
+        name: The name as given.
+
+    Returns:
+        The problem in a phrase, or ``None`` when the name has its form.
+
+    Raises:
+        ValueError: ``kind`` is neither ``tag`` nor ``sha``.
+    """
+    if kind not in REF_KINDS:
+        raise ValueError(f"kind must be one of {', '.join(REF_KINDS)}, not {kind!r}")
+    return _sha_problem(name) if kind == "sha" else _tag_problem(name)
+
+
 def _sha_problem(name: str) -> str | None:
     """Tell what keeps a string from being a full commit SHA, or ``None``."""
     return None if _SHA.fullmatch(name) else "must be 40 lowercase hexadecimal digits"

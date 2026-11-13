@@ -466,6 +466,14 @@ class GitCommandFailed(RunnerError):
     """
 
 
+class RefNotConfirmed(RunnerError):
+    """:func:`verify_ref` found that a ref is not on its repository's default branch (``cli.py`` exit code 1).
+
+    The tag does not exist on the remote, the commit is unknown here or is not an ancestor of
+    ``origin/main``, or the tag points to something that is not a commit. Nothing was recorded.
+    """
+
+
 class SelftestRefused(RunnerError):
     """The selftest did not start: the configuration cannot build its trials (``cli.py`` exit code 2).
 
@@ -1034,6 +1042,96 @@ def _git_once(
     return result
 
 
+def verify_ref(main_tree: str, kind: str, name: str, *, timeout_seconds: float) -> str:
+    """Check a ref against the repository's default branch, as IN-2 requires (task 15.4).
+
+    ``git fetch --no-tags origin main`` first. A ``sha`` must be an ancestor of ``origin/main``
+    (``git merge-base --is-ancestor``). A ``tag`` must be listed by ``git ls-remote --tags origin``
+    under exactly that name (the pattern ``<name>^{}`` is given too: without it git omits the peeled line), and the commit that it points to (the peeled one, for an annotated
+    tag) must be an ancestor of ``origin/main`` too. Only the fetch and ``ls-remote`` touch the
+    remote; nothing is written but the remote-tracking ref that ``fetch`` updates.
+
+    Args:
+        main_tree: The repository's main working tree, absolute.
+        kind: ``tag`` or ``sha``.
+        name: The tag name, or the commit SHA (40 lowercase hexadecimal digits). Checked by the caller
+            against ``handoff.manifest.ref_name_problem``.
+        timeout_seconds: The time limit of each git command.
+
+    Returns:
+        The commit: ``name`` for a ``sha``, the one the tag points to for a ``tag``.
+
+    Raises:
+        ValueError: ``kind`` is neither ``tag`` nor ``sha``.
+        RefNotConfirmed: The ref is not on the default branch.
+        GitCommandFailed: Git could not tell (no remote, no network, a timeout).
+    """
+    if kind not in ("tag", "sha"):
+        raise ValueError(f"kind must be tag or sha, not {kind!r}")
+    _git_once(
+        ("git", "-C", main_tree, "fetch", "--no-tags", "origin", "main"),
+        main_tree,
+        "fetching origin main",
+        timeout_seconds=timeout_seconds,
+    )
+    if kind == "sha":
+        commit = name
+    else:
+        listed = _git_once(
+            ("git", "-C", main_tree, "ls-remote", "--tags", "origin", name, f"{name}^{{}}"),
+            main_tree,
+            "listing the tag on origin",
+            timeout_seconds=timeout_seconds,
+        )
+        found = _tag_commit(listed.stdout, name)
+        if found is None:
+            raise RefNotConfirmed(f"origin has no tag {name}, or lists it with more than one commit")
+        commit = found
+    known = _git_once(
+        ("git", "--no-optional-locks", "-C", main_tree, "rev-parse", "--verify", "-q", f"{commit}^{{commit}}"),
+        main_tree,
+        "looking up the commit",
+        timeout_seconds=timeout_seconds,
+        allowed=(0, 1),
+    )
+    if known.exit_code != 0:
+        raise RefNotConfirmed(f"{commit} is not a commit of this repository after the fetch")
+    ancestor = _git_once(
+        ("git", "--no-optional-locks", "-C", main_tree, "merge-base", "--is-ancestor", commit, "origin/main"),
+        main_tree,
+        "checking the commit against origin/main",
+        timeout_seconds=timeout_seconds,
+        allowed=(0, 1),
+    )
+    if ancestor.exit_code != 0:
+        raise RefNotConfirmed(f"{commit} is not an ancestor of origin/main")
+    return commit
+
+
+def _tag_commit(output: bytes, name: str) -> str | None:
+    """The commit of the tag ``name`` in the output of ``git ls-remote --tags``: the peeled line if there is one.
+
+    ``ls-remote`` matches its pattern at the end of a ref name, so ``v1`` also prints
+    ``refs/tags/x/v1``. Only ``refs/tags/<name>`` and ``refs/tags/<name>^{}`` count.
+
+    Returns:
+        The SHA, or ``None`` when no line names the tag or the lines disagree.
+    """
+    plain: set[str] = set()
+    peeled: set[str] = set()
+    for line in output.decode("utf-8", "replace").splitlines():
+        sha, tab, ref = line.partition("\t")
+        sha = sha.strip()
+        if not tab or _OBJECT_ID.fullmatch(sha) is None:
+            continue
+        if ref == f"refs/tags/{name}":
+            plain.add(sha)
+        elif ref == f"refs/tags/{name}^{{}}":
+            peeled.add(sha)
+    chosen = peeled or plain
+    return next(iter(chosen)) if len(chosen) == 1 else None
+
+
 def kiro_fingerprint(
     config: HandoffConfig, *, home: str, agent: str | None, kill_grace_seconds: float = KILL_GRACE_SECONDS
 ) -> KiroFingerprint:
@@ -1250,6 +1348,36 @@ class Harness:
             if added:
                 self._commit(status)
             return tuple(added)
+
+    def confirm_ref(self, config: HandoffConfig, ref: RequiredRef) -> state.ConfirmedRef:
+        """Check a ref with :func:`verify_ref` and record it in ``confirmed_refs`` of ``status.json`` (IN-2).
+
+        The harness finds the commit itself; there is no way to give it one. A ref that cannot be
+        checked is not recorded and the status is not written.
+
+        Args:
+            config: The checked configuration; ``ref.repo`` is a key of ``repos``.
+            ref: The ref, with a name that has its form (``handoff.manifest.ref_name_problem``).
+
+        Returns:
+            The entry now in the status.
+
+        Raises:
+            KeyError: ``ref.repo`` is not in ``repos``.
+            RefNotConfirmed: The ref is not on the default branch.
+            GitCommandFailed: Git could not tell.
+            handoff.state.TransitionError: The tag is already recorded with another commit.
+        """
+        with self._mutex:
+            main_tree = config.repos[ref.repo].main_tree
+            commit = verify_ref(main_tree, ref.kind, ref.name, timeout_seconds=config.timeout_seconds)
+            status = state.confirm_ref(self._status, repo=ref.repo, kind=ref.kind, name=ref.name, sha=commit, at=_now())
+            if status != self._status:
+                self._commit(status)
+            for entry in state.confirmed_refs_of(self._status):
+                if (entry["repo"], entry["kind"], entry["name"]) == (ref.repo, ref.kind, ref.name):
+                    return entry
+            raise RunnerError("the ref was recorded and is not in the status")  # unreachable
 
     def hold(self, item_id: str, *, reason: str) -> None:
         """Move a ``queued`` item to ``needs-human`` without starting it.

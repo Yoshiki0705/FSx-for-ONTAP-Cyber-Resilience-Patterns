@@ -18,7 +18,8 @@ check has two layers.
    list or dict reached twice (shared or cyclic); at most ``MAX_DEPTH`` levels of
    nesting. Every value in this set renders and parses back to an equal value of the
    same types, so ``parse_status(render_status(s)) == s`` holds for every status ``s``.
-2. The schema: the top level has exactly the keys of :class:`StatusDoc`, and each item
+2. The schema: the top level has the keys of :class:`StatusDoc` (``confirmed_refs`` may be
+   missing, which every status written before task 15.4 is), and each item
    exactly the keys of :class:`ItemRecord`. ``schema_version`` is the integer 1. An
    item's ``state`` is one of ``STATES`` and its ``history`` replays to it: the first
    entry leaves ``INITIAL_STATE``, each later entry leaves the state the previous one
@@ -46,7 +47,7 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
-from typing import Any, Final, TypedDict
+from typing import Any, Final, NotRequired, TypedDict
 
 QUEUED: Final = "queued"
 RUNNING: Final = "running"
@@ -155,6 +156,26 @@ class ItemRecord(TypedDict):
     published: dict[str, Any]
 
 
+class ConfirmedRef(TypedDict):
+    """One entry of ``confirmed_refs``: a ref that the harness checked on its repository's default branch (IN-2).
+
+    Attributes:
+        repo: A key of ``repos`` of the configuration. Not empty.
+        kind: ``tag`` or ``sha``.
+        name: The tag name, or for ``sha`` the commit SHA itself.
+        sha: The commit that the ref is: 40 lowercase hexadecimal digits. For a tag, the commit
+            that ``git ls-remote`` showed it to point to (peeled, for an annotated tag); for
+            ``sha``, equal to ``name``.
+        at: When it was checked, in ``TIMESTAMP_FORMAT``.
+    """
+
+    repo: str
+    kind: str
+    name: str
+    sha: str
+    at: str
+
+
 class StatusDoc(TypedDict):
     """The whole of ``status.json``.
 
@@ -164,15 +185,25 @@ class StatusDoc(TypedDict):
         items: Each item's record, keyed by its item ID (a non-empty string).
         events: What the harness did outside the items, oldest first. Only
             :func:`record_event` adds an entry, and nothing changes or removes one.
+        confirmed_refs: The refs that ``cli.py confirm-ref`` checked (task 15.4), oldest first,
+            one entry per ``(repo, kind, name)``. Missing until the first one is recorded. Only
+            :func:`confirm_ref` adds an entry, and nothing changes or removes one.
     """
 
     schema_version: int
     selftest: dict[str, Any] | None
     items: dict[str, ItemRecord]
     events: list[HarnessEvent]
+    confirmed_refs: NotRequired[list[ConfirmedRef]]
 
 
-_TOP_KEYS: Final = StatusDoc.__required_keys__
+#: ``NotRequired`` is not seen through the string annotations of ``from __future__ import annotations``,
+#: so the optional key is named here and left out of the required ones.
+_TOP_OPTIONAL_KEYS: Final = frozenset({"confirmed_refs"})
+_TOP_KEYS: Final = StatusDoc.__required_keys__ - _TOP_OPTIONAL_KEYS
+_CONFIRMED_KEYS: Final = ConfirmedRef.__required_keys__
+_REF_KINDS: Final = ("tag", "sha")
+_COMMIT_SHA: Final = re.compile(r"[0-9a-f]{40}")
 _ITEM_KEYS: Final = ItemRecord.__required_keys__
 _ENTRY_KEYS: Final = HistoryEntry.__required_keys__
 _EVENT_KEYS: Final = HarnessEvent.__required_keys__
@@ -313,6 +344,67 @@ def record_event(status: StatusDoc, *, at: str, kind: str, detail: str) -> Statu
     result = copy.deepcopy(status)
     result["events"].append({"at": at, "kind": kind, "detail": detail})
     return result
+
+
+def confirm_ref(status: StatusDoc, *, repo: str, kind: str, name: str, sha: str, at: str) -> StatusDoc:
+    """Return a copy of a status with one more confirmed ref (IN-2, Requirement 28.12).
+
+    The caller has checked the ref against git (``handoff.runner.Harness.confirm_ref``); this
+    function only keeps the finding. Confirming a ref again with the same commit changes nothing
+    (the first ``at`` stays). A tag that now points to another commit is refused, not overwritten:
+    a moved tag is something for the maintainer to look at.
+
+    Args:
+        status: A status that passes :func:`check_status`. It is not changed.
+        repo: A key of ``repos`` of the configuration.
+        kind: ``tag`` or ``sha``.
+        name: The tag name, or the commit SHA for ``sha``.
+        sha: The commit, 40 lowercase hexadecimal digits; equal to ``name`` for ``sha``.
+        at: When it was checked, in ``TIMESTAMP_FORMAT``.
+
+    Returns:
+        A new status whose ``confirmed_refs`` has the entry.
+
+    Raises:
+        InvalidStatusError: ``status`` is not a status.
+        TransitionError: An argument does not have its form, or the ref is recorded with another
+            commit.
+    """
+    check_status(status)
+    entry: ConfirmedRef = {"repo": repo, "kind": kind, "name": name, "sha": sha, "at": at}
+    for key, value in entry.items():
+        if type(value) is not str:
+            raise TransitionError(f"{key} must be a string, not {_show(value)}")
+    problem = _confirmed_problem(entry)
+    if problem is not None:
+        raise TransitionError(problem)
+    for earlier in status.get("confirmed_refs", []):
+        if (earlier["repo"], earlier["kind"], earlier["name"]) == (repo, kind, name):
+            if earlier["sha"] == sha:
+                return copy.deepcopy(status)
+            raise TransitionError(
+                f"{repo} {kind} {name} is recorded with {earlier['sha']}, and now it is {sha}; "
+                "look at why it moved before recording it again"
+            )
+    result = copy.deepcopy(status)
+    result.setdefault("confirmed_refs", []).append(entry)
+    return result
+
+
+def confirmed_refs_of(status: StatusDoc) -> tuple[ConfirmedRef, ...]:
+    """The confirmed refs of a status, oldest first; none for a status written before task 15.4.
+
+    Args:
+        status: A status that passes :func:`check_status`. It is not changed.
+
+    Returns:
+        Copies of the entries.
+
+    Raises:
+        InvalidStatusError: ``status`` is not a status.
+    """
+    check_status(status)
+    return tuple(copy.deepcopy(entry) for entry in status.get("confirmed_refs", []))
 
 
 def format_timestamp(moment: datetime) -> str:
@@ -512,7 +604,7 @@ def _check_schema(status: object) -> None:
     """Check layer 2 of :func:`check_status`. Assumes layer 1 has passed."""
     if type(status) is not dict:
         raise InvalidStatusError(f"$: a status is an object, not {_json_type(status)}")
-    _check_keys("$", status, _TOP_KEYS)
+    _check_keys("$", status, _TOP_KEYS, _TOP_OPTIONAL_KEYS)
     version = status["schema_version"]
     if type(version) is not int or version != SCHEMA_VERSION:
         raise InvalidStatusError(f'$["schema_version"]: expected {SCHEMA_VERSION}, found {_show(version)}')
@@ -528,6 +620,8 @@ def _check_schema(status: object) -> None:
             raise InvalidStatusError(f"{path}: an item ID is a non-empty string")
         _check_item(path, record)
     _check_events(status["events"])
+    if "confirmed_refs" in status:
+        _check_confirmed_refs(status["confirmed_refs"])
 
 
 def _check_events(events: object) -> None:
@@ -637,10 +731,51 @@ def _check_history(item_path: str, state: str, history: object) -> None:
         )
 
 
-def _check_keys(path: str, obj: dict[str, Any], expected: frozenset[str]) -> None:
-    """Check that an object has exactly the expected keys."""
+def _check_confirmed_refs(entries: object) -> None:
+    """Check ``confirmed_refs``: a list of entries of the form of :class:`ConfirmedRef`, one per ref."""
+    path = '$["confirmed_refs"]'
+    if type(entries) is not list:
+        raise InvalidStatusError(f"{path}: expected an array, found {_json_type(entries)}")
+    seen: set[tuple[str, str, str]] = set()
+    for index, entry in enumerate(entries):
+        here = f"{path}[{index}]"
+        if type(entry) is not dict:
+            raise InvalidStatusError(f"{here}: expected an object, found {_json_type(entry)}")
+        _check_keys(here, entry, _CONFIRMED_KEYS)
+        for key in sorted(_CONFIRMED_KEYS):
+            if type(entry[key]) is not str:
+                raise InvalidStatusError(f"{here}[{key!r}]: expected a string, found {_json_type(entry[key])}")
+        problem = _confirmed_problem(entry)  # type: ignore[arg-type]
+        if problem is not None:
+            raise InvalidStatusError(f"{here}: {problem}")
+        identity = (entry["repo"], entry["kind"], entry["name"])
+        if identity in seen:
+            raise InvalidStatusError(f"{here}: {entry['repo']} {entry['kind']} {entry['name']} appears twice")
+        seen.add(identity)
+
+
+def _confirmed_problem(entry: ConfirmedRef) -> str | None:
+    """Tell what keeps an entry from being one of ``confirmed_refs``, or ``None``. All values are strings."""
+    for key in ("repo", "name"):
+        if not entry[key]:  # type: ignore[literal-required]
+            return f"{key} must not be empty"
+    if entry["kind"] not in _REF_KINDS:
+        return f"kind must be one of {', '.join(_REF_KINDS)}, not {_show(entry['kind'])}"
+    if _COMMIT_SHA.fullmatch(entry["sha"]) is None:
+        return "sha must be 40 lowercase hexadecimal digits"
+    if entry["kind"] == "sha" and entry["name"] != entry["sha"]:
+        return "a ref of kind sha names its own commit, so name and sha must be equal"
+    if not _is_timestamp(entry["at"]):
+        return f"at must be UTC in whole seconds, like 2026-11-10T00:00:00Z, not {_show(entry['at'])}"
+    return None
+
+
+def _check_keys(
+    path: str, obj: dict[str, Any], expected: frozenset[str], optional: frozenset[str] = frozenset()
+) -> None:
+    """Check that an object has the expected keys, and those of ``optional`` if it likes."""
     missing = sorted(expected - obj.keys())
-    unknown = sorted(obj.keys() - expected)
+    unknown = sorted(obj.keys() - expected - optional)
     if missing or unknown:
         problems = [f"{label} keys {keys}" for label, keys in (("missing", missing), ("unknown", unknown)) if keys]
         raise InvalidStatusError(f"{path}: {'; '.join(problems)}")

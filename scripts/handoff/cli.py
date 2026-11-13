@@ -1,8 +1,9 @@
-"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status``, ``cleanup``, ``selftest`` and ``publish``.
+"""Command line of the Handoff_Harness: ``plan``, ``run``, ``manual``, ``status``, ``cleanup``, ``selftest``, ``publish`` and ``confirm-ref``.
 
 Task 2.3 of the phase 4 spec (design section 20; Requirements 28.11, 28.12, 28.13, 28.19, 28.21
 and 28.23), ``selftest`` of task 5.2 (Requirements 28.16, 28.17 and 28.21) and ``publish`` of task 5.4
-(Requirements 28.14, 28.15, 28.20 and 28.23). The pure core
+(Requirements 28.14, 28.15, 28.20 and 28.23) and ``confirm-ref`` of task 15.4 (IN-2; Requirements 28.12 and
+23.5). The pure core
 decides, :mod:`handoff.runner` starts every process and writes every file below
 ``.private/handoff/``, and this module parses the command line, reads and checks the inputs,
 wires them to the runner and shows the results. It starts no process itself.
@@ -32,8 +33,11 @@ items named by ``--sync-point`` or ``--items`` are checked against the manifest 
 customer-name list, which is required (the file named by the environment variable
 ``CUSTOMER_TERMS_FILE``, as for ``guard_customer_names.py``, or else
 ``~/.kiro/hooks/private/customer-terms.txt``), and ``.private/research/phase4/deny-terms.txt`` of
-this repository's main working tree, which may be missing until the research writes it. No ref is
-confirmed yet (IN-2 is wired in task 15.4), so every prompt draws its refs as unconfirmed.
+this repository's main working tree, which may be missing until the research writes it. The refs
+that ``confirm-ref`` recorded in ``confirmed_refs`` of ``status.json`` are the confirmed refs (IN-2)
+of ``plan``, ``run`` and ``manual`` (and of the manual display after ``selftest``): ``dag.ready``
+and the prompt see exactly those, so an item that requires a ref stays ``queued`` until it is
+recorded, and its prompt draws a ref that is not recorded as unconfirmed.
 
 Agent configurations (task 2.5). ``plan``, ``run`` and ``manual`` also read
 ``agents/approved.json`` of the handoff directory by the rules of ``config.json``, after the items
@@ -150,6 +154,18 @@ Subcommands:
   or not published and why. A scan finding, a conflict or a pushed branch that differs from the
   local one holds the item (it stays ``succeeded``, ``published.hold`` of ``status.json`` says
   why).
+- ``confirm-ref --repo NAME --kind tag|sha --name VALUE`` (task 15.4, IN-2): checks a ref of the
+  repository ``NAME`` (a key of ``repos``) with :func:`handoff.runner.verify_ref` and, only if it holds,
+  records it in ``confirmed_refs`` of ``status.json`` under the lock. A ``sha`` (40 lowercase
+  hexadecimal digits) is fetched (``git fetch --no-tags origin main``) and must be an ancestor of
+  ``origin/main`` (``git merge-base --is-ancestor``). A ``tag`` must be listed by
+  ``git ls-remote --tags origin`` under exactly that name; the commit it points to (peeled, for an
+  annotated tag) is recorded with it, and must be an ancestor of ``origin/main`` too, because
+  Requirement 28.12 waits for the default branch. There is no option that gives the commit: the
+  record holds what git showed. A ref that cannot be confirmed is not recorded, standard error says
+  why, and the exit code is 1 (2 for a malformed request, 3 when another harness holds the lock).
+  The same ref again changes nothing; a tag that now points to another commit is refused. It starts no
+  ``kiro-cli``. ``status`` lists the recorded refs.
 - ``selftest``: runs :meth:`handoff.runner.Harness.run_selftest`, the trials T0 to T4 of design
   section 20 in throwaway repositories below ``<worktrees_root>/selftest/``, with the approval of
   ``agents.change`` when it passes its checks now (above). It takes the lock, because it writes
@@ -174,7 +190,8 @@ Exit codes:
       for an item's state or content: ``manual`` of an item that is ``running`` or
       ``succeeded``, has a scan finding, cannot be drawn or belongs to this session; ``status set`` from a state other
       than ``failed`` and ``needs-human``; ``cleanup`` where git refused or could not tell;
-      ``status`` that could not list a repository's worktrees. For ``selftest``: the result is
+      ``status`` that could not list a repository's worktrees; ``confirm-ref`` of a ref that is not on the
+      default branch (or a tag that moved), or when git could not tell. For ``selftest``: the result is
       ``unconfirmed``, and the record and ``status.json`` were written.
 2     The configuration or the manifest was rejected, the arguments were wrong (both or neither
       of ``--sync-point`` and ``--items``, an unknown item, a blank ``--reason``, an ``--approval``
@@ -233,7 +250,16 @@ from typing import Any, Final  # noqa: E402
 from handoff import command, dag, evaluate, runner, state  # noqa: E402
 from handoff.config import MODES, ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
 from handoff.executor import Executor, ExecutorChoice, choose  # noqa: E402
-from handoff.manifest import SYNC_POINTS, Item, Manifest, ManifestError, parse_manifest  # noqa: E402
+from handoff.manifest import (  # noqa: E402
+    REF_KINDS,
+    SYNC_POINTS,
+    Item,
+    Manifest,
+    ManifestError,
+    RequiredRef,
+    parse_manifest,
+    ref_name_problem,
+)
 from handoff.prompt import MAX_BODY_BYTES, RenderedPrompt  # noqa: E402
 
 #: The IDE sessions' worktree directory, protected like a main working tree.
@@ -489,6 +515,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     text = "run trials T0 to T4 in throwaway repositories and record whether the guards stopped kiro-cli"
     commands.add_parser("selftest", help=text, description=text)
+    text = "check a tag or a commit on its repository's default branch, and record it as confirmed (IN-2)"
+    confirm = commands.add_parser("confirm-ref", help=text, description=text)
+    confirm.add_argument("--repo", required=True, metavar="NAME", help="a key of repos in config.json")
+    confirm.add_argument("--kind", required=True, choices=REF_KINDS, help="tag, or sha for a full commit SHA")
+    confirm.add_argument("--name", required=True, metavar="VALUE", help="the tag name, or the 40-digit commit SHA")
     return parser
 
 
@@ -615,6 +646,8 @@ def _named_items(inputs: _Inputs, args: argparse.Namespace) -> tuple[dict[str, A
     """Check ``--sync-point`` or ``--items`` against the manifest, before any other I/O.
 
     The check is ``dag.select`` itself, on an in-memory status in which every item is ``queued``.
+    Only the IDs are checked and the selection is thrown away, so the refs are not read here: this
+    runs before any file other than the inputs is read (the confirmed refs come from ``status.json``).
 
     Returns:
         The keyword argument for ``dag.select``, and the named items in the order of the manifest.
@@ -776,13 +809,30 @@ def _is_timestamp(value: object) -> bool:
     return state.format_timestamp(moment) == value
 
 
-def _context(inputs: _Inputs, deny: runner.DenyTerms, approvals: Sequence[_Approval]) -> runner.RunContext:
-    """The inputs of the runner, with the agent approvals that pass their checks now. No ref is confirmed yet."""
-    return _run_context(inputs, deny, _verified_agents(inputs, approvals))
+def _context(
+    inputs: _Inputs, deny: runner.DenyTerms, approvals: Sequence[_Approval], status: state.StatusDoc
+) -> runner.RunContext:
+    """The inputs of the runner, with the agent approvals that pass their checks now and the refs that ``status`` confirms."""
+    return _run_context(inputs, deny, _verified_agents(inputs, approvals), confirmed_refs_of(status))
 
 
-def _run_context(inputs: _Inputs, deny: runner.DenyTerms, approved: frozenset[tuple[str, str]]) -> runner.RunContext:
-    """The inputs of the runner, with the pairs that :func:`_verified_agents` returned. No ref is confirmed yet."""
+def confirmed_refs_of(status: state.StatusDoc) -> frozenset[RequiredRef]:
+    """The refs that ``confirm-ref`` recorded in a status: the confirmed refs (IN-2) that ``dag.ready`` takes."""
+    return frozenset(
+        RequiredRef(entry["repo"], entry["kind"], entry["name"]) for entry in state.confirmed_refs_of(status)
+    )
+
+
+def _run_context(
+    inputs: _Inputs,
+    deny: runner.DenyTerms,
+    approved: frozenset[tuple[str, str]],
+    confirmed: frozenset[RequiredRef] = frozenset(),
+) -> runner.RunContext:
+    """The inputs of the runner, with the pairs that :func:`_verified_agents` returned.
+
+    ``confirmed`` is empty for ``verify`` and ``publish``, which draw no prompt and select no item.
+    """
     return runner.RunContext(
         config=inputs.config,
         manifest=inputs.manifest,
@@ -790,7 +840,7 @@ def _run_context(inputs: _Inputs, deny: runner.DenyTerms, approved: frozenset[tu
         harness_tree=inputs.harness_tree,
         session_worktrees_dir=inputs.session_worktrees_dir,
         deny=deny,
-        confirmed_refs=frozenset(),
+        confirmed_refs=confirmed,
         approved_agents=approved,
     )
 
@@ -924,7 +974,7 @@ def _plan(args: argparse.Namespace, inputs: _Inputs) -> int:
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:
-        context = _context(inputs, deny, approvals)
+        context = _context(inputs, deny, approvals, harness.status)
         view = _with_records(harness.status, inputs.manifest)
         drafts = {
             item.id: harness.draw_prompt(context, item.id)
@@ -1131,7 +1181,7 @@ def _run(args: argparse.Namespace, inputs: _Inputs) -> int:
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
     with runner.Harness.open(inputs.handoff_dir) as harness:
-        context = _context(inputs, deny, approvals)
+        context = _context(inputs, deny, approvals, harness.status)
         missing = _missing_kiro_cli(inputs)
         if missing is not None:
             _err(f"kiro-cli が {missing} に見つからない。手作業で渡すための表示に切り替える（Requirement 28.21）")
@@ -1504,7 +1554,7 @@ def _manual(args: argparse.Namespace, inputs: _Inputs) -> int:
         current = view["items"][item.id]["state"]
         if current not in _MANUAL_STATES:
             raise _Exit(EXIT_ITEMS, f"{item.id} is {current}; only a queued, failed or needs-human item is handed over")
-        return _write_manual(harness, _context(inputs, deny, approvals), inputs, item, view)
+        return _write_manual(harness, _context(inputs, deny, approvals, view), inputs, item, view)
 
 
 def _verify(args: argparse.Namespace, inputs: _Inputs) -> int:
@@ -1661,6 +1711,13 @@ def _status(args: argparse.Namespace, inputs: _Inputs) -> int:
         "（ロックを取らずに読んだ）"
     )
     _out(f"項目: {len(status['items'])}" + (f"（{listed}）" if listed else ""))
+    confirmed = state.confirmed_refs_of(status)
+    if confirmed:
+        _out("確定済みの参照（IN-2）:")
+        for entry in confirmed:
+            _out(f"  {entry['repo']} {entry['kind']} {entry['name']}（commit {entry['sha']}、{entry['at']}）")
+    else:
+        _out("確定済みの参照（IN-2）: なし")
     unrecorded = [item_id for item_id in manifest_ids if item_id not in status["items"]]
     if unrecorded:
         _out(f"記録のない項目（run か plan が queued として扱う）: {', '.join(unrecorded)}")
@@ -1970,7 +2027,7 @@ def _selftest_in(
             f"{what}。selftest を実行できないので、変更モードの項目を手作業で渡すための表示に切り替える（Requirement 28.21）"
         )
         _err(str(error))
-        manual_context = _run_context(inputs, _deny_terms(inputs), approved)
+        manual_context = _run_context(inputs, _deny_terms(inputs), approved, confirmed_refs_of(harness.status))
         _err(_selftest_note(harness, earlier))
         change = tuple(item for item in inputs.manifest.items if item.mode == "change")
         if not _manual_for_ready(harness, manual_context, inputs, change):
@@ -2071,6 +2128,32 @@ def _read_publish_approval(given: str, inputs: _Inputs) -> command.PublishApprov
         raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", error.issues)) from None
 
 
+def _confirm_ref(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``confirm-ref``: check a ref on its repository's default branch and record it (the module docstring).
+
+    The commit is never an argument: :meth:`handoff.runner.Harness.confirm_ref` finds it with git.
+
+    Raises:
+        _Exit: With exit code 2 for a repository that ``repos`` lacks or a name without its form, and
+            with 1 for a ref that is not on the default branch.
+    """
+    if args.repo not in inputs.config.repos:
+        raise _Exit(EXIT_USAGE, f"--repo {args.repo!r} is not in repos of config.json")
+    problem = ref_name_problem(args.kind, args.name)
+    if problem is not None:
+        raise _Exit(EXIT_USAGE, f"--name {args.name!r} {problem}")
+    ref = RequiredRef(args.repo, args.kind, args.name)
+    with runner.Harness.open(inputs.handoff_dir) as harness:
+        try:
+            entry = harness.confirm_ref(inputs.config, ref)
+        except (runner.RefNotConfirmed, state.TransitionError) as error:
+            raise _Exit(
+                EXIT_ITEMS, f"{ref.repo} {ref.kind} {ref.name} は確定できない。記録していない: {error}"
+            ) from None
+    _out(f"{ref.repo} {ref.kind} {ref.name}: 確定して状態ファイルに記録した（commit {entry['sha']}、{entry['at']}）")
+    return EXIT_OK
+
+
 _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] = {
     "plan": _plan,
     "run": _run,
@@ -2080,6 +2163,7 @@ _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] 
     "cleanup": _cleanup,
     "selftest": _selftest,
     "publish": _publish,
+    "confirm-ref": _confirm_ref,
 }
 
 
