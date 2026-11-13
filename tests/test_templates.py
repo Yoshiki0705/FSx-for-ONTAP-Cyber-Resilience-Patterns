@@ -448,7 +448,8 @@ class TestAlertTopicDelivery:
         policy = template["Resources"]["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]
         grants = [s for s in policy["Statement"] if s["Action"] == ["kms:GenerateDataKey", "kms:Decrypt"]]
         assert len(grants) == 1
-        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}]
+        # The role holds exactly the keys of the two topics it publishes to.
+        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}, {"GetAtt": "AlertFallbackTopicKey.Arn"}]
 
     def test_compliance_role_can_use_the_key_only_through_sns(self) -> None:
         siem = _load_tagged("siem-integration.yaml")
@@ -505,6 +506,71 @@ class TestQuarantineExecutionsFailedAlarm:
 
     def test_alarm_notifies_the_alert_topic(self, alarm: dict) -> None:
         assert alarm["AlarmActions"] == [{"Ref": "SecurityAlertTopic"}]
+
+
+class TestApprovalFallbackPath:
+    """An approval request must reach someone even when SecurityAlertTopic or its key fails."""
+
+    @pytest.fixture(scope="class")
+    def resources(self) -> dict:
+        return _load_tagged("event-driven.yaml")["Resources"]
+
+    def test_fallback_topic_has_its_own_customer_managed_key(self, resources: dict) -> None:
+        topic = resources["AlertFallbackTopic"]["Properties"]
+        assert topic["KmsMasterKeyId"] == {"GetAtt": "AlertFallbackTopicKey.Arn"}
+        assert topic["KmsMasterKeyId"] != resources["SecurityAlertTopic"]["Properties"]["KmsMasterKeyId"]
+        assert resources["AlertFallbackTopicKey"]["Properties"]["EnableKeyRotation"] is True
+
+    def test_alarms_may_publish_through_the_fallback_key_and_topic(self, resources: dict) -> None:
+        condition = {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+        key_stmt = next(
+            s
+            for s in resources["AlertFallbackTopicKey"]["Properties"]["KeyPolicy"]["Statement"]
+            if s["Sid"] == "AllowAlarmsToPublish"
+        )
+        assert key_stmt["Principal"] == {"Service": "cloudwatch.amazonaws.com"}
+        assert set(key_stmt["Action"]) == {"kms:Decrypt", "kms:GenerateDataKey*"}
+        assert key_stmt["Condition"] == condition
+        topic_stmt = next(
+            s
+            for s in resources["AlertFallbackTopicPolicy"]["Properties"]["PolicyDocument"]["Statement"]
+            if s["Sid"] == "AllowAlarmsToPublish"
+        )
+        assert topic_stmt["Principal"] == {"Service": "cloudwatch.amazonaws.com"}
+        assert topic_stmt["Action"] == "sns:Publish"
+        assert topic_stmt["Condition"] == condition
+
+    def test_state_machine_role_may_publish_to_the_fallback_topic(self, resources: dict) -> None:
+        statements = resources["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+        publish = next(s for s in statements if s["Action"] == ["sns:Publish"])
+        assert {"Ref": "AlertFallbackTopic"} in publish["Resource"]
+        kms = next(s for s in statements if "kms:GenerateDataKey" in s["Action"])
+        assert {"GetAtt": "AlertFallbackTopicKey.Arn"} in kms["Resource"]
+
+    def test_approval_wait_alarm_watches_the_oldest_approval_request(self, resources: dict) -> None:
+        alarm = resources["ApprovalWaitingAlarm"]["Properties"]
+        assert alarm["Namespace"] == "AWS/SQS"
+        assert alarm["MetricName"] == "ApproximateAgeOfOldestMessage"
+        assert alarm["Dimensions"] == [{"Name": "QueueName", "Value": {"GetAtt": "ApprovalQueue.QueueName"}}]
+        assert alarm["Statistic"] == "Maximum"
+        assert alarm["Threshold"] == {"Ref": "ApprovalWaitingAlarmThresholdSeconds"}
+        assert alarm["ComparisonOperator"] == "GreaterThanThreshold"
+        # An empty queue publishes no datapoint, which is the healthy state.
+        assert alarm["TreatMissingData"] == "notBreaching"
+
+    def test_approval_wait_alarm_notifies_both_topics(self, resources: dict) -> None:
+        actions = resources["ApprovalWaitingAlarm"]["Properties"]["AlarmActions"]
+        assert {"Ref": "AlertFallbackTopic"} in actions
+        assert {"Ref": "SecurityAlertTopic"} in actions
+
+    def test_threshold_stays_below_the_approval_timeout(self) -> None:
+        template = _load_tagged("event-driven.yaml")
+        param = template["Parameters"]["ApprovalWaitingAlarmThresholdSeconds"]
+        sm = template["Resources"]["QuarantineStateMachine"]["Properties"]["DefinitionString"]["Sub"]
+        timeout = json.loads(sm)["States"]["WaitForApproval"]["TimeoutSeconds"]
+        # The alarm period (300 s) is added before the alarm fires, so leave room for it.
+        assert param["MaxValue"] + 300 < timeout
+        assert param["MinValue"] <= param["Default"] <= param["MaxValue"]
 
 
 class TestHubAlertTopicDelivery:

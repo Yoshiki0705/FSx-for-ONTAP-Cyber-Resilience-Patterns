@@ -292,6 +292,10 @@ QUEUE_URL=$(aws cloudformation describe-stacks \
 aws sqs receive-message --queue-url "$QUEUE_URL" --max-number-of-messages 1
 ```
 
+メッセージ本文の `taskToken` と、応答の `ReceiptHandle` を控えます。本文の `event.alertError` があれば、主の SNS 通知は送れていません。`event.fallbackError` もあれば、予備のトピック（`AlertFallbackTopic`）への通知も送れていません。
+
+承認キューに 1 時間（既定値。パラメータ `ApprovalWaitingAlarmThresholdSeconds`）以上メッセージが残ると、`ApprovalWaitingAlarm` が予備のトピックと主のトピックの両方に通知します。
+
 ### 承認 (Approve — アクセス復旧)
 
 調査の結果、誤検知（False Positive）と判断した場合:
@@ -301,6 +305,10 @@ aws sqs receive-message --queue-url "$QUEUE_URL" --max-number-of-messages 1
 aws stepfunctions send-task-success \
   --task-token "<taskToken from approval message>" \
   --task-output '{"approved": true}'
+
+# 応答したメッセージを承認キューから削除する
+aws sqs delete-message --queue-url "$QUEUE_URL" \
+  --receipt-handle "<ReceiptHandle from receive-message>"
 ```
 
 これにより:
@@ -316,6 +324,10 @@ aws stepfunctions send-task-success \
 aws stepfunctions send-task-success \
   --task-token "<taskToken from approval message>" \
   --task-output '{"approved": false}'
+
+# 応答したメッセージを承認キューから削除する
+aws sqs delete-message --queue-url "$QUEUE_URL" \
+  --receipt-handle "<ReceiptHandle from receive-message>"
 ```
 
 これにより:
@@ -327,6 +339,11 @@ aws stepfunctions send-task-success \
 承認・拒否がない場合、24 時間後に自動エスカレーション:
 - SNS で「ESCALATION: Approval Timeout」通知
 - ボリュームは隔離状態のまま
+- 承認キューのメッセージは残る（保持期間 4 日）。タスクトークンは使えなくなっているので、`delete-message` で削除する
+
+### 承認キューのメッセージを削除する理由
+
+`ApprovalWaitingAlarm` は、承認キューで最も古いメッセージの経過時間（`ApproximateAgeOfOldestMessage`）を見ます。この値は、メッセージを `receive-message` で読んでも下がりません。削除して初めて下がります。2026-11-13 に、ap-northeast-1 で、メッセージが 1 件だけのキューを 1 回試しました。1 回読んだときも 3 回読んだときも、削除するまで値は増え続けました。削除の約 3 分後に、アラームは OK に戻りました。応答したメッセージを削除しないと、アラームは承認の後も鳴り続けます。
 
 ### 承認の判定値が不正なとき
 

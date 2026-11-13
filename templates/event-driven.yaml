@@ -26,6 +26,23 @@ Parameters:
     Default: ''
     Description: Email address for security alert notifications (optional).
 
+  FallbackNotificationEmail:
+    Type: String
+    Default: ''
+    Description: >
+      Email address subscribed to the fallback alert topic (optional). The quarantine
+      workflow publishes there when the primary alert fails, and the approval wait
+      alarm notifies it. Use an address other than NotificationEmail.
+
+  ApprovalWaitingAlarmThresholdSeconds:
+    Type: Number
+    Default: 3600
+    MinValue: 300
+    MaxValue: 82800
+    Description: >
+      Age in seconds of the oldest message in the approval queue that raises the
+      approval wait alarm. Must be shorter than the 24-hour approval timeout.
+
   LambdaArtifactBucket:
     Type: String
     Description: S3 bucket containing Lambda deployment packages.
@@ -64,6 +81,7 @@ Parameters:
 # -------------------------------------------------------------------
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+  HasFallbackNotificationEmail: !Not [!Equals [!Ref FallbackNotificationEmail, '']]
   HasLogGroupKmsKey: !Not [!Equals [!Ref LogGroupKmsKeyArn, '']]
   HasLambdaEnvKmsKey: !Not [!Equals [!Ref LambdaEnvKmsKeyArn, '']]
 
@@ -264,6 +282,105 @@ Resources:
       Endpoint: !Ref NotificationEmail
 
   # ---------------------------------------------------------------
+  # SNS - Fallback alert path
+  # ---------------------------------------------------------------
+  # A second topic, with its own key, so that a fault in SecurityAlertTopic or
+  # AlertTopicKey does not also stop the approval wait alarm and the workflow's
+  # fallback notice. Both topics are SNS in the same Region, so a Regional SNS
+  # outage stops both.
+  AlertFallbackTopicKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub 'Encrypts the ${ProjectName} fallback alert topic (${Environment})'
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableAccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowAlarmsToPublish
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey*'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  AlertFallbackTopicKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-alert-fallback-topic-${Environment}'
+      TargetKeyId: !Ref AlertFallbackTopicKey
+
+  AlertFallbackTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-alert-fallback-${Environment}'
+      KmsMasterKeyId: !GetAtt AlertFallbackTopicKey.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  AlertFallbackTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref AlertFallbackTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountOwner
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - 'sns:Publish'
+              - 'sns:Subscribe'
+              - 'sns:Receive'
+              - 'sns:GetTopicAttributes'
+              - 'sns:SetTopicAttributes'
+              - 'sns:AddPermission'
+              - 'sns:RemovePermission'
+              - 'sns:DeleteTopic'
+              - 'sns:ListSubscriptionsByTopic'
+            Resource: !Ref AlertFallbackTopic
+          - Sid: AllowAlarmsToPublish
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: 'sns:Publish'
+            Resource: !Ref AlertFallbackTopic
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+
+  AlertFallbackEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasFallbackNotificationEmail
+    Properties:
+      TopicArn: !Ref AlertFallbackTopic
+      Protocol: email
+      Endpoint: !Ref FallbackNotificationEmail
+
+  # ---------------------------------------------------------------
   # Step Functions - Quarantine Workflow
   # ---------------------------------------------------------------
   QuarantineStateMachine:
@@ -350,6 +467,32 @@ Resources:
                 {
                   "ErrorEquals": ["States.ALL"],
                   "ResultPath": "$.alertError",
+                  "Next": "NotifyFallback"
+                }
+              ]
+            },
+            "NotifyFallback": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${AlertFallbackTopic}",
+                "Subject": "CRITICAL: Quarantine Executed - Primary Alert Failed",
+                "Message.$": "States.Format('Volume {} quarantined. Severity: {}. The primary security alert could not be sent. An approval request is waiting in the approval queue.', $.detail.volumeId, $.detail.severity)"
+              },
+              "ResultPath": "$.fallbackAlert",
+              "Next": "WaitForApproval",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.fallbackError",
                   "Next": "WaitForApproval"
                 }
               ]
@@ -773,6 +916,39 @@ Resources:
       TreatMissingData: notBreaching
 
   # ---------------------------------------------------------------
+  # Approval wait alarm
+  # ---------------------------------------------------------------
+  # Fires when an approval request has waited longer than the threshold, whether
+  # or not the primary alert was sent. It notifies both topics, so it still
+  # reaches someone when SecurityAlertTopic is the part that failed.
+  # The metric counts a message until it is deleted: reading it with
+  # receive-message does not clear the alarm, so the runbook deletes the message
+  # after send-task-success.
+  ApprovalWaitingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-approval-waiting-${Environment}'
+      AlarmDescription: >-
+        A quarantine approval request has waited in the approval queue longer than
+        the threshold. The volume stays quarantined until someone approves or
+        rejects it, and the request times out after 24 hours. Delete the queue
+        message after answering it.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ApprovalQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref ApprovalWaitingAlarmThresholdSeconds
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertFallbackTopic
+        - !Ref SecurityAlertTopic
+      TreatMissingData: notBreaching
+
+  # ---------------------------------------------------------------
   # IAM Roles
   # ---------------------------------------------------------------
 
@@ -824,12 +1000,14 @@ Resources:
                   - 'sns:Publish'
                 Resource:
                   - !Ref SecurityAlertTopic
+                  - !Ref AlertFallbackTopic
               - Effect: Allow
                 Action:
                   - 'kms:GenerateDataKey'
                   - 'kms:Decrypt'
                 Resource:
                   - !GetAtt AlertTopicKey.Arn
+                  - !GetAtt AlertFallbackTopicKey.Arn
               - Effect: Allow
                 Action:
                   - 'sqs:SendMessage'
@@ -962,6 +1140,12 @@ Outputs:
     Value: !GetAtt AlertTopicKey.Arn
     Export:
       Name: !Sub '${ProjectName}-${Environment}-AlertTopicKeyArn'
+
+  AlertFallbackTopicArn:
+    Description: SNS topic for the fallback alert path (failed primary alert, approval waiting too long)
+    Value: !Ref AlertFallbackTopic
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-AlertFallbackTopicArn'
 
   QuarantineStateMachineArn:
     Description: Quarantine workflow state machine ARN
