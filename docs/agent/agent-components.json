@@ -1,0 +1,8 @@
+{
+  "description": "Generated file. Do not edit by hand. Inventory of MCP servers, agent settings and install steps that tracked files recommend, with the pinned version of each (Requirement 6). Regenerate with `python3 scripts/supply_chain_checks/agent_components.py --write`. The gate is `python3 scripts/check_supply_chain.py agent-components`.",
+  "generated_at": "2026-11-13T03:47:37+00:00",
+  "commit_sha": "2a9d2add5ac80adb16c4e23a108e3b4941585432",
+  "files_scanned": 97,
+  "unpinned_count": 0,
+  "components": []
+}

@@ -1,0 +1,3 @@
+```json
+{"mcpServers": { oops }
+```

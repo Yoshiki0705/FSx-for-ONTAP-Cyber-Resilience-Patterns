@@ -1,0 +1,4 @@
+jobs:
+  a:
+    steps:
+      - run: uvx example-pkg
