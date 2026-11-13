@@ -111,7 +111,9 @@ def test_property_6_cases_all_occur() -> None:
     """The property is not vacuous: every state, with and without a feed change, is exercised."""
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=150, deadline=None)
+    # derandomize: the input sequence is fixed, so whether every shape occurs does not
+    # depend on the random seed of the run.
+    @settings(max_examples=150, deadline=None, derandomize=True)
     @given(st.integers(1, 4).flatmap(_policy_inputs), st.data())
     def run(inputs: models.PlanInputs, data: st.DataObject) -> None:
         seen.update(_check(inputs, data))
