@@ -1863,13 +1863,19 @@ def _cleanup_with(inputs: _Inputs, item: Item, status: state.StatusDoc, harness:
         except runner.GitCommandFailed as error:
             _err(f"{item.id}: {error}")
             known = "確かめられなかった"
-        _out(f"  ブランチ: {plan.branch}（{known}。PR のマージ後に消す。この段階では消さない）")
+        _out(
+            f"  ブランチ: {plan.branch}（{known}。commit が 0 件で、記録した作成時の SHA のままなら "
+            "cleanup --approved が消す。commit があれば消さない）"
+        )
     _out("コマンド:")
     _out(f"  git -C {main_word} worktree remove {_shell_word(plan.worktree, home)}")
     if plan.branch is not None:
         _out(
-            f"  PR のマージ後: git -C {main_word} branch -d {shlex.quote(plan.branch)}"
-            "（squash マージで -d が拒否したら -D を使う。どちらも承認を得てから）"
+            f"  commit 0 件のブランチ: git -C {main_word} update-ref -d refs/heads/{shlex.quote(plan.branch)} <記録した作成時の SHA>"
+        )
+        _out(
+            f"  commit があるブランチは PR のマージ後に git -C {main_word} branch -d {shlex.quote(plan.branch)}"
+            "（squash マージで -d が拒否したら -D。どちらも承認を得てから）"
         )
     _out(f"Handoff_Report と Handoff_Prompt は残す（{_tilde(inputs.handoff_dir, home)} の下）")
     if not registered:
@@ -1877,6 +1883,8 @@ def _cleanup_with(inputs: _Inputs, item: Item, status: state.StatusDoc, harness:
             _out("git の worktree ではないディレクトリなので、cleanup は消さない。中を確かめてから手で消す")
         else:
             _out("消す worktree はない")
+            if harness is not None:
+                _remove_empty_branch(harness, inputs, item)
         return EXIT_OK
     if record is not None and record["state"] == state.RUNNING:
         raise _Exit(EXIT_ITEMS, f"{item.id} is running; its worktree is not removed")
@@ -1891,7 +1899,19 @@ def _cleanup_with(inputs: _Inputs, item: Item, status: state.StatusDoc, harness:
             _err(stderr)
         return EXIT_ITEMS
     _out(f"消した: {_tilde(plan.worktree, home)}（状態ファイルの events に記録した）")
+    _remove_empty_branch(harness, inputs, item)
     return EXIT_OK
+
+
+def _remove_empty_branch(harness: runner.Harness, inputs: _Inputs, item: Item) -> None:
+    """After the worktree is gone: delete ``handoff/<id>`` if it has no commit of its own, and say what happened."""
+    if item.mode != "change":
+        return
+    outcome = harness.remove_empty_branch(item, config=inputs.config, home=inputs.home)
+    if outcome.removed:
+        _out(f"消した: ブランチ {command.BRANCH_PREFIX}{item.id}（{outcome.detail}。状態ファイルの events に記録した）")
+    else:
+        _out(f"消さない: ブランチ {command.BRANCH_PREFIX}{item.id}（{outcome.detail}）")
 
 
 # --------------------------------------------------------------------------------------------

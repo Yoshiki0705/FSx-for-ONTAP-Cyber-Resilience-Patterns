@@ -76,9 +76,16 @@ item from ``queued`` to ``needs-human`` with a short reason, unless the step say
 
 One change item (:meth:`Harness.run_change_item`, task 5.3) goes through the same steps, with the
 same lock, ``whoami``, ``command.child_env``, process group, timeout, report and stop request,
-and these differences. Step 6 makes the branch ``handoff/<id>`` with ``worktree add -b``, which
-fails when the branch exists already, so an earlier run's branch is never reset; the branch goes
-into the record with the worktree. ``command.build_kiro_invocation`` refuses a change item without
+and these differences. Step 6 first holds the item when the branch ``handoff/<id>`` exists
+(``branch_exists``), then makes it with ``worktree add -b`` (which would fail on an existing branch
+too, so an earlier run's branch is never reset) and gives it ``origin/main`` as its upstream with
+``branch --set-upstream-to``; the branch goes into the record with the worktree. When the repository
+has ``prerequisites`` (``config.Prerequisites``), the step before it holds the item if a path is not
+usable (``prerequisite_missing``, before any worktree exists), the step after it copies the
+``copy_readonly`` paths into the worktree only where git ignores them
+(``prerequisite_not_ignored``), and ``PATH`` of ``kiro-cli`` and of the re-runs starts with the
+``path_prepend`` directories. ``cleanup --approved`` removes the copies with the worktree, then
+deletes the branch if it still points at the recorded ``base_sha`` (:meth:`Harness.remove_empty_branch`). ``command.build_kiro_invocation`` refuses a change item without
 a ``guards_active`` selftest, so such an item is held at step 2 (``cli.py run`` holds it earlier,
 task 5.2). Step 8 observes what design section 20 lists for the change mode, in its order, with
 ``base_sha`` in the place of ``origin/main`` for steps 1 and 2 (``origin/main`` of the main working
@@ -186,6 +193,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 import threading
@@ -198,7 +206,7 @@ from hashlib import sha256
 from typing import Any, Final, Literal, TypeAlias
 
 from handoff import command, evaluate, kiro_errors, prompt, scan, state
-from handoff.config import HandoffConfig, is_within, normalize_path, overlaps
+from handoff.config import HandoffConfig, Prerequisites, is_within, normalize_path, overlaps
 from handoff.executor import Executor
 from handoff.manifest import Item, Manifest, RequiredRef, VerifyCommand, rerun_skip_reason
 
@@ -238,6 +246,8 @@ STALE_LOCK_REMOVED: Final = "stale_lock_removed"
 
 #: The kind of the event recorded when ``cli.py cleanup --approved`` removed a worktree.
 WORKTREE_REMOVED: Final = "worktree_removed"
+#: The kind of the event recorded when ``cli.py cleanup --approved`` deleted an item's empty branch.
+BRANCH_REMOVED: Final = "branch_removed"
 #: The kind of the event recorded when :meth:`Harness.publish_batch` holds an item back (task 5.4).
 PUBLISH_HELD: Final = "publish_held"
 #: The kind of the event recorded when :meth:`Harness.publish_batch` ends (task 5.4).
@@ -597,6 +607,19 @@ class ItemOutcome:
     exit_code: int | None
     timed_out: bool
     kiro_error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BranchRemoval:
+    """What :meth:`Harness.remove_empty_branch` did.
+
+    Attributes:
+        removed: Whether ``handoff/<id>`` was deleted.
+        detail: Why it was or was not, for the maintainer.
+    """
+
+    removed: bool
+    detail: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -1491,6 +1514,7 @@ class Harness:
                     )
             self._active_repos.add(item.repo)
         try:
+            self._remove_prerequisite_copies(item, plan, config)
             argv = ("git", "-C", plan.main_tree, "worktree", "remove", plan.worktree)
             result = _run_process(
                 argv,
@@ -1510,6 +1534,131 @@ class Harness:
                     self._commit(state.record_event(status, at=_now(), kind=WORKTREE_REMOVED, detail=detail))
                 _LOG.info("%s: removed its worktree", item.id)
             return result
+        finally:
+            with self._mutex:
+                self._active_repos.discard(item.repo)
+
+    @staticmethod
+    def _remove_prerequisite_copies(item: Item, plan: command.GitPlan, config: HandoffConfig) -> None:
+        """Remove the read-only copies of ``prerequisites.copy_readonly`` from an item's worktree, before git removes it.
+
+        A read-only directory stops ``git worktree remove`` from deleting what is inside it, and git
+        ignores ignored files in its cleanliness check, so the copies are the harness's to remove.
+        Nothing is removed from a worktree that does not exist, and a path that resolves outside the
+        worktree is refused.
+
+        Raises:
+            RunnerError: A copy could not be removed.
+        """
+        wanted = config.repos[item.repo].prerequisites
+        if item.mode != "change" or wanted is None or not os.path.isdir(plan.worktree):
+            return
+        for rel in wanted.copy_readonly:
+            target = posixpath.join(plan.worktree, rel)
+            try:
+                _check_below(target, plan.worktree)
+                _remove_prerequisite_copy(target)
+            except (OSError, UnsafeLocation) as error:
+                raise RunnerError(
+                    f"the copy of {rel} in the worktree of {item.id} could not be removed: {error}"
+                ) from error
+
+    def remove_empty_branch(self, item: Item, *, config: HandoffConfig, home: str) -> BranchRemoval:
+        """Delete ``handoff/<id>`` when it still points at the SHA that was recorded when it was created.
+
+        ``cli.py cleanup <id> --approved`` calls this after the worktree is gone. A branch at the
+        recorded creation SHA has no commit of its own, so nothing is lost; the deletion is
+        ``git update-ref -d refs/heads/handoff/<id> <sha>``, which git refuses if the branch moved in
+        the meantime. A branch with a commit, one checked out in another worktree, and an item whose
+        record has no creation SHA are kept, and ``detail`` says why. ``branch -d`` and ``branch -D`` are
+        not used (``-d`` compares with the local ``main``, ``-D`` compares with nothing). On success the
+        status gets a ``branch_removed`` event.
+
+        Args:
+            item: An item of the checked manifest.
+            config: The checked configuration.
+            home: The absolute home directory (kept for symmetry with :meth:`remove_worktree`).
+
+        Returns:
+            Whether the branch was deleted, and the reason in either case.
+
+        Raises:
+            TypeError: ``item`` is not an :class:`handoff.manifest.Item`.
+            handoff.command.CommandError: The git plan cannot be built.
+            RunnerError: The item is ``running``, or an item of its repository runs in this harness.
+            KeyboardInterrupt: The harness was interrupted while git ran.
+        """
+        if not isinstance(item, Item):
+            raise TypeError(f"item must be an Item, not {type(item).__name__}")
+        del home
+        plan = command.build_git_plan(config, item)
+        branch = plan.branch
+        if branch is None:
+            return BranchRemoval(False, "a query item has no branch")
+        with self._mutex:
+            if self._closed:
+                raise RunnerError("the harness is closed; open it again")
+            record = self._status["items"].get(item.id)
+            if record is not None and record["state"] == state.RUNNING:
+                raise RunnerError(f"{item.id} is running; its branch is not removed")
+            if item.repo in self._active_repos:
+                raise RunnerError(f"an item of {item.repo} runs in this harness; its branch is not removed now")
+            created = None if record is None else record["base_sha"]
+            self._active_repos.add(item.repo)
+        try:
+            env, timeout = git_environment(os.environ), config.timeout_seconds
+
+            def git(*args: str) -> ProcessResult:
+                result = _run_process(
+                    ("git", "--no-optional-locks", "-C", plan.main_tree, *args),
+                    cwd=plan.main_tree,
+                    env=env,
+                    timeout_seconds=timeout,
+                    kill_grace_seconds=KILL_GRACE_SECONDS,
+                )
+                if result.ending == "interrupted":
+                    raise KeyboardInterrupt
+                return result
+
+            if created is None:
+                return BranchRemoval(
+                    False, f"the record of {item.id} has no creation SHA, so {branch} is not judged empty"
+                )
+            looked = git("rev-parse", "--verify", "-q", f"refs/heads/{branch}")
+            if looked.exit_code == 1:
+                return BranchRemoval(False, f"{branch} does not exist")
+            if not looked.ok:
+                return BranchRemoval(False, f"{branch} could not be read ({_how(looked)})")
+            tip = looked.stdout.decode("ascii", "replace").strip()
+            if tip != created:
+                return BranchRemoval(
+                    False,
+                    f"{branch} is at {tip[:12]}, not at the recorded creation SHA {created[:12]}: it holds work and is kept",
+                )
+            listed = git("worktree", "list", "--porcelain")
+            if not listed.ok:
+                return BranchRemoval(False, f"the worktrees of {item.repo} could not be listed ({_how(listed)})")
+            if f"branch refs/heads/{branch}" in listed.stdout.decode("utf-8", "replace").splitlines():
+                return BranchRemoval(False, f"{branch} is checked out in a worktree and is kept")
+            deleted = _run_process(
+                plan.delete_branch_at(created).argv,
+                cwd=plan.main_tree,
+                env=env,
+                timeout_seconds=timeout,
+                kill_grace_seconds=KILL_GRACE_SECONDS,
+            )
+            if deleted.ending == "interrupted":
+                raise KeyboardInterrupt
+            if not deleted.ok:
+                return BranchRemoval(False, f"git update-ref -d refused ({_how(deleted)}): {_detail(deleted)}")
+            with self._mutex:
+                status = copy.deepcopy(self._status)
+                detail = f"{item.id}: git update-ref -d refs/heads/{branch} {created[:12]} (no commit of its own)"
+                self._commit(state.record_event(status, at=_now(), kind=BRANCH_REMOVED, detail=detail))
+            _LOG.info("%s: removed its empty branch", item.id)
+            return BranchRemoval(
+                True, f"{branch} was at the recorded creation SHA {created[:12]}, with no commit of its own"
+            )
         finally:
             with self._mutex:
                 self._active_repos.discard(item.repo)
@@ -1937,6 +2086,7 @@ class _QueryRun:
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                path_prepend=self._path_prepend(),
             )
             self._check_login(invocation.argv[0], env, child.directory)
             self._check_disk()
@@ -1947,7 +2097,17 @@ class _QueryRun:
                     f"{plan.worktree} exists already, from an earlier run or by hand; remove it with "
                     f"cli.py cleanup {item.id} after reading it, then queue the item again",
                 )
+            problems = self._prerequisite_problems()
+            if problems:
+                return self._hold(
+                    "prerequisite_missing",
+                    f"{item.repo} needs these from its main working tree, and they are not usable: "
+                    f"{'; '.join(problems)}. No worktree was made",
+                )
             held = self._create_worktree(plan)
+            if held is not None:
+                return held
+            held = self._provide_copies()
             if held is not None:
                 return held
             if invocation.agent is not None:
@@ -2171,6 +2331,18 @@ class _QueryRun:
     def _create_worktree(self, plan: command.GitPlan) -> ItemOutcome | None:
         """Step 6: decision D-15. Returns the outcome when the item is held, ``None`` when the worktree exists."""
         self.plan = plan
+        if plan.branch is not None:
+            try:
+                taken = branch_exists(plan.main_tree, plan.branch, timeout_seconds=self.timeout)
+            except GitCommandFailed as error:
+                return self._hold("git_branch_lookup_failed", str(error))
+            if taken:
+                return self._hold(
+                    "branch_exists",
+                    f"{plan.branch} exists already in {plan.main_tree}, from an earlier run or by hand. "
+                    "git worktree add -b would fail on it and the branch is never reset. Read it, then remove it "
+                    f"(cli.py cleanup {self.item.id} --approved removes one that has no commit) and queue the item again",
+                )
         agreed: str | None = None
         attempts: list[str] = []
         for attempt in (1, 2):
@@ -2204,6 +2376,93 @@ class _QueryRun:
                 self.worktree, self.base_sha = plan.worktree, agreed
             return self._hold(f"git_worktree_add_failed ({_how(created)})", _detail(created))
         self.worktree, self.base_sha, self.branch = plan.worktree, agreed, plan.branch
+        if plan.branch is not None:
+            followed = self._git(plan.set_upstream())
+            if not followed.ok:
+                return self._hold(f"git_set_upstream_failed ({_how(followed)})", _detail(followed))
+        return None
+
+    def _prerequisites(self) -> Prerequisites | None:
+        """What the repository's change items take from the main working tree; ``None`` for a query item or none."""
+        if self.item.mode != "change":
+            return None
+        return self.config.repos[self.item.repo].prerequisites
+
+    def _path_prepend(self) -> tuple[str, ...]:
+        """The directories for the front of ``PATH`` of ``kiro-cli`` and of the re-runs, absolute."""
+        wanted = self._prerequisites()
+        return () if wanted is None else tuple(posixpath.join(self.main_tree, rel) for rel in wanted.path_prepend)
+
+    def _prerequisite_problems(self) -> list[str]:
+        """What keeps the prerequisites from being provided, read before a worktree is made. Empty when all is usable."""
+        wanted = self._prerequisites()
+        if wanted is None:
+            return []
+        problems: list[str] = []
+        real_tree = os.path.realpath(self.main_tree)
+        for rel in wanted.copy_readonly:
+            source = posixpath.join(self.main_tree, rel)
+            if not os.path.lexists(source):
+                problems.append(f"{rel} is not in the main working tree")
+            elif os.path.islink(source) or not is_within(os.path.realpath(source), real_tree):
+                problems.append(f"{rel} is a symbolic link or resolves outside the main working tree")
+            elif links := _symlinks_below(source):
+                problems.append(
+                    f"{rel} holds symbolic links ({', '.join(links[:3])}), which a read-only copy cannot keep safe"
+                )
+        for rel in wanted.path_prepend:
+            if not os.path.isdir(posixpath.join(self.main_tree, rel)):
+                problems.append(f"{rel} is not a directory in the main working tree")
+        return problems
+
+    def _provide_copies(self) -> ItemOutcome | None:
+        """Copy each ``copy_readonly`` path into the worktree, check that git ignores it there, and make it read-only.
+
+        Returns:
+            The outcome when the item is held (the copy is withdrawn first), ``None`` when all copies are in place.
+        """
+        wanted = self._prerequisites()
+        if wanted is None or not wanted.copy_readonly:
+            return None
+        worktree = _present(self.worktree)
+        kept = f"kiro-cli was not started, and the worktree is kept for cli.py cleanup {self.item.id}"
+        for rel in wanted.copy_readonly:
+            source, target = posixpath.join(self.main_tree, rel), posixpath.join(worktree, rel)
+            if os.path.lexists(target):
+                return self._hold(
+                    "prerequisite_target_exists",
+                    f"{rel} exists in the worktree already, so it is not overwritten; {kept}",
+                )
+            try:
+                _check_below(target, worktree)
+                os.makedirs(posixpath.dirname(target), exist_ok=True)
+                _copy_prerequisite(source, target)
+            except (OSError, UnsafeLocation) as error:
+                _remove_prerequisite_copy(target)
+                return self._hold(
+                    "prerequisite_copy_failed", f"copying {rel} into the worktree failed: {error}; {kept}"
+                )
+            try:
+                ignored = (
+                    self._read(
+                        ("git", "--no-optional-locks", "-C", worktree, "check-ignore", "-q", "--", rel),
+                        worktree,
+                        "git check-ignore of a copied prerequisite",
+                        allowed=(0, 1),
+                    ).exit_code
+                    == 0
+                )
+            except _StepFailed as failure:
+                _remove_prerequisite_copy(target)
+                return self._hold("prerequisite_ignore_check_failed", f"{failure.detail}; {kept}")
+            if not ignored:
+                _remove_prerequisite_copy(target)
+                return self._hold(
+                    "prerequisite_not_ignored",
+                    f"git does not ignore {rel} in the worktree, so a copy could be committed; the copy was withdrawn. "
+                    f"Ignore it in {self.item.repo} (.gitignore or .git/info/exclude); {kept}",
+                )
+            _make_readonly(target)
         return None
 
     def _git(self, step: command.Command) -> ProcessResult:
@@ -2594,6 +2853,7 @@ class _ChangeRun(_QueryRun):
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                path_prepend=self._path_prepend(),
             )
             ran = _run_process(
                 verify.cmd,
@@ -4343,6 +4603,47 @@ def _check_physical_handoff_dir(directory: str) -> None:
     expected = posixpath.join(os.path.realpath(posixpath.dirname(posixpath.dirname(directory))), ".private", "handoff")
     if not (is_within(real, expected) and is_within(expected, real)):
         raise UnsafeLocation(f"{directory} resolves to {real}; .private/handoff must not be a symbolic link")
+
+
+def _symlinks_below(path: str) -> list[str]:
+    """The symbolic links inside a directory (not ``path`` itself), relative, sorted; ``[]`` for a file."""
+    found: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False):
+        for name in (*dirnames, *filenames):
+            if os.path.islink(os.path.join(dirpath, name)):
+                found.append(os.path.relpath(os.path.join(dirpath, name), path))
+    return sorted(found)
+
+
+def _copy_prerequisite(source: str, target: str) -> None:
+    """Copy a file or a directory tree to a path that does not exist, keeping modes and times."""
+    if os.path.isdir(source):
+        shutil.copytree(source, target, symlinks=True)
+    else:
+        shutil.copy2(source, target)
+
+
+def _make_readonly(path: str) -> None:
+    """Take the write bits off a copied file, or off every file and directory of a copied tree, ``path`` last."""
+
+    def drop(entry: str) -> None:
+        os.chmod(entry, stat.S_IMODE(os.lstat(entry).st_mode) & ~0o222)
+
+    if os.path.isdir(path):
+        for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+            for name in (*filenames, *dirnames):
+                drop(os.path.join(dirpath, name))
+    drop(path)
+
+
+def _remove_prerequisite_copy(path: str) -> None:
+    """Remove a copy made by :func:`_copy_prerequisite`, read-only or not. A link is unlinked, never followed."""
+    if os.path.islink(path) or (os.path.lexists(path) and not os.path.isdir(path)):
+        os.unlink(path)
+    elif os.path.isdir(path):
+        for dirpath, _dirnames, _filenames in os.walk(path):
+            os.chmod(dirpath, stat.S_IMODE(os.lstat(dirpath).st_mode) | 0o700)
+        shutil.rmtree(path)
 
 
 def _check_below(path: str, directory: str) -> None:
