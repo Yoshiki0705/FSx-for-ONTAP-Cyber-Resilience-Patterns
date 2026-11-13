@@ -266,6 +266,18 @@ class TestStepFunctionsAslValidation:
         assert failed["Type"] == "Fail"
         assert failed["Error"] == "NotificationFailed"
 
+    def test_failed_alert_still_reaches_the_approval_step(self, quarantine_asl):
+        """The export policy is already restricted when SendAlert runs.
+
+        If the alert cannot be published, the workflow must still ask for an approval decision.
+        Ending at NotifyFailure would leave the volume quarantined with nobody asked.
+        """
+        catch_all = quarantine_asl["States"]["SendAlert"]["Catch"][-1]
+        assert catch_all["Next"] == "WaitForApproval"
+        # The failure is kept in its own field, so the approval message shows it to the reviewer.
+        assert catch_all["ResultPath"] == "$.alertError"
+        assert catch_all["ResultPath"] not in ("$", "$.error")
+
     def test_every_catch_and_choice_target_is_a_state(self, quarantine_asl):
         states = quarantine_asl["States"]
         for name, state in states.items():
