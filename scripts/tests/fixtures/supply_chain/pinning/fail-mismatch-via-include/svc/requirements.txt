@@ -1,2 +1,2 @@
 -r ../shared/base.txt
-requests==2.31.0
+requests==2.33.0
