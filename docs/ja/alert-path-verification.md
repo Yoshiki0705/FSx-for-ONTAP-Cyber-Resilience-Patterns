@@ -107,6 +107,7 @@ aws sns subscribe --topic-arn <トピック ARN> --protocol sqs --notification-e
 | C2 | `aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.probe","DetailType":"DeployCheck","Detail":"{}","EventBusName":"<出力 SecurityEventBusName>"}]'` | キューにイベントの本文が入る |
 | C3 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | 実行は `SUCCEEDED` で終わり、キューに `ERROR: Quarantine Workflow Failed` が入る。ボリュームがないのでスナップショットが失敗し、`NotifyFailure` がロール経由で発行する |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <出力 QuarantineStateMachineArn> --input '{}'` | 実行は `FAILED` で終わる。数分後に `fsxn-cyber-resilience-quarantine-executions-failed-dev` が `ALARM` になり、キューに通知が入る |
+| C5 | 手順 4 と同じ方法で、出力 `AlertFallbackTopicArn` のトピックにもキューを購読させる（`aws:SourceArn` にトピックの ARN を加える）。続けて `aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | キューに `ALARM` の通知が 2 通、トピックごとに 1 通入る。予備のトピックの鍵ポリシーとトピックポリシーを確かめる。Step Functions のロールが予備のトピックに発行できるかは、`SendAlert` の失敗が要るので確かめられない |
 
 C2 のイベントは、隔離ルールに一致しない送信元と種別にしてあるので、ワークフローは起動しません。`receive-message` は、届いているメッセージを 1 回で全部返すとは限りません。何も見えないときは、2〜3 回読み直してください。ルールが配信したかは、`AWS/Events` の `Invocations` と `FailedInvocations` で確かめられます。
 
@@ -115,6 +116,7 @@ C2 のイベントは、隔離ルールに一致しない送信元と種別に�
 - C1 だけが失敗した場合は、鍵ポリシーを疑います。
 - C2 だけが失敗した場合は、トピックポリシーを疑います。
 - C3 だけが失敗した場合は、Step Functions のロールの KMS 権限を疑います。
+- C5 で通知が 1 通だけの場合は、届かなかった側のトピックのポリシーを疑います。
 
 ## 手順 6: ハブのスタック
 
@@ -174,4 +176,5 @@ C4 の時間は 1 回の観測で、指標の到着時刻に左右されます�
 ## 未測定の項目
 
 - 「確認する内容」に挙げた 4 つ（承認フロー、`NotificationFailed`、`ComplianceCollectorRole`、スポークからの転送）。
+- C5。予備のトピックは、「測定結果」の実行の後に追加しました。
 - 削除待ちのキーの料金。

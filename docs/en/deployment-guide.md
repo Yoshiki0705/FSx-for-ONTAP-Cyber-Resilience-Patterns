@@ -167,10 +167,40 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 - A missing datapoint counts as healthy (`notBreaching`).
 - Only `ExecutionsFailed` is watched. `ExecutionsTimedOut` and `ExecutionsAborted` are not. The definition sets no execution timeout, and the 24-hour approval wait is caught and escalated by `EscalateTimeout`.
 - `NotifyFailure` and `EscalateTimeout` retry the publish 3 times and then end in the `NotificationFailed` Fail state. A topic that cannot be published to therefore still produces a failed execution, which this alarm counts. This alarm notifies the same topic, so if the topic itself is the problem the alarm may reach nobody. Check the execution history in that case.
-- `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the execution continues to `WaitForApproval` and stores the error in `$.alertError`, which the approval message carries. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on a mocked failure (retries used up): the failure was caught and the next state was `WaitForApproval`. A deployed execution was not run.
+- `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the error is stored in `$.alertError` and `NotifyFallback` publishes to `AlertFallbackTopic` (see [Approval Wait Alarm and Fallback Topic](#approval-wait-alarm-and-fallback-topic)). Whether `NotifyFallback` succeeds or fails (its error goes to `$.fallbackError`), the execution continues to `WaitForApproval`, and the approval message carries both fields. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on mocked failures and successes of both states (retries used up for the failures): every case reached `WaitForApproval`. A deployed execution was not run.
 - CloudWatch metrics for Step Functions are delivered on a best-effort basis, so a datapoint can arrive late or not at all ([Step Functions metrics](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)).
 
 Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. A deployment of this template with the 300-second period was run once on 2026-11-13: a failed execution of the quarantine workflow raised the alarm about 49 seconds after it started ([results](alert-path-verification.md#results)).
+
+## Approval Wait Alarm and Fallback Topic
+
+All other alarms and workflow notices go through `SecurityAlertTopic`. If that topic or its key fails, they all fail together. `event-driven.yaml` therefore adds a second path for the approval request.
+
+| Resource | Purpose |
+|----------|---------|
+| `AlertFallbackTopic` and `AlertFallbackTopicKey` | A second topic with its own customer managed key (rotation on). CloudWatch in the same account may publish, and the Step Functions role has `sns:Publish` and the key permissions |
+| `NotifyFallback` state | Publishes when `SendAlert` fails, then continues to `WaitForApproval` whether or not it succeeds |
+| `ApprovalWaitingAlarm` | Watches `ApproximateAgeOfOldestMessage` (namespace `AWS/SQS`, `Maximum`, period 300 seconds) of the approval queue, and notifies both topics |
+| Parameter `FallbackNotificationEmail` | Subscribes an address to the fallback topic. Use an address other than `NotificationEmail`; the template cannot check this |
+| Parameter `ApprovalWaitingAlarmThresholdSeconds` | Default 3,600 seconds, 300 to 82,800. The maximum leaves room for the 300-second period inside the 24-hour approval timeout |
+
+How it behaves:
+
+- The alarm also fires when the primary alert was sent but nobody answered it.
+- The metric keeps counting a message until it is deleted, so the [ransomware recovery runbook](../runbooks/ransomware-recovery.md) deletes the message after `send-task-success`, and after a timeout. Without that, the alarm stays in `ALARM` after the request is answered.
+- AWS documents that a message received three or more times and not deleted is moved to the back of a standard queue and left out of the metric ([Amazon SQS CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html)). With one message in the queue this did not happen in the test below. With several waiting requests, the metric may follow the next one instead (not measured).
+- Both topics are SNS in the same Region. A Regional SNS outage stops both.
+
+Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per case, with standalone resources (a queue, an alarm with a 60-second threshold and period, and a topic encrypted with a customer managed key):
+
+| Case | Result |
+|------|--------|
+| Empty queue | The alarm stayed `OK` for 3 minutes |
+| One message sent | `ALARM` about 222 seconds after the send; the notification arrived at a subscribed queue through the encrypted topic |
+| Message received once, then three times, not deleted | The metric kept rising (from 285 to 762 seconds); the alarm stayed in `ALARM` |
+| Message deleted | `OK` about 174 seconds after the delete |
+
+Not measured: a deployment of this template, the 300-second period with the default threshold, several messages in the queue, and the Step Functions role publishing to the fallback topic in a deployed stack.
 
 ## VPC Endpoint Conflict Matrix
 

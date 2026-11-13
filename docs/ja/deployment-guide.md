@@ -167,10 +167,40 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - データポイントがない場合は正常として扱います（`notBreaching`）。
 - 監視するのは `ExecutionsFailed` だけです。`ExecutionsTimedOut` と `ExecutionsAborted` は監視しません。定義に実行全体のタイムアウトはなく、24 時間の承認待ちは `EscalateTimeout` が捕捉して通知します。
 - `NotifyFailure` と `EscalateTimeout` は、発行を 3 回リトライし、それでも失敗すると `NotificationFailed` の Fail 状態で終わります。トピックに発行できない場合も、失敗した実行が残り、このアラームが数えます。このアラームも同じトピックに通知するため、トピック自体に問題があるときは、アラームが誰にも届かないことがあります。その場合は実行履歴を確認してください。
-- `SendAlert` は、エクスポートポリシーを制限した後に動きます。3 回リトライしても失敗した場合、実行は `WaitForApproval` に進み、エラーを `$.alertError` に保存します。承認メッセージにこのエラーが含まれます。ボリュームは制限されたままで、承認の手順と 24 時間後のエスカレーションは動きます。Step Functions の TestState API で、失敗をモックして（リトライを使い切った状態）確認しました。失敗は捕捉され、次の状態は `WaitForApproval` でした。デプロイした環境での実行は、していません。
+- `SendAlert` は、エクスポートポリシーを制限した後に動きます。3 回リトライしても失敗した場合、エラーを `$.alertError` に保存し、`NotifyFallback` が `AlertFallbackTopic` に発行します（[承認待ちのアラームと予備のトピック](#承認待ちのアラームと予備のトピック)）。`NotifyFallback` が成功しても失敗しても（失敗のエラーは `$.fallbackError`）、実行は `WaitForApproval` に進みます。承認メッセージには両方のフィールドが含まれます。ボリュームは制限されたままで、承認の手順と 24 時間後のエスカレーションは動きます。Step Functions の TestState API で、両方の状態の失敗と成功をモックして（失敗はリトライを使い切った状態）確認しました。どの場合も `WaitForApproval` に進みました。デプロイした環境での実行は、していません。
 - Step Functions の CloudWatch 指標はベストエフォートで配信されるため、データポイントが遅れる、または届かないことがあります（[Step Functions の指標](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)）。
 
 2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、1 回実行して測りました。状態が `Fail` だけのステートマシンと、同じ形のアラーム（期間 60 秒）を使っています。実行は `FAILED` で終わり、指標の Sum は 1 になり、アラームは実行の 104 秒後に `ALARM` になり、購読したキューに通知が配信されました。このテンプレートを期間 300 秒でデプロイした確認は、2026-11-13 に 1 回実行しました。隔離ワークフローの実行が失敗し、開始の約 49 秒後にアラームが鳴りました（[測定結果](alert-path-verification.md#測定結果)）。
+
+## 承認待ちのアラームと予備のトピック
+
+ほかのアラームとワークフローの通知は、すべて `SecurityAlertTopic` を通ります。このトピックかその鍵に問題があると、全部が同時に届かなくなります。そのため `event-driven.yaml` は、承認の依頼に 2 つ目の経路を足しています。
+
+| リソース | 役割 |
+|----------|------|
+| `AlertFallbackTopic` と `AlertFallbackTopicKey` | 専用のお客様管理キー（ローテーション有効）で暗号化した 2 つ目のトピック。同じアカウントの CloudWatch が発行でき、Step Functions のロールは `sns:Publish` と鍵の権限を持つ |
+| `NotifyFallback` の状態 | `SendAlert` が失敗したときに発行する。成功しても失敗しても `WaitForApproval` に進む |
+| `ApprovalWaitingAlarm` | 承認キューの `ApproximateAgeOfOldestMessage`（名前空間 `AWS/SQS`、`Maximum`、期間 300 秒）を監視し、両方のトピックに通知する |
+| パラメータ `FallbackNotificationEmail` | 予備のトピックに購読させるアドレス。`NotificationEmail` とは別のアドレスにする。テンプレートでは確かめられない |
+| パラメータ `ApprovalWaitingAlarmThresholdSeconds` | 既定 3,600 秒、範囲 300〜82,800。上限は、24 時間の承認タイムアウトの中に期間 300 秒が収まるようにしてある |
+
+動き方は次のとおりです。
+
+- 主の通知が届いても、誰も応答しない場合にもアラームが鳴ります。
+- この指標は、メッセージを削除するまで数え続けます。そのため[ランサムウェア復旧の手順書](../runbooks/ransomware-recovery.md)では、`send-task-success` の後と、タイムアウトの後に、メッセージを削除します。削除しないと、応答した後もアラームは `ALARM` のままです。
+- AWS のドキュメントには、3 回以上受信して削除していないメッセージは、標準キューの後ろに回され、この指標から外れるとあります（[Amazon SQS の CloudWatch 指標](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html)）。下の試験では、キューに 1 件だけのときはこの動きは見えませんでした。複数の依頼が待っているときは、指標が次のメッセージを指すことがあります（未測定）。
+- 2 つのトピックは、同じリージョンの SNS です。リージョン単位の SNS の障害では、両方が止まります。
+
+2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、単独のリソース（キュー、閾値と期間が 60 秒のアラーム、お客様管理キーで暗号化したトピック）を使い、各 1 回測りました。
+
+| 場合 | 結果 |
+|------|------|
+| 空のキュー | アラームは 3 分間 `OK` のまま |
+| メッセージを 1 件送信 | 送信の約 222 秒後に `ALARM`。暗号化したトピックを通って、購読したキューに通知が届いた |
+| 1 回、続けて 3 回まで受信し、削除しない | 指標は増え続けた（285 秒から 762 秒）。アラームは `ALARM` のまま |
+| メッセージを削除 | 削除の約 174 秒後に `OK` |
+
+未測定のものは、このテンプレートのデプロイ、既定の閾値と期間 300 秒での動作、キューに複数のメッセージがある場合、デプロイしたスタックで Step Functions のロールが予備のトピックに発行できるか、です。
 
 ## VPC Endpoint 競合マトリクス
 

@@ -107,6 +107,7 @@ Read each result with `aws sqs receive-message --queue-url <queue URL> --wait-ti
 | C2 | `aws events put-events --entries '[{"Source":"fsxn.cyber-resilience.probe","DetailType":"DeployCheck","Detail":"{}","EventBusName":"<SecurityEventBusName output>"}]'` | The event body in the queue |
 | C3 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{"detail":{"timestamp":"2026-01-01T00:00:00Z","volumeId":"fsvol-0123456789abcdef0","svmId":"svm-0123456789abcdef0","severity":"HIGH"}}'` | The execution ends `SUCCEEDED`, and the queue holds `ERROR: Quarantine Workflow Failed`. The volume does not exist, so the snapshot fails and `NotifyFailure` publishes through the role |
 | C4 | `aws stepfunctions start-execution --state-machine-arn <QuarantineStateMachineArn output> --input '{}'` | The execution ends `FAILED`. After a few minutes `fsxn-cyber-resilience-quarantine-executions-failed-dev` reaches `ALARM` and the queue holds the notification |
+| C5 | Subscribe the queue to the `AlertFallbackTopicArn` output as in Step 4 (add the topic ARN to `aws:SourceArn`), then `aws cloudwatch set-alarm-state --alarm-name fsxn-cyber-resilience-approval-waiting-dev --state-value ALARM --state-reason deploy-check` | Two `ALARM` notifications in the queue, one from each topic. This checks the fallback key policy and topic policy. It does not check that the Step Functions role can publish to the fallback topic, which needs a failed `SendAlert` |
 
 The event in C2 uses a source and detail type that the quarantine rule does not match, so it starts no workflow. `receive-message` does not always return every waiting message in one call. If you see nothing, read two or three more times. The rule's `Invocations` and `FailedInvocations` in `AWS/Events` show whether it delivered.
 
@@ -115,6 +116,7 @@ How to read a failure:
 - If only C1 fails, suspect the key policy.
 - If only C2 fails, suspect the topic policy.
 - If only C3 fails, suspect the KMS permission of the Step Functions role.
+- If C5 shows only one notification, suspect the policy of the topic that sent nothing.
 
 ## Step 6: Hub Stack
 
@@ -174,4 +176,5 @@ The C4 time is from one observation and depends on when the metric arrives. It w
 ## Not Measured
 
 - The four items listed under "What This Checks" (the approval path, `NotificationFailed`, `ComplianceCollectorRole`, and events forwarded from a spoke account).
+- C5. The fallback topic was added after the run under "Results".
 - The charge for a key pending deletion.
