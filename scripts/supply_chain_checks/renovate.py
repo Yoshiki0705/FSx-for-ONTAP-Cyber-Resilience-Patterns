@@ -142,7 +142,8 @@ def _check_preset(
                     rel,
                     _line(text, "packageRules"),
                     "missing",
-                    "no packageRules entry gives major updates a minimumReleaseAge",
+                    "no packageRules entry gives major updates a minimumReleaseAge "
+                    f"(Policy_File wants {policy.cooldown_days.major} days)",
                 )
             )
         major_line = _line(text, "minimumReleaseAge", _line(text, "packageRules"))
