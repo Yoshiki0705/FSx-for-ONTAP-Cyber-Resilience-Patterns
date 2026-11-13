@@ -2,7 +2,8 @@
   "extends": [
     "config:recommended",
     "helpers:pinGitHubActionDigests",
-    ":semanticCommitsDisabled"
+    ":semanticCommitsDisabled",
+    "github>Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook//renovate/supply-chain#supply-chain-preset-v1.0.0"
   ],
   "timezone": "Asia/Tokyo",
   "schedule": ["before 6am on monday"],
