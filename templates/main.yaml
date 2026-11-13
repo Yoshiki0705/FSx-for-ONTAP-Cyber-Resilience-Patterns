@@ -100,6 +100,13 @@ Parameters:
     NoEcho: true
     Description: Webhook API key, required when ApprovalWebhookEndpoint is set (passed to the Event-Driven stack).
 
+  ApprovalWebhookKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for the Secrets Manager secret of the webhook connection (passed to the Event-Driven stack).
+      If empty, the secret keeps the AWS owned key. A key must be symmetric and tagged EventBridgeApiDestinations=true.
+
   LogGroupKmsKeyArn:
     Type: String
     Default: ''
@@ -117,8 +124,9 @@ Parameters:
 # -------------------------------------------------------------------
 # Rules
 # -------------------------------------------------------------------
-# The Event-Driven stack has the same rule. Checking it here rejects the
-# root change set before any nested stack is created.
+# The Event-Driven stack has the same rule. Checking it here makes the root
+# stack fail at creation, before any nested stack is created. CloudFormation
+# evaluates Rules at create-stack, not at create-change-set (measured).
 Rules:
   ApprovalWebhookNeedsApiKey:
     RuleCondition: !Not [!Equals [!Ref ApprovalWebhookEndpoint, '']]
@@ -199,6 +207,7 @@ Resources:
         ApprovalWebhookEndpoint: !Ref ApprovalWebhookEndpoint
         ApprovalWebhookApiKeyName: !Ref ApprovalWebhookApiKeyName
         ApprovalWebhookApiKeyValue: !Ref ApprovalWebhookApiKeyValue
+        ApprovalWebhookKmsKeyArn: !Ref ApprovalWebhookKmsKeyArn
         LogGroupKmsKeyArn: !Ref LogGroupKmsKeyArn
         LambdaEnvKmsKeyArn: !Ref LambdaEnvKmsKeyArn
       Tags:

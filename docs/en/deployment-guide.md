@@ -210,7 +210,8 @@ Both topics in the previous section are SNS. Setting `ApprovalWebhookEndpoint` a
 |-----------------------|---------|
 | Parameter `ApprovalWebhookEndpoint` | HTTPS URL of the webhook. `http://` is rejected by the parameter pattern |
 | Parameters `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue` | Header name (default `x-api-key`) and value. The value is `NoEcho`, and a template rule rejects an empty value when the endpoint is set |
-| `ApprovalWebhookConnection` | `API_KEY` connection. EventBridge stores the key in a Secrets Manager secret whose name starts with `events!connection/`, encrypted with an AWS owned key |
+| `ApprovalWebhookConnection` | `API_KEY` connection. EventBridge stores the key in a Secrets Manager secret whose name starts with `events!connection/`. The secret is encrypted with an AWS owned key, or with the key in `ApprovalWebhookKmsKeyArn` when you set it |
+| Parameter `ApprovalWebhookKmsKeyArn` | Optional KMS key ARN for that secret. Empty by default. See the next subsection before you set it |
 | `ApprovalWebhookDestination` | `POST` to the endpoint, at most 1 invocation per second |
 | `ApprovalWebhookRule` and `ApprovalWebhookRuleRole` | Matches `aws.cloudwatch` / `CloudWatch Alarm State Change` events for this alarm only. The role may call `events:InvokeApiDestination` on this destination only |
 | `ApprovalWebhookDlq` and `ApprovalWebhookDlqPolicy` | Standard queue with SQS managed encryption. Only this rule may send to it |
@@ -235,7 +236,25 @@ Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per cas
 
 A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
 
-`main.yaml` exposes the same parameters as this section and the previous one (`FallbackNotificationEmail`, `ApprovalWaitingAlarmThresholdSeconds`, `ApprovalWebhookEndpoint`, `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue`) and passes them to the Event-Driven stack. It also carries a template rule that fails the creation of the stack when an endpoint is set without a key. Measured once (ap-northeast-1, 2026-11-14 JST) with a probe stack that has the same rule and one free resource: creating it with an endpoint and no key ended in `ROLLBACK_COMPLETE` with `Parameter validation failed: assertion error`, and the resource was never created; with a key it was created. A change set for `main.yaml` with an endpoint and no key was accepted, so the failure appears when the stack is created, not when the change set is. The probe used the text of the rule, not `main.yaml` itself. A deployment through `main.yaml` has not been run.
+`main.yaml` exposes the same parameters as this section and the previous one (`FallbackNotificationEmail`, `ApprovalWaitingAlarmThresholdSeconds`, `ApprovalWebhookEndpoint`, `ApprovalWebhookApiKeyName`, `ApprovalWebhookApiKeyValue` and `ApprovalWebhookKmsKeyArn`) and passes them to the Event-Driven stack. It also carries a template rule that fails the creation of the stack when an endpoint is set without a key. Measured once (ap-northeast-1, 2026-11-14 JST) with a probe stack that has the same rule and one free resource: creating it with an endpoint and no key ended in `ROLLBACK_COMPLETE` with `Parameter validation failed: assertion error`, and the resource was never created; with a key it was created. A change set for `main.yaml` with an endpoint and no key was accepted, so the failure appears when the stack is created, not when the change set is. The probe used the text of the rule, not `main.yaml` itself. A deployment through `main.yaml` has not been run.
+
+### Customer Managed Key for the Connection Secret
+
+Set `ApprovalWebhookKmsKeyArn` to encrypt the connection secret with your own key. The key must be a symmetric encryption key and must carry the tag `EventBridgeApiDestinations=true`. The template does not create the key, so the key policy stays yours.
+
+**A missing tag is silent at creation.** Without the tag, the connection is created and shows `AUTHORIZED`, and no template check or deployment error appears. Every delivery then fails and goes to `ApprovalWebhookDlq`, so the first signal is the dead-letter alarm.
+
+Measured on 2026-11-14 (JST) in one account in `ap-northeast-1`, one run per case, with probe stacks that hold a connection, an API destination, a rule and a dead-letter queue. The key policy was the default one that delegates to the account.
+
+| Case | Result |
+|------|--------|
+| No key set (AWS owned key) | Connection `AUTHORIZED`. The event reached the receiver. The dead-letter queue stayed empty |
+| Key with the tag | Connection `AUTHORIZED`, `KmsKeyIdentifier` set. The event reached the receiver. The dead-letter queue stayed empty |
+| Same key without the tag | Stack created and connection `AUTHORIZED`. The event did not reach the receiver. The dead-letter queue got 1 message with `ERROR_CODE` `UNKNOWN` and the text `Unable to invoke ApiDestination endpoint: An error occurred while obtaining the connection authentication details for the API destination.` |
+
+A condition on `kms:ResourceTag` in the key policy cannot be used to restrict the key to this tag: KMS rejected the key at creation with `These condition keys are not permitted in a key policy`.
+
+Not measured: a key policy that does not delegate to the account, disabling or deleting the key after the connection exists, the permissions the deploying identity needs on the key, and a deployment through `main.yaml` with the parameter set. Deployment of the alert path with a customer managed key has been run only with the probe stacks.
 
 ## VPC Endpoint Conflict Matrix
 

@@ -363,6 +363,7 @@ OPTIONAL_KMS_BINDINGS = [
     ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
     ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("event-driven.yaml", "ApprovalWebhookConnection", "KmsKeyIdentifier", "ApprovalWebhookKmsKeyArn"),
     ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
 ]
 # main.yaml nests only these templates; the others are deployed as standalone stacks
