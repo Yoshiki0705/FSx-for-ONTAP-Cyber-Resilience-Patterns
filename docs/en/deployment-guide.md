@@ -235,6 +235,8 @@ Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per cas
 
 A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
 
+`main.yaml` exposes the same parameters as this section and the previous one (`FallbackNotificationEmail`, `ApprovalWaitingAlarmThresholdSeconds`, `ApprovalWebhookEndpoint`, `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue`) and passes them to the Event-Driven stack. It also carries a template rule that fails the creation of the stack when an endpoint is set without a key. Measured once (ap-northeast-1, 2026-11-14 JST) with a probe stack that has the same rule and one free resource: creating it with an endpoint and no key ended in `ROLLBACK_COMPLETE` with `Parameter validation failed: assertion error`, and the resource was never created; with a key it was created. A change set for `main.yaml` with an endpoint and no key was accepted, so the failure appears when the stack is created, not when the change set is. The probe used the text of the rule, not `main.yaml` itself. A deployment through `main.yaml` has not been run.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints

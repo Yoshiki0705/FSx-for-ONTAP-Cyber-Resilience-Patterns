@@ -405,6 +405,70 @@ class TestOptionalKmsKeys:
         assert nested and nested[0]["Properties"]["Parameters"][param] == {"Ref": param}
 
 
+def _nested_stacks() -> list[tuple[str, dict, dict]]:
+    """(child template file, child Parameters, nested-stack Parameters) for each stack in main.yaml."""
+    main = _load_tagged("main.yaml")
+    stacks = []
+    for resource in main["Resources"].values():
+        if resource["Type"] != "AWS::CloudFormation::Stack":
+            continue
+        child = re.search(r"\}([a-z-]+\.yaml)$", resource["Properties"]["TemplateURL"]["Sub"]).group(1)
+        stacks.append((child, _load_tagged(child)["Parameters"], resource["Properties"].get("Parameters", {})))
+    return stacks
+
+
+class TestMainPassesNestedParameters:
+    """main.yaml must hand each nested stack every parameter it cannot default."""
+
+    # Optional event-driven.yaml parameters that the root stack exposes.
+    EVENT_DRIVEN_PASSED = [
+        "LambdaArtifactPrefix",
+        "FallbackNotificationEmail",
+        "ApprovalWaitingAlarmThresholdSeconds",
+        "ApprovalWebhookEndpoint",
+        "ApprovalWebhookApiKeyName",
+        "ApprovalWebhookApiKeyValue",
+    ]
+
+    def test_every_nested_stack_is_found(self) -> None:
+        # Guards the loop below against a TemplateURL shape the regex does not match.
+        assert sorted(c for c, _, _ in _nested_stacks()) == sorted(NESTED_IN_MAIN | {"storage.yaml"})
+
+    @pytest.mark.parametrize(("child", "params", "passed"), _nested_stacks(), ids=[c for c, _, _ in _nested_stacks()])
+    def test_parameters_without_default_are_passed(self, child: str, params: dict, passed: dict) -> None:
+        required = sorted(k for k, v in params.items() if "Default" not in v)
+        missing = [k for k in required if k not in passed]
+        assert missing == [], f"main.yaml does not pass {missing} to {child}"
+
+    @pytest.mark.parametrize(("child", "params", "passed"), _nested_stacks(), ids=[c for c, _, _ in _nested_stacks()])
+    def test_root_parameter_matches_the_nested_definition(self, child: str, params: dict, passed: dict) -> None:
+        root = _load_tagged("main.yaml")["Parameters"]
+        for name, value in passed.items():
+            if value != {"Ref": name} or name in ("ProjectName", "Environment"):
+                continue
+            for key in (
+                "Type",
+                "Default",
+                "NoEcho",
+                "AllowedPattern",
+                "MinValue",
+                "MaxValue",
+                "MinLength",
+                "MaxLength",
+            ):
+                assert root[name].get(key) == params[name].get(key), f"{name}.{key} differs from {child}"
+
+    def test_alert_parameters_reach_the_event_driven_stack(self) -> None:
+        passed = next(p for c, _, p in _nested_stacks() if c == "event-driven.yaml")
+        for name in self.EVENT_DRIVEN_PASSED:
+            assert passed.get(name) == {"Ref": name}
+
+    def test_root_rejects_a_webhook_without_a_key(self) -> None:
+        main = _load_tagged("main.yaml")
+        child = _load_tagged("event-driven.yaml")
+        assert main["Rules"]["ApprovalWebhookNeedsApiKey"] == child["Rules"]["ApprovalWebhookNeedsApiKey"]
+
+
 class TestAlertTopicDelivery:
     """The security alert topic must accept alarms and EventBridge rules and stay encrypted.
 
