@@ -51,7 +51,7 @@ import hashlib
 import json
 import posixpath
 import re
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import combinations
@@ -358,6 +358,53 @@ class GitPlan:
         if self.branch is None:
             return _git(self.main_tree, "worktree", "add", "--detach", self.worktree, base_sha)
         return _git(self.main_tree, "worktree", "add", "-b", self.branch, self.worktree, base_sha)
+
+    def set_upstream(self) -> Command:
+        """Build ``git branch --set-upstream-to=origin/main handoff/<id>`` for a change item.
+
+        ``worktree add -b <branch> <path> <sha>`` starts from a SHA, so the branch has no
+        upstream, and ``git branch -d`` then compares it with the local ``main``, which can be
+        behind ``origin/main`` and so refuse an empty branch. With ``origin/main`` as the upstream
+        the branch is merged exactly when ``origin/main`` contains it. A push names the branch
+        explicitly (:func:`build_publish_plan`), so the upstream does not change where it goes.
+
+        Returns:
+            The command, to run in the main working tree after :meth:`worktree_add`.
+
+        Raises:
+            CommandError: The item is a query item, whose worktree is detached (code ``mode``).
+        """
+        if self.branch is None:
+            raise CommandError([CommandIssue("mode", "a query item has no branch to give an upstream")])
+        return _git(self.main_tree, "branch", f"--set-upstream-to={REMOTE}/{BASE_BRANCH}", self.branch)
+
+    def delete_branch_at(self, sha: str) -> Command:
+        """Build ``git update-ref -d refs/heads/handoff/<id> <sha>``, which deletes the branch only if it is at ``sha``.
+
+        ``update-ref -d <ref> <old>`` refuses when the ref no longer holds ``old``, so a commit
+        that lands on the branch between the harness reading it and deleting it is not lost. The
+        harness passes the SHA that it recorded when it created the branch; a branch still at that
+        SHA has no commit of its own. Neither ``branch -d`` (which compares with the local
+        ``main``) nor ``branch -D`` (which compares with nothing) is used.
+
+        Args:
+            sha: The recorded creation SHA: 40 lowercase hexadecimal digits.
+
+        Returns:
+            The command, to run in the main working tree after the worktree is removed.
+
+        Raises:
+            TypeError: ``sha`` is not a ``str``.
+            CommandError: The item is a query item (code ``mode``), or ``sha`` is not 40 lowercase
+                hexadecimal digits (code ``base_sha``).
+        """
+        if type(sha) is not str:
+            raise TypeError(f"sha must be a str, not {type(sha).__name__}")
+        if self.branch is None:
+            raise CommandError([CommandIssue("mode", "a query item has no branch to delete")])
+        if _SHA.fullmatch(sha) is None:
+            raise CommandError([CommandIssue("base_sha", f"must be 40 lowercase hexadecimal digits, got {_show(sha)}")])
+        return _git(self.main_tree, "update-ref", "-d", f"refs/heads/{self.branch}", sha)
 
     def commands(self, base_sha: str) -> tuple[Command, ...]:
         """Return the four commands in the order they run, for a check or a report.
@@ -896,6 +943,7 @@ def child_env(
     push_url: str,
     gh_config_dir: str,
     aws_empty_file: str,
+    path_prepend: Sequence[str] = (),
 ) -> dict[str, str]:
     """Build the environment of a ``kiro-cli`` run: layer 3 of design section 20.
 
@@ -935,6 +983,10 @@ def child_env(
       documentation). With only the second entry, a repository whose configuration
       already sets a push URL would still push there.
     - ``GH_CONFIG_DIR=<gh_config_dir>``.
+    - ``PATH``, only when ``path_prepend`` is not empty: its directories in the given order,
+      then the parent's ``PATH`` (nothing after them when the parent has none, since an empty
+      entry would mean the current directory). This is how a repository's pinned tools reach a
+      worktree (``config.Prerequisites.path_prepend``).
     - ``AWS_CONFIG_FILE`` and ``AWS_SHARED_CREDENTIALS_FILE`` both set to
       ``aws_empty_file``, and ``AWS_EC2_METADATA_DISABLED=true``.
 
@@ -954,6 +1006,8 @@ def child_env(
         gh_config_dir: An empty directory, for ``GH_CONFIG_DIR``.
         aws_empty_file: An empty file, for ``AWS_CONFIG_FILE`` and
             ``AWS_SHARED_CREDENTIALS_FILE``.
+        path_prepend: Directories for the front of ``PATH``: absolute, in normal form, without
+            ``:``.
 
     Returns:
         A new dictionary. ``parent`` is not changed.
@@ -962,7 +1016,8 @@ def child_env(
         TypeError: ``parent`` is not a mapping, or holds a key or value that is not a
             ``str``, or a path is not a ``str``.
         ValueError: A key of ``parent`` is empty or holds ``=`` or NUL, a value holds NUL,
-            a path is not absolute and in normal form, or two of the paths overlap.
+            a path is not absolute and in normal form, two of the paths overlap, or a
+            ``path_prepend`` directory is not one absolute normal path without ``:``.
     """
     if not isinstance(parent, Mapping):
         raise TypeError(f"parent must be a mapping, not {type(parent).__name__}")
@@ -982,6 +1037,9 @@ def child_env(
     for (first, a), (second, b) in combinations(paths.items(), 2):
         if overlaps(a, b):
             raise ValueError(f"{first} and {second} overlap; give three separate paths")
+    for directory in path_prepend:
+        if type(directory) is not str or ":" in directory or not _is_normal_absolute(directory):
+            raise ValueError(f"path_prepend must hold absolute normal paths without ':', got {_show(directory)}")
 
     env = {
         key: value
@@ -1001,6 +1059,8 @@ def child_env(
             "AWS_EC2_METADATA_DISABLED": "true",
         }
     )
+    if path_prepend:
+        env["PATH"] = ":".join((*path_prepend, *([parent["PATH"]] if parent.get("PATH") else [])))
     return env
 
 

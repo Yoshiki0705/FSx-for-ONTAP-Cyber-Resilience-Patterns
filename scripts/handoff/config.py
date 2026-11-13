@@ -24,8 +24,10 @@ Rules (design section 20 and Data Models; Requirements 28.5, 28.7 and 28.11):
   a non-empty list of non-empty strings; the name of the shell tool is decided later.
 - ``schema_version`` is 1, ``kiro_cli`` is a non-empty string, ``agents`` maps a mode to a
   non-empty agent name (a mode without an agent is left out), and each ``repos.<name>``
-  has a string ``main_tree``. A key that this module does not read is reported as
-  ``unknown_key``: no key is optional in the sense of being silently ignored.
+  has a string ``main_tree`` and, optionally, ``prerequisites`` (:class:`Prerequisites`:
+  paths below the main working tree that a change item's worktree copies or puts on
+  ``PATH``). A key that this module does not read is reported as ``unknown_key``: no key is
+  optional in the sense of being silently ignored.
 - Every problem is collected and raised together, in one :class:`ConfigError`.
 
 Paths are compared lexically:
@@ -147,14 +149,40 @@ class ConfigError(ValueError):
 
 
 @dataclass(frozen=True)
+class Prerequisites:
+    """What a change item's worktree needs from the main working tree to run the repository's gates.
+
+    A git worktree carries only tracked files. A gate that reads a gitignored ledger, or that
+    needs a tool pinned in the main working tree's ``.venv``, fails in the worktree, and an agent
+    that is forbidden to copy or to skip the gate has no lawful way to commit. The harness
+    provides both instead (task 15.3).
+
+    Attributes:
+        copy_readonly: Paths below the main working tree, in the normal relative form (no
+            leading or trailing slash, no ``.`` or ``..``, not below ``.git``). The harness
+            copies each to the same path in the worktree, only when git ignores it there, makes
+            the copy read-only, and removes it at ``cleanup``. None contains another.
+        path_prepend: Directories below the main working tree, in the same form. They must exist
+            when the item starts. The harness puts them at the front of ``PATH`` for ``kiro-cli``
+            and for the re-runs of the verification commands.
+    """
+
+    copy_readonly: tuple[str, ...] = ()
+    path_prepend: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class RepoConfig:
     """One entry of ``repos``.
 
     Attributes:
         main_tree: The repository's main working tree, normalized like ``worktrees_root``.
+        prerequisites: What a change item's worktree takes from the main working tree, or
+            ``None`` when the repository needs nothing.
     """
 
     main_tree: str
+    prerequisites: Prerequisites | None = None
 
 
 @dataclass(frozen=True)
@@ -536,10 +564,78 @@ def _repos(value: Any, home: str, issues: list[ConfigIssue]) -> dict[str, RepoCo
             issues.append(ConfigIssue(_key_path(*where), "type", f"must be an object, got {_describe(entry)}"))
             continue
         main_tree = _absolute_path(_take(entry, (*where, "main_tree"), issues), (*where, "main_tree"), home, issues)
-        issues.extend(_unknown_keys(entry, ("main_tree",), where))
+        prerequisites = _prerequisites(entry["prerequisites"], where, issues) if "prerequisites" in entry else None
+        issues.extend(_unknown_keys(entry, ("main_tree", "prerequisites"), where))
         if main_tree is not None:
-            repos[str(name)] = RepoConfig(main_tree)
+            repos[str(name)] = RepoConfig(main_tree, prerequisites)
     return repos
+
+
+def _prerequisites(value: Any, where: tuple[str, ...], issues: list[ConfigIssue]) -> Prerequisites | None:
+    """Check ``repos.<name>.prerequisites``: an object with ``copy_readonly`` and ``path_prepend`` lists.
+
+    Both lists are optional, at least one must name a path, and every path is relative to the main
+    working tree. The result is ``None`` when a problem was recorded.
+    """
+    here = (*where, "prerequisites")
+    if not isinstance(value, Mapping):
+        issues.append(ConfigIssue(_key_path(*here), "type", f"must be an object, got {_describe(value)}"))
+        return None
+    before = len(issues)
+    lists: dict[str, tuple[str, ...]] = {}
+    for key in ("copy_readonly", "path_prepend"):
+        lists[key] = _relative_paths(value[key], (*here, key), issues) if key in value else ()
+    issues.extend(_unknown_keys(value, ("copy_readonly", "path_prepend"), here))
+    if len(issues) == before and not any(lists.values()):
+        issues.append(
+            ConfigIssue(_key_path(*here), "format", "must name at least one path in copy_readonly or path_prepend")
+        )
+    if len(issues) > before:
+        return None
+    return Prerequisites(copy_readonly=lists["copy_readonly"], path_prepend=lists["path_prepend"])
+
+
+def _relative_paths(value: Any, where: tuple[str, ...], issues: list[ConfigIssue]) -> tuple[str, ...]:
+    """Check a list of paths below the main working tree; record each problem at its own index."""
+    if not isinstance(value, (list, tuple)):
+        issues.append(ConfigIssue(_key_path(*where), "type", f"must be a list, got {_describe(value)}"))
+        return ()
+    accepted: list[str] = []
+    for index, path in enumerate(value):
+        at = _key_path(*where, index)
+        if not isinstance(path, str):
+            issues.append(ConfigIssue(at, "type", f"must be a string, got {_describe(path)}"))
+            continue
+        problem = _relative_path_problem(path)
+        if problem is not None:
+            issues.append(ConfigIssue(at, "format", f"{problem}, got {_describe(path)}"))
+            continue
+        clash = next((other for other in accepted if _same_or_nested(other, path)), None)
+        if clash is None:
+            accepted.append(path)
+        elif clash == path:
+            issues.append(ConfigIssue(at, "format", f"is listed twice, got {_describe(path)}"))
+        else:
+            issues.append(ConfigIssue(at, "overlap", f"{path} and {clash} contain one another"))
+    return tuple(accepted)
+
+
+def _relative_path_problem(path: str) -> str | None:
+    """Why ``path`` is not a normal relative path below a working tree, or ``None`` when it is."""
+    if not path or "\x00" in path:
+        return "must be a non-empty path without NUL"
+    if path.startswith(("/", "~")):
+        return "must be relative to the main working tree"
+    if posixpath.normpath(path) != path or path == "." or path.startswith("../"):
+        return "must be in normal form below the main working tree (no '.', '..', repeated or trailing slash)"
+    if path.split("/")[0].casefold() == ".git":
+        return "must not be below .git"
+    return None
+
+
+def _same_or_nested(first: str, second: str) -> bool:
+    """Whether one relative path equals the other or lies below it."""
+    return first == second or first.startswith(second + "/") or second.startswith(first + "/")
 
 
 def _overlap_issues(root: str, protected: list[tuple[str, str]]) -> list[ConfigIssue]:
