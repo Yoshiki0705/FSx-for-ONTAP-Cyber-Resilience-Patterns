@@ -92,6 +92,7 @@ jobs:
       # fails. The summary line prints how many templates were evaluated.
       - name: Run cfn-guard
         run: make guard
+
       # Findings recorded in templates/.checkov.baseline pass; a new finding fails the job.
       # Checkov comes from requirements-dev.txt, the same pin that `make security` uses.
       - name: Run Checkov (CloudFormation, baseline)
