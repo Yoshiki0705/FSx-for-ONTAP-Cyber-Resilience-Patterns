@@ -363,7 +363,10 @@
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
         "AGENTS.md",
-        "docs/articles/04-operating-at-scale.md"
+        "docs/articles/04-operating-at-scale.md",
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md",
+        "docs/management-planes-cyber-resilience.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
     },
@@ -1335,7 +1338,9 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
       "note": "The page says 'might affect system stability', not that it fails. Applies to Cloud Volumes ONTAP, not FSx for ONTAP."
     },
     {
@@ -1359,7 +1364,9 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
       "note": "Applies to ONTAP Select, not FSx for ONTAP."
     },
     {
@@ -1383,7 +1390,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "A closing-down notice, not a capability the product lacks. The asynchronous endpoints remain."
     },
     {
@@ -1407,7 +1417,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "Observed from the documentation only; not reproduced against a registry."
     },
     {
@@ -1431,7 +1444,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "The page covers Security Hub CSPM. Whether the separate AWS Security Hub (OCSF) receives them is not stated there."
     },
     {
@@ -1455,7 +1471,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "A function that bundles nothing but the runtime's SDK has no scanned dependencies."
     },
     {
@@ -1479,7 +1498,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "Whether a given function is encrypted with a customer managed key is a property of that account; check it per function."
     },
     {
@@ -1503,7 +1525,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "Same page as the customer managed key limitation."
     },
     {
@@ -1527,7 +1552,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "The FAQ page was retrieved whole and the Q&As on finding sources, format and event delivery were read; the other Q&As were not read line by line."
     },
     {
@@ -1575,7 +1603,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "The page says 'currently'; recheck before relying on it. It does not say whether the Security Hub SBOM inventory lists agent-based Windows instances."
     },
     {
@@ -1599,7 +1630,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "The SoftwareResult object page was not opened; the field list is read from the response syntax in this page."
     },
     {
@@ -1623,7 +1657,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "Inference from two lists that do not name FSx for ONTAP. Not stated by AWS and not tried. Absence from a list is not a statement of absence."
     },
     {
@@ -1647,7 +1684,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "The documented part is the precondition. The no-pull-request result when alerts are disabled was read from the Renovate source in an earlier survey (selective) and was not run, so the tier is hypothesis."
     },
     {
@@ -1671,7 +1711,10 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/supply-chain-adoption-guide.md",
+        "docs/en/supply-chain-adoption-guide.md"
+      ],
       "note": "Documentation for npm CLI v11 as shown on the page; not run here."
     },
     {
@@ -1695,7 +1738,11 @@
       "feature_request": {
         "status": "not-applicable"
       },
-      "appears_in": [],
+      "appears_in": [
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md",
+        "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
+      ],
       "note": "Stated for ONTAP in general. Whether FSx for ONTAP exposes a revert path at all was not checked."
     }
   ]
