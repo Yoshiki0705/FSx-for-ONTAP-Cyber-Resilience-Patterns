@@ -248,6 +248,20 @@ def test_product_list_move_uses_the_latest_move_and_falls_back_to_the_initial_re
     assert j2 is not None and j2.decisive_date == D(2030, 1, 1) and "initial release" in j2.decisive_source
 
 
+def test_when_the_product_moved_twice_the_latest_move_decides() -> None:
+    item = make_item(
+        affected=["ONTAP 9"],
+        revisions=[
+            ("1.0", "20300101", "Initial Public Release"),
+            ("2.0", "20300110", "ONTAP 9 moved to Products Not Affected"),
+            ("3.0", "20300120", "ONTAP 9 moved to Affected Products"),
+        ],
+        rev="3.0",
+    )
+    j = judge("ONTAP 9.17.1P7", item)
+    assert j is not None and j.decisive_date == D(2030, 1, 20) and j.confirm_by == D(2030, 1, 27)
+
+
 def test_overdue_starts_the_day_after_confirm_by() -> None:
     feed = nam.parse_feed(make_feed([control_item()]))  # decided 2030-01-01, confirm by 2030-01-08
     r = row("ONTAP 9.17.1P1")
