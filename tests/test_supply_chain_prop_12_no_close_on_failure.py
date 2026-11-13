@@ -27,6 +27,7 @@ from tests.test_supply_chain_planner import (
     _finding,
     _inputs,
     _next,
+    _policy,
 )
 
 RANK = dict(SEVERITY_RANK)
@@ -230,7 +231,7 @@ def test_generated_scenarios_close_and_fail_in_every_way() -> None:
     """The properties above are not vacuous: every kind of failure and close shows up."""
     seen: Counter[str] = Counter()
 
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=None, derandomize=True)
     @given(_scenarios())
     def run(case: tuple[models.PlanInputs, models.PlanInputs, bool, sc.FeedsCase]) -> None:
         _, second, vanish, feeds_case = case
@@ -300,3 +301,21 @@ def test_the_epss_feed_failure_does_not_change_the_close_set() -> None:
     ok = _gone(opened, feeds=_feeds(malicious_withdrawn={MAL: NOW}))
     failed = _gone(opened, feeds=_feeds(epss=None, malicious_withdrawn={MAL: NOW}))
     assert _closes(ok) == _closes(failed) != []
+
+
+def _unreadable_issue() -> models.ManagedIssue:
+    return models.ManagedIssue(REPO, 1, "finding", "CVE-2026-0001", "open", None)
+
+
+def test_an_issue_with_an_unreadable_state_block_is_not_closed_while_kev_failed() -> None:
+    issue = _unreadable_issue()
+    failed = planner.plan(_inputs((), (issue,), feeds=_feeds(kev=None)))
+    assert failed.actions == ()
+    readable = planner.plan(_inputs((), (issue,), feeds=_feeds()))
+    assert [(a.op, a.close_reason) for a in readable.actions] == [("close", "resolved")]
+
+
+def test_a_kev_failure_does_not_block_closing_when_kev_is_not_a_reason_to_open() -> None:
+    issue = _unreadable_issue()
+    plan = planner.plan(_inputs((), (issue,), feeds=_feeds(kev=None), policy=_policy(kev=False)))
+    assert [(a.op, a.close_reason) for a in plan.actions] == [("close", "resolved")]
