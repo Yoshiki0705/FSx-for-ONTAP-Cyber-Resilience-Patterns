@@ -144,6 +144,15 @@ def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, frozenset[int]]:
     inputs = draw(sc.plan_inputs(14, 14, policy=_policy(draw(st.sampled_from(_LIMITS)))))
     if draw(st.booleans()):
         inputs = replace(inputs, issues=())
+    else:
+        # The generator gives one Issue per key; copies stand for duplicates made before run 1.
+        findings = [i for i in inputs.issues if i.kind == "finding"]
+        picks = draw(st.lists(st.integers(0, max(len(findings) - 1, 0)), max_size=3)) if findings else []
+        copies = tuple(
+            replace(findings[n], number=len(inputs.issues) + k + 1, state=draw(st.sampled_from(("open", "closed"))))
+            for k, n in enumerate(picks)
+        )
+        inputs = replace(inputs, issues=(*inputs.issues, *copies))
     subset = draw(st.frozensets(st.integers(0, 60), max_size=61))
     return inputs, subset
 
@@ -162,7 +171,7 @@ def test_one_finding_issue_per_key_after_partial_apply(case: tuple[models.PlanIn
 
 
 def test_the_property_is_not_vacuous() -> None:
-    """Partial applies, second-run creates, open ``MAL-`` Issues and Q-11 pairs all occur."""
+    """Partial applies, second-run creates, open ``MAL-`` Issues, Q-11 pairs and duplicates all occur."""
     seen: Counter[str] = Counter()
 
     @settings(max_examples=150, deadline=None)
@@ -171,30 +180,30 @@ def test_the_property_is_not_vacuous() -> None:
         inputs, subset = case
         seen.update(_check(inputs, subset))
         seen["pair"] += bool(sc.ghsa_malware_pairs(inputs.findings))
+        ids = Counter((i.repo, i.vuln_id) for i in inputs.issues if i.kind == "finding")
+        seen["duplicate"] += any(n > 1 for n in ids.values())
 
     run()
-    missing = [k for k in ("creates1", "creates2", "partial", "mal_open", "pair") if seen[k] == 0]
+    missing = [k for k in ("creates1", "creates2", "partial", "mal_open", "pair", "duplicate") if seen[k] == 0]
     assert not missing, f"never seen: {missing}; counts {sorted(seen.items())}"
 
 
-def _pair_inputs() -> models.PlanInputs:
-    repo = sc.DEFAULT_REPOS[0]
+def _finding(vuln_id: str, aliases: tuple[str, ...] = (), severity: str | None = None) -> models.Finding:
     when = sc.utc_at(450 * 1440)
-    component = sc.component_of(3, 1)
+    return models.Finding(
+        repo=sc.DEFAULT_REPOS[0],
+        vuln_id=vuln_id,
+        aliases=aliases,
+        component=sc.component_of(3, 1),
+        cvss_severity=severity,  # type: ignore[arg-type]
+        fixed_version=None,
+        advisory_published_at=when,
+        layer="A",
+        first_observed_component_at=when,
+    )
 
-    def finding(vuln_id: str) -> models.Finding:
-        return models.Finding(
-            repo=repo,
-            vuln_id=vuln_id,
-            aliases=(),
-            component=component,
-            cvss_severity=None,
-            fixed_version=None,
-            advisory_published_at=when,
-            layer="A",
-            first_observed_component_at=when,
-        )
 
+def _pair_inputs() -> models.PlanInputs:
     feeds = models.FeedSnapshot(
         kev={},
         epss={},
@@ -206,9 +215,9 @@ def _pair_inputs() -> models.PlanInputs:
     return models.PlanInputs(
         policy=_policy(20),
         run_id="1-1",
-        now=when,
+        now=sc.utc_at(450 * 1440),
         pull_requests=(),
-        findings=frozenset({finding(sc.mal_id(5)), finding(sc.ghsa_malware_id(5))}),
+        findings=frozenset({_finding(sc.mal_id(5)), _finding(sc.ghsa_malware_id(5))}),
         fetch_ok=frozenset(sc.DEFAULT_REPOS),
         feeds=feeds,
         vex={},
@@ -239,3 +248,26 @@ def test_q11_pair_without_aliases_becomes_one_issue_per_repo_purl_version() -> N
     third = planner.plan(replace(inputs, run_id="1-3", issues=_managed(store)))
     assert third.actions == ()
     assert len(store.find(kind="finding")) == 1
+
+
+def _continued(before: frozenset[models.Finding], after: frozenset[models.Finding]) -> None:
+    """Run 1 over ``before`` is applied; run 2 over ``after`` must continue that Issue, not create one."""
+    inputs = replace(_pair_inputs(), findings=before)
+    store = _apply(fake.IssueStore.from_managed(()), planner.plan(inputs).actions)
+    middle = replace(inputs, findings=after, run_id="1-2", issues=_managed(store))
+    second = planner.plan(middle)
+    _no_create_over_open(middle.issues, second)
+    assert not [a for a in second.actions if a.op == "create" and a.kind == "finding"], second.actions
+    store = _apply(store, second.actions)
+    assert len([i for i in store.find(kind="finding") if i.state == "open"]) == 1
+
+
+def test_an_open_issue_named_by_an_alias_is_continued() -> None:
+    """The open ``CVE-`` Issue continues when the finding is reported as a ``GHSA-`` with that alias."""
+    cve, ghsa = sc.cve_id(7), sc.ghsa_id(7)
+    _continued(frozenset({_finding(cve, severity="HIGH")}), frozenset({_finding(ghsa, (cve,), "HIGH")}))
+
+
+def test_an_open_malicious_issue_on_the_same_component_is_continued() -> None:
+    """A different ``MAL-`` on the same purl and version continues the open malicious Issue."""
+    _continued(frozenset({_finding(sc.mal_id(4))}), frozenset({_finding(sc.mal_id(5))}))
