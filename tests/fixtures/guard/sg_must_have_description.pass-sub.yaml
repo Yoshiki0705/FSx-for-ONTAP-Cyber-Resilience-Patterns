@@ -1,0 +1,9 @@
+Parameters:
+  ProjectName:
+    Type: String
+Resources:
+  Sg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName} client security group'
+      VpcId: vpc-0123456789abcdef0

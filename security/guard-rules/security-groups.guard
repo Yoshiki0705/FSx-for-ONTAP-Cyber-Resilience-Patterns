@@ -7,9 +7,12 @@
 let sg_ingress_rules = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress' ]
 let security_groups = Resources.*[ Type == 'AWS::EC2::SecurityGroup' ]
 
+# An ingress without CidrIp (source security group, prefix list) cannot be open to
+# 0.0.0.0/0, so it passes. A Ref/Sub in FromPort with a literal 0.0.0.0/0 still fails.
 # Rule: Security Groups must not allow unrestricted SSH ingress
 rule deny_unrestricted_ssh when %sg_ingress_rules !empty {
   %sg_ingress_rules.Properties {
+    CidrIp !exists or
     FromPort != 22 or
     CidrIp != "0.0.0.0/0"
   }
@@ -18,16 +21,19 @@ rule deny_unrestricted_ssh when %sg_ingress_rules !empty {
 # Rule: Security Groups must not allow unrestricted ingress on all ports
 rule deny_all_ports_ingress when %sg_ingress_rules !empty {
   %sg_ingress_rules.Properties {
+    CidrIp !exists or
     FromPort != 0 or
     ToPort != 65535 or
     CidrIp != "0.0.0.0/0"
   }
 }
 
-# Rule: Security Groups must have a description
+# Rule: Security Groups must have a description (a Sub/Ref value is not a string
+# at template level and passes unexamined)
 rule sg_must_have_description when %security_groups !empty {
   %security_groups.Properties {
     GroupDescription exists
+    GroupDescription !is_string or
     GroupDescription != ""
   }
 }
