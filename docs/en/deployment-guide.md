@@ -202,6 +202,39 @@ Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per cas
 
 Not measured: a deployment of this template, the 300-second period with the default threshold, several messages in the queue, and the Step Functions role publishing to the fallback topic in a deployed stack.
 
+## Approval Wait Webhook
+
+Both topics in the previous section are SNS. Setting `ApprovalWebhookEndpoint` adds a path that does not use SNS: an EventBridge rule on the default event bus sends each state change of `ApprovalWaitingAlarm` (`ALARM` and `OK`) to an [API destination](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html). The receiver is any HTTPS endpoint that accepts a JSON `POST` and checks an API key header. Leave the parameter empty to create none of these resources.
+
+| Resource or parameter | Purpose |
+|-----------------------|---------|
+| Parameter `ApprovalWebhookEndpoint` | HTTPS URL of the webhook. `http://` is rejected by the parameter pattern |
+| Parameters `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue` | Header name (default `x-api-key`) and value. The value is `NoEcho`, and a template rule rejects an empty value when the endpoint is set |
+| `ApprovalWebhookConnection` | `API_KEY` connection. EventBridge stores the key in a Secrets Manager secret whose name starts with `events!connection/`, encrypted with an AWS owned key |
+| `ApprovalWebhookDestination` | `POST` to the endpoint, at most 1 invocation per second |
+| `ApprovalWebhookRule` and `ApprovalWebhookRuleRole` | Matches `aws.cloudwatch` / `CloudWatch Alarm State Change` events for this alarm only. The role may call `events:InvokeApiDestination` on this destination only |
+| `ApprovalWebhookDlq` and `ApprovalWebhookDlqPolicy` | Standard queue with SQS managed encryption. Only this rule may send to it |
+| `ApprovalWebhookDlqAlarm` | Notifies both topics when the dead-letter queue holds a message |
+
+How it behaves, as documented by AWS:
+
+- A request times out after 5 seconds.
+- Responses 401, 407, 409, 429 and 5xx are retried. The target's retry policy is set to 24 hours and 185 attempts. Other 4xx responses are not retried, and the event goes to the dead-letter queue.
+- The dead-letter message carries `ERROR_CODE` and `ERROR_MESSAGE` attributes. Resend events from it after you fix the receiver.
+
+The rule and the alarm are in the same Region as the topics. The path covers an SNS failure, and a Regional EventBridge or CloudWatch outage stops it too. The webhook receiver needs its own monitoring: the dead-letter alarm notifies the SNS topics.
+
+Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per case, with standalone resources of the same shape (alarm, rule, `API_KEY` connection, API destination, dead-letter queue). The receiver was a Lambda function URL that checked the key header.
+
+| Case | Result |
+|------|--------|
+| Control: request without the key, then with it | 403 without the key, 200 with it |
+| Alarm to `ALARM`, then `OK`, receiver returns 200 | Both events arrived, about 0.7 seconds after each state change |
+| Receiver returns 500, then 200 again | Attempts got 500 at about 1, 55 and 166 seconds. After the receiver was switched back to 200, the event arrived at about 386 seconds. The dead-letter queue stayed empty |
+| Receiver returns 400 | One attempt and no retry. Both events (`ALARM` and `OK`) went to the dead-letter queue with `ERROR_CODE` `INVALID_PARAMETER` |
+
+A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
+
 ## VPC Endpoint Conflict Matrix
 
 ### Background: Gateway vs Interface Endpoints

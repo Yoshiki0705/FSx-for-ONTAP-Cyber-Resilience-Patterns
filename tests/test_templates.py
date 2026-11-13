@@ -7,6 +7,7 @@ Handles CloudFormation intrinsic functions (!Ref, !Sub, etc.) with a custom YAML
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -332,6 +333,8 @@ class TestSqsSourcedLambdaDlqSkip:
         assert skipped == {
             "EventTransformerLambda": ["CKV_AWS_116", "CKV_AWS_117"],
             "QuarantineLambda": ["CKV_AWS_116"],
+            # Encrypted with SSE-SQS, which CKV_AWS_27 does not recognize.
+            "ApprovalWebhookDlq": ["CKV_AWS_27"],
         }
 
     def test_quarantine_has_no_event_source_mapping(self) -> None:
@@ -571,6 +574,111 @@ class TestApprovalFallbackPath:
         # The alarm period (300 s) is added before the alarm fires, so leave room for it.
         assert param["MaxValue"] + 300 < timeout
         assert param["MinValue"] <= param["Default"] <= param["MaxValue"]
+
+
+class TestApprovalWebhook:
+    """Approval wait alarm state changes reach a webhook through EventBridge, without SNS."""
+
+    WEBHOOK_RESOURCES = {
+        "ApprovalWebhookConnection": "AWS::Events::Connection",
+        "ApprovalWebhookDestination": "AWS::Events::ApiDestination",
+        "ApprovalWebhookRuleRole": "AWS::IAM::Role",
+        "ApprovalWebhookDlq": "AWS::SQS::Queue",
+        "ApprovalWebhookDlqPolicy": "AWS::SQS::QueuePolicy",
+        "ApprovalWebhookRule": "AWS::Events::Rule",
+        "ApprovalWebhookDlqAlarm": "AWS::CloudWatch::Alarm",
+    }
+
+    @pytest.fixture(scope="class")
+    def template(self) -> dict:
+        return _load_tagged("event-driven.yaml")
+
+    @pytest.fixture(scope="class")
+    def resources(self, template: dict) -> dict:
+        return template["Resources"]
+
+    def test_webhook_is_optional(self, template: dict) -> None:
+        params = template["Parameters"]
+        assert params["ApprovalWebhookEndpoint"]["Default"] == ""
+        assert template["Conditions"]["HasApprovalWebhook"] == {
+            "Not": [{"Equals": [{"Ref": "ApprovalWebhookEndpoint"}, ""]}]
+        }
+        # Every resource of the path, and only those, depends on the condition.
+        conditional = {
+            n: r["Type"] for n, r in template["Resources"].items() if r.get("Condition") == "HasApprovalWebhook"
+        }
+        assert conditional == self.WEBHOOK_RESOURCES
+        assert template["Outputs"]["ApprovalWebhookDlqUrl"]["Condition"] == "HasApprovalWebhook"
+
+    def test_endpoint_must_be_https(self, template: dict) -> None:
+        pattern = re.compile(template["Parameters"]["ApprovalWebhookEndpoint"]["AllowedPattern"])
+        assert pattern.fullmatch("")
+        assert pattern.fullmatch("https://hooks.example.com/approval")
+        assert not pattern.fullmatch("http://hooks.example.com/approval")
+        assert not pattern.fullmatch("https://hooks.example.com/a b")
+
+    def test_api_key_is_hidden_and_required_with_an_endpoint(self, template: dict) -> None:
+        assert template["Parameters"]["ApprovalWebhookApiKeyValue"]["NoEcho"] is True
+        rule = template["Rules"]["ApprovalWebhookNeedsApiKey"]
+        assert rule["RuleCondition"] == {"Not": [{"Equals": [{"Ref": "ApprovalWebhookEndpoint"}, ""]}]}
+        assert rule["Assertions"][0]["Assert"] == {"Not": [{"Equals": [{"Ref": "ApprovalWebhookApiKeyValue"}, ""]}]}
+
+    def test_connection_sends_the_api_key_header(self, resources: dict) -> None:
+        props = resources["ApprovalWebhookConnection"]["Properties"]
+        assert props["AuthorizationType"] == "API_KEY"
+        assert props["AuthParameters"]["ApiKeyAuthParameters"] == {
+            "ApiKeyName": {"Ref": "ApprovalWebhookApiKeyName"},
+            "ApiKeyValue": {"Ref": "ApprovalWebhookApiKeyValue"},
+        }
+        dest = resources["ApprovalWebhookDestination"]["Properties"]
+        assert dest["ConnectionArn"] == {"GetAtt": "ApprovalWebhookConnection.Arn"}
+        assert dest["InvocationEndpoint"] == {"Ref": "ApprovalWebhookEndpoint"}
+        assert dest["HttpMethod"] == "POST"
+
+    def test_rule_matches_only_the_approval_wait_alarm(self, resources: dict) -> None:
+        props = resources["ApprovalWebhookRule"]["Properties"]
+        # No EventBusName: CloudWatch sends alarm state changes to the default bus.
+        assert "EventBusName" not in props
+        assert props["EventPattern"] == {
+            "source": ["aws.cloudwatch"],
+            "detail-type": ["CloudWatch Alarm State Change"],
+            "resources": [{"GetAtt": "ApprovalWaitingAlarm.Arn"}],
+        }
+
+    def test_target_retries_and_keeps_undelivered_events(self, resources: dict) -> None:
+        (target,) = resources["ApprovalWebhookRule"]["Properties"]["Targets"]
+        assert target["Arn"] == {"GetAtt": "ApprovalWebhookDestination.Arn"}
+        assert target["RoleArn"] == {"GetAtt": "ApprovalWebhookRuleRole.Arn"}
+        assert target["RetryPolicy"] == {"MaximumEventAgeInSeconds": 86400, "MaximumRetryAttempts": 185}
+        assert target["DeadLetterConfig"] == {"Arn": {"GetAtt": "ApprovalWebhookDlq.Arn"}}
+
+    def test_rule_role_may_invoke_only_this_destination(self, resources: dict) -> None:
+        role = resources["ApprovalWebhookRuleRole"]["Properties"]
+        assert role["AssumeRolePolicyDocument"]["Statement"][0]["Principal"] == {"Service": "events.amazonaws.com"}
+        (policy,) = role["Policies"]
+        (statement,) = policy["PolicyDocument"]["Statement"]
+        assert statement["Action"] == "events:InvokeApiDestination"
+        assert statement["Resource"]["Sub"].endswith(":api-destination/${ApprovalWebhookDestination}/*")
+
+    def test_dlq_is_encrypted_and_accepts_only_this_rule(self, resources: dict) -> None:
+        queue = resources["ApprovalWebhookDlq"]["Properties"]
+        assert queue["SqsManagedSseEnabled"] is True
+        assert queue["MessageRetentionPeriod"] == 1209600
+        policy = resources["ApprovalWebhookDlqPolicy"]["Properties"]
+        assert policy["Queues"] == [{"Ref": "ApprovalWebhookDlq"}]
+        (statement,) = policy["PolicyDocument"]["Statement"]
+        assert statement["Principal"] == {"Service": "events.amazonaws.com"}
+        assert statement["Action"] == "sqs:SendMessage"
+        assert statement["Condition"] == {"ArnEquals": {"aws:SourceArn": {"GetAtt": "ApprovalWebhookRule.Arn"}}}
+
+    def test_dlq_alarm_notifies_both_topics(self, resources: dict) -> None:
+        alarm = resources["ApprovalWebhookDlqAlarm"]["Properties"]
+        assert alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
+        assert alarm["Dimensions"] == [{"Name": "QueueName", "Value": {"GetAtt": "ApprovalWebhookDlq.QueueName"}}]
+        assert alarm["Threshold"] == 1
+        assert alarm["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
+        assert {"Ref": "AlertFallbackTopic"} in alarm["AlarmActions"]
+        assert {"Ref": "SecurityAlertTopic"} in alarm["AlarmActions"]
 
 
 class TestHubAlertTopicDelivery:
