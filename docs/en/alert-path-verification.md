@@ -176,9 +176,19 @@ This procedure was run once on 2026-11-13 (JST) in one account in `ap-northeast-
 
 The C4 time is from one observation and depends on when the metric arrives. It was not reproduced.
 
+C6 was run once on 2026-11-13 (JST) in one account in `ap-northeast-1`, on a separate deployment of commit `6e6d430` with `ApprovalWebhookEndpoint` set. The receiver was a Lambda function URL that checked the key header; without the key it returned 403, and with it 200.
+
+| Check | Result |
+|-------|--------|
+| C6, receiver returns 200 | The `ALARM` event arrived about 0.3 seconds after the state change. The alarm went back to `OK` about 50 seconds later, and that event also arrived about 0.3 seconds after the change. The rule showed 2 `Invocations` and no `FailedInvocations`. The dead-letter queue stayed empty |
+| C6, receiver returns 400 | Each event (`ALARM`, then `OK`) got one attempt and no retry. Both went to the dead-letter queue with `ERROR_CODE` `INVALID_PARAMETER`. The rule showed 2 `FailedInvocations` and 2 `InvocationsSentToDlq` |
+| Dead-letter alarm | `ALARM` about 140 seconds after the first event entered the queue. The history showed `Successfully executed action` for both topics, and the notification arrived at a queue subscribed to the fallback topic |
+
+The dead-letter queue uses SQS managed encryption (`SqsManagedSseEnabled` read back as `true`), and EventBridge sent to it.
+
 ## Not Measured
 
 - The four items listed under "What This Checks" (the approval path, `NotificationFailed`, `ComplianceCollectorRole`, and events forwarded from a spoke account).
 - C5. The fallback topic was added after the run under "Results".
-- C6. The webhook path was added after that run. Its standalone measurement is in the [deployment guide](deployment-guide.md#approval-wait-webhook).
+- C6 with a 5xx response from the receiver in the deployed stack. Retries on 5xx were measured only with standalone resources ([deployment guide](deployment-guide.md#approval-wait-webhook)).
 - The charge for a key pending deletion.

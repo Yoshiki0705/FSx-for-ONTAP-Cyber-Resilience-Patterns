@@ -233,7 +233,7 @@ Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per cas
 | Receiver returns 500, then 200 again | Attempts got 500 at about 1, 55 and 166 seconds. After the receiver was switched back to 200, the event arrived at about 386 seconds. The dead-letter queue stayed empty |
 | Receiver returns 400 | One attempt and no retry. Both events (`ALARM` and `OK`) went to the dead-letter queue with `ERROR_CODE` `INVALID_PARAMETER` |
 
-Not measured: a deployment of this template, the dead-letter alarm, and the queue's SQS managed encryption with an EventBridge sender (the test queue was created with default attributes and its encryption was not read back).
+A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
 
 ## VPC Endpoint Conflict Matrix
 

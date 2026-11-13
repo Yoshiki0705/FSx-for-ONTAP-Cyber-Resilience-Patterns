@@ -176,9 +176,19 @@ aws cloudformation delete-stack --stack-name fsxn-cyber-resilience-network-dev
 
 C4 の時間は 1 回の観測で、指標の到着時刻に左右されます。再現は確認していません。
 
+C6 は、2026-11-13（日本時間）に、1 アカウントの `ap-northeast-1` で 1 回実行しました。コミット `6e6d430` を、`ApprovalWebhookEndpoint` を指定して別にデプロイしています。受信側は、キーのヘッダーを確かめる Lambda の関数 URL です。キーなしでは 403、キーありでは 200 を返しました。
+
+| 確認 | 結果 |
+|------|------|
+| C6、受信側が 200 を返す | `ALARM` のイベントが、状態の変化から約 0.3 秒で届いた。約 50 秒後にアラームが `OK` に戻り、そのイベントも変化から約 0.3 秒で届いた。ルールの `Invocations` は 2、`FailedInvocations` は出なかった。デッドレターキューは空のまま |
+| C6、受信側が 400 を返す | 各イベント（`ALARM`、続けて `OK`）の試行は 1 回で、リトライはなかった。両方が `ERROR_CODE` `INVALID_PARAMETER` 付きでデッドレターキューに入った。ルールの `FailedInvocations` は 2、`InvocationsSentToDlq` は 2 |
+| デッドレターキューのアラーム | 最初のイベントがキューに入ってから約 140 秒で `ALARM`。履歴には両方のトピックについて `Successfully executed action` が出て、予備のトピックに購読させたキューに通知が届いた |
+
+デッドレターキューは SQS マネージドの暗号化を使い（`SqsManagedSseEnabled` の読み戻しは `true`）、EventBridge はそこに送信できました。
+
 ## 未測定の項目
 
 - 「確認する内容」に挙げた 4 つ（承認フロー、`NotificationFailed`、`ComplianceCollectorRole`、スポークからの転送）。
 - C5。予備のトピックは、「測定結果」の実行の後に追加しました。
-- C6。Webhook の経路は、その実行の後に追加しました。単独のリソースでの測定は、[デプロイガイド](deployment-guide.md#承認待ちの-webhook)にあります。
+- デプロイしたスタックで、受信側が 5xx を返す場合の C6。5xx のリトライは、単独のリソースでだけ測りました（[デプロイガイド](deployment-guide.md#承認待ちの-webhook)）。
 - 削除待ちのキーの料金。
