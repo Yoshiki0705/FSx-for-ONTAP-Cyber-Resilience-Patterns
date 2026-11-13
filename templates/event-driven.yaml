@@ -1,4 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
 Description: >
   FSx for ONTAP Cyber Resilience - Event-Driven Response Stack.
   SQS queue, EventBridge custom bus, Step Functions workflows,
@@ -525,7 +527,7 @@ Resources:
   # Lambda - Event transformer (FPolicy → EventBridge)
   # ---------------------------------------------------------------
   EventTransformerLambda:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Metadata:
       checkov:
         skip:
@@ -555,9 +557,43 @@ Resources:
         Variables:
           EVENT_BUS_NAME: !Ref SecurityEventBus
           ENVIRONMENT: !Ref Environment
-      Code:
-        S3Bucket: !Ref LambdaArtifactBucket
-        S3Key: !Sub '${LambdaArtifactPrefix}/${EventTransformerS3Key}'
+      CodeUri:
+        Bucket: !Ref LambdaArtifactBucket
+        Key: !Sub '${LambdaArtifactPrefix}/${EventTransformerS3Key}'
+      # Canary rollout: SAM publishes a version per deploy, moves alias "live" through
+      # CodeDeploy, and rolls back when the alias alarm fires.
+      AutoPublishAlias: live
+      DeploymentPreference:
+        Type: Canary10Percent5Minutes
+        Alarms:
+          - !Ref EventTransformerAliasErrorsAlarm
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: FunctionUpdate
+      Tags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+        Layer: event-driven
+        Component: event-transformer
+
+  # Errors on the "live" alias; any error during the canary window triggers rollback
+  EventTransformerAliasErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-event-transformer-alias-errors-${Environment}'
+      AlarmDescription: Errors on the live alias of the event transformer; used as the canary rollback trigger
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+        - Name: Resource
+          Value: !Sub '${EventTransformerLambda}:live'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -565,13 +601,15 @@ Resources:
           Value: !Ref Environment
         - Key: Layer
           Value: event-driven
+        - Key: Component
+          Value: event-transformer
 
   # SQS → Lambda event source mapping
   EventTransformerMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt SecurityEventQueue.Arn
-      FunctionName: !Ref EventTransformerLambda
+      FunctionName: !Ref EventTransformerLambda.Alias
       BatchSize: 10
       MaximumBatchingWindowInSeconds: 5
       Enabled: true
@@ -581,7 +619,7 @@ Resources:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt BatchScanResultQueue.Arn
-      FunctionName: !Ref EventTransformerLambda
+      FunctionName: !Ref EventTransformerLambda.Alias
       BatchSize: 10
       MaximumBatchingWindowInSeconds: 30
       Enabled: true

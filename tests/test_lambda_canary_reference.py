@@ -3,9 +3,8 @@
 Example-based checks on ``templates/event-driven.yaml``: one function per assertion
 so a mutation fixture that drops one setting trips exactly one check.
 
-The real-template checks are skipped while the template is not yet a SAM template
-(task 12.2 adds the canary). The mutation tests, the control test and the cfn-lint
-test always run. Task 12.2 may delete ``_PENDING_REASON`` once the template passes.
+The same checks run on the real template and, through the mutation fixtures, on
+one-setting-removed copies of it.
 
 AWS shapes were checked against the AWS SAM developer guide on 2026-11-13:
 ``AutoPublishAlias`` and ``DeploymentPreference`` (``Type``, ``Alarms``),
@@ -215,14 +214,6 @@ def failing_checks(tpl: dict[str, Any]) -> set[str]:
     return failed
 
 
-def _template_is_pending() -> bool:
-    return "Transform" not in load(TEMPLATE)
-
-
-_PENDING_REASON = "templates/event-driven.yaml is not a SAM template yet (task 12.2 adds the canary)"
-
-
-@pytest.mark.skipif(_template_is_pending(), reason=_PENDING_REASON)
 @pytest.mark.parametrize("name", sorted(CHECKS))
 def test_template_check(name: str) -> None:
     """Each assertion of the design's template-test table holds on the real template."""
