@@ -1,18 +1,26 @@
-# CloudFormation Guard Rules - Networking
+# CloudFormation Guard Rules - Networking (cfn-guard 3.x syntax)
 # Validates network isolation and VPC best practices.
+#
+# Each rule selects resources by type with a filter query and runs only when
+# the template has at least one such resource (no resource of that type: SKIP).
+
+let subnets = Resources.*[ Type == 'AWS::EC2::Subnet' ]
+let vpcs = Resources.*[ Type == 'AWS::EC2::VPC' ]
 
 # Rule: Subnets must not auto-assign public IPs
-rule no_public_ip_on_launch when AWS::EC2::Subnet {
-  Properties.MapPublicIpOnLaunch == false OR
-  Properties.MapPublicIpOnLaunch NOT EXISTS
+rule no_public_ip_on_launch when %subnets !empty {
+  %subnets.Properties {
+    MapPublicIpOnLaunch == false or
+    MapPublicIpOnLaunch !exists
+  }
 }
 
 # Rule: VPC must enable DNS support
-rule vpc_dns_support when AWS::EC2::VPC {
-  Properties.EnableDnsSupport == true
+rule vpc_dns_support when %vpcs !empty {
+  %vpcs.Properties.EnableDnsSupport == true
 }
 
 # Rule: VPC must enable DNS hostnames
-rule vpc_dns_hostnames when AWS::EC2::VPC {
-  Properties.EnableDnsHostnames == true
+rule vpc_dns_hostnames when %vpcs !empty {
+  %vpcs.Properties.EnableDnsHostnames == true
 }

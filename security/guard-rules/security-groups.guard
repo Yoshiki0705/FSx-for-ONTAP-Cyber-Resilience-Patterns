@@ -1,21 +1,33 @@
-# CloudFormation Guard Rules - Security Groups
+# CloudFormation Guard Rules - Security Groups (cfn-guard 3.x syntax)
 # Validates security best practices for the Cyber Resilience project.
+#
+# Each rule selects resources by type with a filter query and runs only when
+# the template has at least one such resource (no resource of that type: SKIP).
+
+let sg_ingress_rules = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress' ]
+let security_groups = Resources.*[ Type == 'AWS::EC2::SecurityGroup' ]
 
 # Rule: Security Groups must not allow unrestricted SSH ingress
-rule deny_unrestricted_ssh when AWS::EC2::SecurityGroupIngress {
-  FromPort != 22 OR
-  CidrIp != "0.0.0.0/0"
+rule deny_unrestricted_ssh when %sg_ingress_rules !empty {
+  %sg_ingress_rules.Properties {
+    FromPort != 22 or
+    CidrIp != "0.0.0.0/0"
+  }
 }
 
 # Rule: Security Groups must not allow unrestricted ingress on all ports
-rule deny_all_ports_ingress when AWS::EC2::SecurityGroupIngress {
-  FromPort != 0 OR
-  ToPort != 65535 OR
-  CidrIp != "0.0.0.0/0"
+rule deny_all_ports_ingress when %sg_ingress_rules !empty {
+  %sg_ingress_rules.Properties {
+    FromPort != 0 or
+    ToPort != 65535 or
+    CidrIp != "0.0.0.0/0"
+  }
 }
 
 # Rule: Security Groups must have a description
-rule sg_must_have_description when AWS::EC2::SecurityGroup {
-  Properties.GroupDescription EXISTS
-  Properties.GroupDescription != ""
+rule sg_must_have_description when %security_groups !empty {
+  %security_groups.Properties {
+    GroupDescription exists
+    GroupDescription != ""
+  }
 }
