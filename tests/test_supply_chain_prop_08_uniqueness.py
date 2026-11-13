@@ -250,11 +250,17 @@ def test_q11_pair_without_aliases_becomes_one_issue_per_repo_purl_version() -> N
     assert len(store.find(kind="finding")) == 1
 
 
-def _continued(before: frozenset[models.Finding], after: frozenset[models.Finding]) -> None:
-    """Run 1 over ``before`` is applied; run 2 over ``after`` must continue that Issue, not create one."""
+def _continued(before: frozenset[models.Finding], after: frozenset[models.Finding], kev_first: bool = False) -> None:
+    """Run 1 over ``before`` is applied; run 2 over ``after`` must continue that Issue, not create one.
+
+    With ``kev_first`` the GHSA malware advisory is KEV-listed in run 1 only.
+    """
     inputs = replace(_pair_inputs(), findings=before)
+    if kev_first:
+        kev = {sc.ghsa_malware_id(5): (sc.utc_at(0).date(), None)}
+        inputs = replace(inputs, feeds=replace(inputs.feeds, kev=kev))
     store = _apply(fake.IssueStore.from_managed(()), planner.plan(inputs).actions)
-    middle = replace(inputs, findings=after, run_id="1-2", issues=_managed(store))
+    middle = replace(_pair_inputs(), findings=after, run_id="1-2", issues=_managed(store))
     second = planner.plan(middle)
     _no_create_over_open(middle.issues, second)
     assert not [a for a in second.actions if a.op == "create" and a.kind == "finding"], second.actions
@@ -271,3 +277,9 @@ def test_an_open_issue_named_by_an_alias_is_continued() -> None:
 def test_an_open_malicious_issue_on_the_same_component_is_continued() -> None:
     """A different ``MAL-`` on the same purl and version continues the open malicious Issue."""
     _continued(frozenset({_finding(sc.mal_id(4))}), frozenset({_finding(sc.mal_id(5))}))
+
+
+def test_an_open_ghsa_malware_issue_is_continued_when_it_leaves_the_kev_list() -> None:
+    """The open GHSA Issue (KEV-listed in run 1) continues under the ``MAL-`` group that absorbs it in run 2."""
+    ghsa, mal = _finding(sc.ghsa_malware_id(5)), _finding(sc.mal_id(5))
+    _continued(frozenset({ghsa}), frozenset({ghsa, mal}), kev_first=True)
