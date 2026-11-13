@@ -53,8 +53,8 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from handoff import command, dag, evaluate, runner, state
 from handoff import config as config_module
-from handoff import dag, evaluate, runner, state
 from handoff import manifest as manifest_module
 
 if TYPE_CHECKING:
@@ -1030,20 +1030,64 @@ def test_places_that_resolve_into_a_protected_tree_are_refused(
 # ---------------------------------------------------------------------------------------------
 
 
-def test_two_items_sharing_a_prompt_path_are_both_held_without_writing_it(
+def test_two_items_of_one_repository_and_sync_point_get_separate_prompt_paths(
     handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Neither of two items whose prompt path is the same may overwrite the other's prompt."""
+    """A pair of one Sync_Point and repository carries the item ID in its paths, so neither is held."""
     sb = handoff_sandbox
     sb.apply_environ(monkeypatch)
     cfg = make_config(sb)
     manifest = make_manifest(cfg, query_item(), query_item("a-hub-second"))
+    directory = str(sb.handoff_dir)
+    prompts = [
+        command.handoff_files(
+            directory,
+            repo=item.repo,
+            item_id=item.id,
+            sync_point=item.sync_point,
+            split=command.prompt_is_split(manifest.items, item),
+        ).prompt
+        for item in manifest.items
+    ]
+    assert prompts[0].endswith(f"/sync/a-{REPO}-{ITEM}.md") and prompts[1].endswith(f"/sync/a-{REPO}-a-hub-second.md")
+    assert all(
+        not runner._prompt_sharers(manifest, item, directory, mine) for item, mine in zip(manifest.items, prompts)
+    )
+
+
+def test_a_lone_item_keeps_the_prompt_path_without_its_id(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dropping one of a pair from the manifest gives the other the shorter path again."""
+    sb = handoff_sandbox
+    sb.apply_environ(monkeypatch)
+    cfg = make_config(sb)
+    manifest = make_manifest(cfg, query_item())
+    item = manifest.items[0]
+    assert not command.prompt_is_split(manifest.items, item)
+    files = command.handoff_files(str(sb.handoff_dir), repo=item.repo, item_id=item.id, sync_point=item.sync_point)
+    assert files.prompt.endswith(f"/sync/a-{REPO}.md")
+
+
+def test_two_items_with_the_same_prompt_path_are_both_held_without_writing_it(
+    handoff_sandbox: HandoffSandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pairs of two repositories can still meet: ``ex``/``a-b`` and ``ex-a``/``b`` both give ``ex-a-b``."""
+    sb = handoff_sandbox
+    sb.apply_environ(monkeypatch)
+    repos = {name: {"main_tree": f"~/Projects/{name}"} for name in ("ex", "ex-a")}
+    cfg = make_config(sb, repos=repos)
+    raw = [
+        {**query_item(item_id), "repo": repo}
+        for repo, item_id in (("ex", "a-b"), ("ex", "z-z"), ("ex-a", "b"), ("ex-a", "y-y"))
+    ]
+    manifest = make_manifest(cfg, *raw)
     ctx = make_context(sb, cfg, manifest)
     with runner.Harness.open(str(sb.handoff_dir)) as harness:
         harness.add_missing_items(manifest)
-        first = harness.run_query_item(ctx, ITEM)
-        second = harness.run_query_item(ctx, "a-hub-second")
-    for outcome, other in ((first, "a-hub-second"), (second, ITEM)):
+        first = harness.run_query_item(ctx, "a-b")
+        second = harness.run_query_item(ctx, "b")
+    for outcome, other in ((first, "b"), (second, "a-b")):
         assert outcome.state == "needs-human" and outcome.reason == "prompt_path_shared"
         assert other in outcome.detail and outcome.prompt is None
     assert not (sb.handoff_dir / "sync").exists() and sb.invocations() == []
