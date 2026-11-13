@@ -397,6 +397,26 @@ def _uses_violation(ref: str, rel: str, line: int, owners: frozenset[str], hub_s
     return Violation(rel, line, "unpinned-action", f"`{shown}` is not a 40-character commit SHA")
 
 
+def uses_references(text: str) -> list[tuple[int, str]]:
+    """List the ``uses:`` values of a workflow file with their 1-based line numbers.
+
+    Comments are stripped the same way the pinning check does. Used by
+    ``scripts/check_pinned_sha_exist.py`` so the ``uses:`` parsing is not duplicated.
+
+    Args:
+        text: Workflow file contents.
+
+    Returns:
+        ``(line, value)`` pairs in file order.
+    """
+    out: list[tuple[int, str]] = []
+    for number, raw in enumerate(text.splitlines(), start=1):
+        line = re.sub(r"(^|\s)#.*$", "", raw)
+        if line.strip() and (m := _USES.match(line)):
+            out.append((number, m.group(1)))
+    return out
+
+
 def _workflow(rel: str, text: str, owners: frozenset[str], hub_sha: bool) -> list[Violation]:
     out: list[Violation] = []
     for number, raw in enumerate(text.splitlines(), start=1):

@@ -4,7 +4,7 @@ VENV   := .venv/bin
 PYTHON := $(VENV)/python3
 PYTEST := $(VENV)/pytest
 
-.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive check-supply-chain
+.PHONY: help lint guard test security validate deploy clean setup check-evidence ai-style check-sensitive check-supply-chain check-pinned-sha-exist
 
 # Default target
 help: ## Show this help
@@ -76,6 +76,12 @@ check-sensitive: ## Fail on account IDs, public IPs, emails, or home paths in tr
 check-supply-chain: ## Fail on supply-chain policy violations (selftest first)
 	$(PYTHON) scripts/check_supply_chain.py --selftest
 	$(PYTHON) scripts/check_supply_chain.py
+
+# Asks GitHub whether each SHA pinned in .github/workflows exists (needs the network and
+# GITHUB_TOKEN or GH_TOKEN). Deliberately NOT a prerequisite of `test` or `check-supply-chain`:
+# those stay offline. Exit 1 = a SHA does not exist, 2 = the check could not run.
+check-pinned-sha-exist: ## Ask GitHub that pinned Action SHAs exist (network + token; not in `make test`)
+	$(PYTHON) scripts/check_pinned_sha_exist.py
 
 test-cov: ## Run tests with coverage report
 	$(PYTEST) tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
