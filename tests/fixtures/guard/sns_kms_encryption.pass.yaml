@@ -1,0 +1,5 @@
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      KmsMasterKeyId: alias/example
