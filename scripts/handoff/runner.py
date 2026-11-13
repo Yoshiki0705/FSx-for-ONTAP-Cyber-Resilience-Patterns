@@ -1783,7 +1783,13 @@ class _QueryRun:
         self.item = item
         self.stop = stop
         self.directory = harness.handoff_dir
-        self.files = command.handoff_files(self.directory, repo=item.repo, item_id=item.id, sync_point=item.sync_point)
+        self.files = command.handoff_files(
+            self.directory,
+            repo=item.repo,
+            item_id=item.id,
+            sync_point=item.sync_point,
+            split=command.prompt_is_split(context.manifest.items, item),
+        )
         self.main_tree = self.config.repos[item.repo].main_tree
         self.git_env = git_environment(os.environ)
         self.timeout = self.config.timeout_seconds
@@ -4454,7 +4460,11 @@ def _prompt_sharers(manifest: Manifest, item: Item, directory: str, mine: str) -
             continue
         try:
             theirs = command.handoff_files(
-                directory, repo=other.repo, item_id=other.id, sync_point=other.sync_point
+                directory,
+                repo=other.repo,
+                item_id=other.id,
+                sync_point=other.sync_point,
+                split=command.prompt_is_split(manifest.items, other),
             ).prompt
         except command.CommandError:
             continue

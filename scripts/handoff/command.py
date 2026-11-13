@@ -1004,8 +1004,32 @@ def child_env(
     return env
 
 
-def handoff_files(handoff_dir: str, *, repo: str, item_id: str, sync_point: str) -> HandoffFiles:
+def prompt_is_split(items: Iterable[Item], item: Item) -> bool:
+    """Tell whether another item has the same Sync_Point and repository as ``item``.
+
+    The repository names are compared with :meth:`str.casefold`, as the runner compares the
+    prompt paths. Such an item pair would share one Handoff_Prompt path, so the pair's paths
+    carry the item ID (``split`` of :func:`handoff_files`). The answer depends on which items
+    the manifest holds: dropping one of a pair makes the other's path the shorter one again.
+
+    Args:
+        items: The manifest's items.
+        item: One of them.
+
+    Returns:
+        True when an item with another ID has the same Sync_Point and the same repository.
+    """
+    key = (item.sync_point, item.repo.casefold())
+    return any(other.id != item.id and (other.sync_point, other.repo.casefold()) == key for other in items)
+
+
+def handoff_files(handoff_dir: str, *, repo: str, item_id: str, sync_point: str, split: bool = False) -> HandoffFiles:
     """Build the paths of an item's Handoff_Prompt and Handoff_Report, and of the status file.
+
+    The prompt file is ``<repo>.md`` (Sync_Point ``rollout``) or ``sync/<sync_point>-<repo>.md``.
+    With ``split`` it is ``<repo>-<item_id>.md`` or ``sync/<sync_point>-<repo>-<item_id>.md``,
+    so that two items of one Sync_Point and repository (:func:`prompt_is_split`) do not share it.
+    ``item_id`` is lowercase letters, digits and single hyphens, so it adds no other character.
 
     Requirement 28.22 keeps the three in this repository's ``.private/``, and the layout of
     design sections 17 and 20 puts them in ``.private/handoff/``. ``repo`` and ``item_id``
@@ -1021,6 +1045,7 @@ def handoff_files(handoff_dir: str, *, repo: str, item_id: str, sync_point: str)
         repo: The item's target repository.
         item_id: The item's ID.
         sync_point: The item's Sync_Point.
+        split: Put ``item_id`` in the prompt file name.
 
     Returns:
         The three paths.
@@ -1039,10 +1064,11 @@ def handoff_files(handoff_dir: str, *, repo: str, item_id: str, sync_point: str)
         issues.append(CommandIssue("sync_point", f"must be one of {', '.join(SYNC_POINTS)}, got {_show(sync_point)}"))
     if issues:
         raise CommandError(issues)
+    stem = f"{repo}-{item_id}" if split else repo
     if sync_point == ROLLOUT_SYNC_POINT:
-        prompt = posixpath.join(directory, f"{repo}.md")
+        prompt = posixpath.join(directory, f"{stem}.md")
     else:
-        prompt = posixpath.join(directory, SYNC_PROMPT_DIR, f"{sync_point}-{repo}.md")
+        prompt = posixpath.join(directory, SYNC_PROMPT_DIR, f"{sync_point}-{stem}.md")
     return HandoffFiles(
         status=posixpath.join(directory, STATUS_FILE),
         report=posixpath.join(directory, repo, item_id, REPORT_FILE),
