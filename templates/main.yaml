@@ -39,10 +39,73 @@ Parameters:
     Type: AWS::EC2::AvailabilityZone::Name
     Description: Second availability zone.
 
+  FsxAdminPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 50
+    Description: Password for the fsxadmin user (passed to the Storage stack).
+
+  LambdaArtifactBucket:
+    Type: String
+    Description: S3 bucket containing the Lambda packages (passed to the Event-Driven stack).
+
+  LambdaArtifactPrefix:
+    Type: String
+    Default: lambda-packages
+    Description: S3 key prefix for the Lambda packages (passed to the Event-Driven stack).
+
+  EventTransformerS3Key:
+    Type: String
+    Description: S3 key of the event-transformer package, from the package-lambdas.sh manifest.
+
+  QuarantineActionS3Key:
+    Type: String
+    Description: S3 key of the quarantine-action package, from the package-lambdas.sh manifest.
+
   NotificationEmail:
     Type: String
     Default: ''
     Description: Email for security alert notifications (passed to Event-Driven stack).
+
+  FallbackNotificationEmail:
+    Type: String
+    Default: ''
+    Description: >
+      Email subscribed to the fallback alert topic (passed to the Event-Driven stack).
+      Use an address other than NotificationEmail.
+
+  ApprovalWaitingAlarmThresholdSeconds:
+    Type: Number
+    Default: 3600
+    MinValue: 300
+    MaxValue: 82800
+    Description: Age of the oldest approval request that raises the approval wait alarm (passed to the Event-Driven stack).
+
+  ApprovalWebhookEndpoint:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^https://\S+$'
+    Description: HTTPS webhook for approval wait alarm state changes (passed to the Event-Driven stack). Empty creates no webhook.
+
+  ApprovalWebhookApiKeyName:
+    Type: String
+    Default: x-api-key
+    AllowedPattern: '^[A-Za-z0-9-]{1,64}$'
+    Description: HTTP header that carries the webhook API key (passed to the Event-Driven stack).
+
+  ApprovalWebhookApiKeyValue:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Webhook API key, required when ApprovalWebhookEndpoint is set (passed to the Event-Driven stack).
+
+  ApprovalWebhookKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for the Secrets Manager secret of the webhook connection (passed to the Event-Driven stack).
+      If empty, the secret keeps the AWS owned key. A key must be symmetric and tagged EventBridgeApiDestinations=true.
 
   LogGroupKmsKeyArn:
     Type: String
@@ -57,6 +120,19 @@ Parameters:
     Description: >
       KMS key ARN for encrypting Lambda environment variables in the Event-Driven stack.
       If empty, Lambda uses its default AWS managed key (aws/lambda).
+
+# -------------------------------------------------------------------
+# Rules
+# -------------------------------------------------------------------
+# The Event-Driven stack has the same rule. Checking it here makes the root
+# stack fail at creation, before any nested stack is created. CloudFormation
+# evaluates Rules at create-stack, not at create-change-set (measured).
+Rules:
+  ApprovalWebhookNeedsApiKey:
+    RuleCondition: !Not [!Equals [!Ref ApprovalWebhookEndpoint, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ApprovalWebhookApiKeyValue, '']]
+        AssertDescription: ApprovalWebhookApiKeyValue is required when ApprovalWebhookEndpoint is set.
 
 # -------------------------------------------------------------------
 # Resources
@@ -99,6 +175,7 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
+        FsxAdminPassword: !Ref FsxAdminPassword
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -120,7 +197,17 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
+        LambdaArtifactBucket: !Ref LambdaArtifactBucket
+        LambdaArtifactPrefix: !Ref LambdaArtifactPrefix
+        EventTransformerS3Key: !Ref EventTransformerS3Key
+        QuarantineActionS3Key: !Ref QuarantineActionS3Key
         NotificationEmail: !Ref NotificationEmail
+        FallbackNotificationEmail: !Ref FallbackNotificationEmail
+        ApprovalWaitingAlarmThresholdSeconds: !Ref ApprovalWaitingAlarmThresholdSeconds
+        ApprovalWebhookEndpoint: !Ref ApprovalWebhookEndpoint
+        ApprovalWebhookApiKeyName: !Ref ApprovalWebhookApiKeyName
+        ApprovalWebhookApiKeyValue: !Ref ApprovalWebhookApiKeyValue
+        ApprovalWebhookKmsKeyArn: !Ref ApprovalWebhookKmsKeyArn
         LogGroupKmsKeyArn: !Ref LogGroupKmsKeyArn
         LambdaEnvKmsKeyArn: !Ref LambdaEnvKmsKeyArn
       Tags:

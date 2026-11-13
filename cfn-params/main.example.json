@@ -24,7 +24,27 @@
     "ParameterValue": "ap-northeast-1c"
   },
   {
+    "ParameterKey": "FsxAdminPassword",
+    "ParameterValue": "REPLACE_WITH_FSXADMIN_PASSWORD"
+  },
+  {
+    "ParameterKey": "LambdaArtifactBucket",
+    "ParameterValue": "REPLACE_WITH_LAMBDA_ARTIFACT_BUCKET"
+  },
+  {
+    "ParameterKey": "EventTransformerS3Key",
+    "ParameterValue": "REPLACE_WITH_MANIFEST_event-transformer"
+  },
+  {
+    "ParameterKey": "QuarantineActionS3Key",
+    "ParameterValue": "REPLACE_WITH_MANIFEST_quarantine-action"
+  },
+  {
     "ParameterKey": "NotificationEmail",
     "ParameterValue": "security-alerts@example.com"
+  },
+  {
+    "ParameterKey": "FallbackNotificationEmail",
+    "ParameterValue": "security-oncall@example.com"
   }
 ]

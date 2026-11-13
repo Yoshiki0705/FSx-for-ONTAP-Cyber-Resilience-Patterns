@@ -123,6 +123,11 @@ Resources:
   # delivered nothing without this policy (measured).
   HubAlertTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W3037  # sns:Receive is a legacy topic-policy action absent from the linter's action list
     Properties:
       Topics:
         - !Ref HubAlertTopic

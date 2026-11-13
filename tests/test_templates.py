@@ -7,6 +7,7 @@ Handles CloudFormation intrinsic functions (!Ref, !Sub, etc.) with a custom YAML
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -332,6 +333,8 @@ class TestSqsSourcedLambdaDlqSkip:
         assert skipped == {
             "EventTransformerLambda": ["CKV_AWS_116", "CKV_AWS_117"],
             "QuarantineLambda": ["CKV_AWS_116"],
+            # Encrypted with SSE-SQS, which CKV_AWS_27 does not recognize.
+            "ApprovalWebhookDlq": ["CKV_AWS_27"],
         }
 
     def test_quarantine_has_no_event_source_mapping(self) -> None:
@@ -361,6 +364,7 @@ OPTIONAL_KMS_BINDINGS = [
     ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
     ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("event-driven.yaml", "ApprovalWebhookConnection", "KmsKeyIdentifier", "ApprovalWebhookKmsKeyArn"),
     ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
 ]
 # main.yaml nests only these templates; the others are deployed as standalone stacks
@@ -401,6 +405,70 @@ class TestOptionalKmsKeys:
         assert param in main["Parameters"]
         nested = [r for r in main["Resources"].values() if stack in str(r["Properties"]["TemplateURL"])]
         assert nested and nested[0]["Properties"]["Parameters"][param] == {"Ref": param}
+
+
+def _nested_stacks() -> list[tuple[str, dict, dict]]:
+    """(child template file, child Parameters, nested-stack Parameters) for each stack in main.yaml."""
+    main = _load_tagged("main.yaml")
+    stacks = []
+    for resource in main["Resources"].values():
+        if resource["Type"] != "AWS::CloudFormation::Stack":
+            continue
+        child = re.search(r"\}([a-z-]+\.yaml)$", resource["Properties"]["TemplateURL"]["Sub"]).group(1)
+        stacks.append((child, _load_tagged(child)["Parameters"], resource["Properties"].get("Parameters", {})))
+    return stacks
+
+
+class TestMainPassesNestedParameters:
+    """main.yaml must hand each nested stack every parameter it cannot default."""
+
+    # Optional event-driven.yaml parameters that the root stack exposes.
+    EVENT_DRIVEN_PASSED = [
+        "LambdaArtifactPrefix",
+        "FallbackNotificationEmail",
+        "ApprovalWaitingAlarmThresholdSeconds",
+        "ApprovalWebhookEndpoint",
+        "ApprovalWebhookApiKeyName",
+        "ApprovalWebhookApiKeyValue",
+    ]
+
+    def test_every_nested_stack_is_found(self) -> None:
+        # Guards the loop below against a TemplateURL shape the regex does not match.
+        assert sorted(c for c, _, _ in _nested_stacks()) == sorted(NESTED_IN_MAIN | {"storage.yaml"})
+
+    @pytest.mark.parametrize(("child", "params", "passed"), _nested_stacks(), ids=[c for c, _, _ in _nested_stacks()])
+    def test_parameters_without_default_are_passed(self, child: str, params: dict, passed: dict) -> None:
+        required = sorted(k for k, v in params.items() if "Default" not in v)
+        missing = [k for k in required if k not in passed]
+        assert missing == [], f"main.yaml does not pass {missing} to {child}"
+
+    @pytest.mark.parametrize(("child", "params", "passed"), _nested_stacks(), ids=[c for c, _, _ in _nested_stacks()])
+    def test_root_parameter_matches_the_nested_definition(self, child: str, params: dict, passed: dict) -> None:
+        root = _load_tagged("main.yaml")["Parameters"]
+        for name, value in passed.items():
+            if value != {"Ref": name} or name in ("ProjectName", "Environment"):
+                continue
+            for key in (
+                "Type",
+                "Default",
+                "NoEcho",
+                "AllowedPattern",
+                "MinValue",
+                "MaxValue",
+                "MinLength",
+                "MaxLength",
+            ):
+                assert root[name].get(key) == params[name].get(key), f"{name}.{key} differs from {child}"
+
+    def test_alert_parameters_reach_the_event_driven_stack(self) -> None:
+        passed = next(p for c, _, p in _nested_stacks() if c == "event-driven.yaml")
+        for name in self.EVENT_DRIVEN_PASSED:
+            assert passed.get(name) == {"Ref": name}
+
+    def test_root_rejects_a_webhook_without_a_key(self) -> None:
+        main = _load_tagged("main.yaml")
+        child = _load_tagged("event-driven.yaml")
+        assert main["Rules"]["ApprovalWebhookNeedsApiKey"] == child["Rules"]["ApprovalWebhookNeedsApiKey"]
 
 
 class TestAlertTopicDelivery:
@@ -449,7 +517,8 @@ class TestAlertTopicDelivery:
         policy = template["Resources"]["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]
         grants = [s for s in policy["Statement"] if s["Action"] == ["kms:GenerateDataKey", "kms:Decrypt"]]
         assert len(grants) == 1
-        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}]
+        # The role holds exactly the keys of the two topics it publishes to.
+        assert grants[0]["Resource"] == [{"GetAtt": "AlertTopicKey.Arn"}, {"GetAtt": "AlertFallbackTopicKey.Arn"}]
 
     def test_compliance_role_can_use_the_key_only_through_sns(self) -> None:
         siem = _load_tagged("siem-integration.yaml")
@@ -506,6 +575,176 @@ class TestQuarantineExecutionsFailedAlarm:
 
     def test_alarm_notifies_the_alert_topic(self, alarm: dict) -> None:
         assert alarm["AlarmActions"] == [{"Ref": "SecurityAlertTopic"}]
+
+
+class TestApprovalFallbackPath:
+    """An approval request must reach someone even when SecurityAlertTopic or its key fails."""
+
+    @pytest.fixture(scope="class")
+    def resources(self) -> dict:
+        return _load_tagged("event-driven.yaml")["Resources"]
+
+    def test_fallback_topic_has_its_own_customer_managed_key(self, resources: dict) -> None:
+        topic = resources["AlertFallbackTopic"]["Properties"]
+        assert topic["KmsMasterKeyId"] == {"GetAtt": "AlertFallbackTopicKey.Arn"}
+        assert topic["KmsMasterKeyId"] != resources["SecurityAlertTopic"]["Properties"]["KmsMasterKeyId"]
+        assert resources["AlertFallbackTopicKey"]["Properties"]["EnableKeyRotation"] is True
+
+    def test_alarms_may_publish_through_the_fallback_key_and_topic(self, resources: dict) -> None:
+        condition = {"StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}}}
+        key_stmt = next(
+            s
+            for s in resources["AlertFallbackTopicKey"]["Properties"]["KeyPolicy"]["Statement"]
+            if s["Sid"] == "AllowAlarmsToPublish"
+        )
+        assert key_stmt["Principal"] == {"Service": "cloudwatch.amazonaws.com"}
+        assert set(key_stmt["Action"]) == {"kms:Decrypt", "kms:GenerateDataKey*"}
+        assert key_stmt["Condition"] == condition
+        topic_stmt = next(
+            s
+            for s in resources["AlertFallbackTopicPolicy"]["Properties"]["PolicyDocument"]["Statement"]
+            if s["Sid"] == "AllowAlarmsToPublish"
+        )
+        assert topic_stmt["Principal"] == {"Service": "cloudwatch.amazonaws.com"}
+        assert topic_stmt["Action"] == "sns:Publish"
+        assert topic_stmt["Condition"] == condition
+
+    def test_state_machine_role_may_publish_to_the_fallback_topic(self, resources: dict) -> None:
+        statements = resources["StepFunctionsExecutionRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+        publish = next(s for s in statements if s["Action"] == ["sns:Publish"])
+        assert {"Ref": "AlertFallbackTopic"} in publish["Resource"]
+        kms = next(s for s in statements if "kms:GenerateDataKey" in s["Action"])
+        assert {"GetAtt": "AlertFallbackTopicKey.Arn"} in kms["Resource"]
+
+    def test_approval_wait_alarm_watches_the_oldest_approval_request(self, resources: dict) -> None:
+        alarm = resources["ApprovalWaitingAlarm"]["Properties"]
+        assert alarm["Namespace"] == "AWS/SQS"
+        assert alarm["MetricName"] == "ApproximateAgeOfOldestMessage"
+        assert alarm["Dimensions"] == [{"Name": "QueueName", "Value": {"GetAtt": "ApprovalQueue.QueueName"}}]
+        assert alarm["Statistic"] == "Maximum"
+        assert alarm["Threshold"] == {"Ref": "ApprovalWaitingAlarmThresholdSeconds"}
+        assert alarm["ComparisonOperator"] == "GreaterThanThreshold"
+        # An empty queue publishes no datapoint, which is the healthy state.
+        assert alarm["TreatMissingData"] == "notBreaching"
+
+    def test_approval_wait_alarm_notifies_both_topics(self, resources: dict) -> None:
+        actions = resources["ApprovalWaitingAlarm"]["Properties"]["AlarmActions"]
+        assert {"Ref": "AlertFallbackTopic"} in actions
+        assert {"Ref": "SecurityAlertTopic"} in actions
+
+    def test_threshold_stays_below_the_approval_timeout(self) -> None:
+        template = _load_tagged("event-driven.yaml")
+        param = template["Parameters"]["ApprovalWaitingAlarmThresholdSeconds"]
+        sm = template["Resources"]["QuarantineStateMachine"]["Properties"]["DefinitionString"]["Sub"]
+        timeout = json.loads(sm)["States"]["WaitForApproval"]["TimeoutSeconds"]
+        # The alarm period (300 s) is added before the alarm fires, so leave room for it.
+        assert param["MaxValue"] + 300 < timeout
+        assert param["MinValue"] <= param["Default"] <= param["MaxValue"]
+
+
+class TestApprovalWebhook:
+    """Approval wait alarm state changes reach a webhook through EventBridge, without SNS."""
+
+    WEBHOOK_RESOURCES = {
+        "ApprovalWebhookConnection": "AWS::Events::Connection",
+        "ApprovalWebhookDestination": "AWS::Events::ApiDestination",
+        "ApprovalWebhookRuleRole": "AWS::IAM::Role",
+        "ApprovalWebhookDlq": "AWS::SQS::Queue",
+        "ApprovalWebhookDlqPolicy": "AWS::SQS::QueuePolicy",
+        "ApprovalWebhookRule": "AWS::Events::Rule",
+        "ApprovalWebhookDlqAlarm": "AWS::CloudWatch::Alarm",
+    }
+
+    @pytest.fixture(scope="class")
+    def template(self) -> dict:
+        return _load_tagged("event-driven.yaml")
+
+    @pytest.fixture(scope="class")
+    def resources(self, template: dict) -> dict:
+        return template["Resources"]
+
+    def test_webhook_is_optional(self, template: dict) -> None:
+        params = template["Parameters"]
+        assert params["ApprovalWebhookEndpoint"]["Default"] == ""
+        assert template["Conditions"]["HasApprovalWebhook"] == {
+            "Not": [{"Equals": [{"Ref": "ApprovalWebhookEndpoint"}, ""]}]
+        }
+        # Every resource of the path, and only those, depends on the condition.
+        conditional = {
+            n: r["Type"] for n, r in template["Resources"].items() if r.get("Condition") == "HasApprovalWebhook"
+        }
+        assert conditional == self.WEBHOOK_RESOURCES
+        assert template["Outputs"]["ApprovalWebhookDlqUrl"]["Condition"] == "HasApprovalWebhook"
+
+    def test_endpoint_must_be_https(self, template: dict) -> None:
+        pattern = re.compile(template["Parameters"]["ApprovalWebhookEndpoint"]["AllowedPattern"])
+        assert pattern.fullmatch("")
+        assert pattern.fullmatch("https://hooks.example.com/approval")
+        assert not pattern.fullmatch("http://hooks.example.com/approval")
+        assert not pattern.fullmatch("https://hooks.example.com/a b")
+
+    def test_api_key_is_hidden_and_required_with_an_endpoint(self, template: dict) -> None:
+        assert template["Parameters"]["ApprovalWebhookApiKeyValue"]["NoEcho"] is True
+        rule = template["Rules"]["ApprovalWebhookNeedsApiKey"]
+        assert rule["RuleCondition"] == {"Not": [{"Equals": [{"Ref": "ApprovalWebhookEndpoint"}, ""]}]}
+        assert rule["Assertions"][0]["Assert"] == {"Not": [{"Equals": [{"Ref": "ApprovalWebhookApiKeyValue"}, ""]}]}
+
+    def test_connection_sends_the_api_key_header(self, resources: dict) -> None:
+        props = resources["ApprovalWebhookConnection"]["Properties"]
+        assert props["AuthorizationType"] == "API_KEY"
+        assert props["AuthParameters"]["ApiKeyAuthParameters"] == {
+            "ApiKeyName": {"Ref": "ApprovalWebhookApiKeyName"},
+            "ApiKeyValue": {"Ref": "ApprovalWebhookApiKeyValue"},
+        }
+        dest = resources["ApprovalWebhookDestination"]["Properties"]
+        assert dest["ConnectionArn"] == {"GetAtt": "ApprovalWebhookConnection.Arn"}
+        assert dest["InvocationEndpoint"] == {"Ref": "ApprovalWebhookEndpoint"}
+        assert dest["HttpMethod"] == "POST"
+
+    def test_rule_matches_only_the_approval_wait_alarm(self, resources: dict) -> None:
+        props = resources["ApprovalWebhookRule"]["Properties"]
+        # No EventBusName: CloudWatch sends alarm state changes to the default bus.
+        assert "EventBusName" not in props
+        assert props["EventPattern"] == {
+            "source": ["aws.cloudwatch"],
+            "detail-type": ["CloudWatch Alarm State Change"],
+            "resources": [{"GetAtt": "ApprovalWaitingAlarm.Arn"}],
+        }
+
+    def test_target_retries_and_keeps_undelivered_events(self, resources: dict) -> None:
+        (target,) = resources["ApprovalWebhookRule"]["Properties"]["Targets"]
+        assert target["Arn"] == {"GetAtt": "ApprovalWebhookDestination.Arn"}
+        assert target["RoleArn"] == {"GetAtt": "ApprovalWebhookRuleRole.Arn"}
+        assert target["RetryPolicy"] == {"MaximumEventAgeInSeconds": 86400, "MaximumRetryAttempts": 185}
+        assert target["DeadLetterConfig"] == {"Arn": {"GetAtt": "ApprovalWebhookDlq.Arn"}}
+
+    def test_rule_role_may_invoke_only_this_destination(self, resources: dict) -> None:
+        role = resources["ApprovalWebhookRuleRole"]["Properties"]
+        assert role["AssumeRolePolicyDocument"]["Statement"][0]["Principal"] == {"Service": "events.amazonaws.com"}
+        (policy,) = role["Policies"]
+        (statement,) = policy["PolicyDocument"]["Statement"]
+        assert statement["Action"] == "events:InvokeApiDestination"
+        assert statement["Resource"]["Sub"].endswith(":api-destination/${ApprovalWebhookDestination}/*")
+
+    def test_dlq_is_encrypted_and_accepts_only_this_rule(self, resources: dict) -> None:
+        queue = resources["ApprovalWebhookDlq"]["Properties"]
+        assert queue["SqsManagedSseEnabled"] is True
+        assert queue["MessageRetentionPeriod"] == 1209600
+        policy = resources["ApprovalWebhookDlqPolicy"]["Properties"]
+        assert policy["Queues"] == [{"Ref": "ApprovalWebhookDlq"}]
+        (statement,) = policy["PolicyDocument"]["Statement"]
+        assert statement["Principal"] == {"Service": "events.amazonaws.com"}
+        assert statement["Action"] == "sqs:SendMessage"
+        assert statement["Condition"] == {"ArnEquals": {"aws:SourceArn": {"GetAtt": "ApprovalWebhookRule.Arn"}}}
+
+    def test_dlq_alarm_notifies_both_topics(self, resources: dict) -> None:
+        alarm = resources["ApprovalWebhookDlqAlarm"]["Properties"]
+        assert alarm["MetricName"] == "ApproximateNumberOfMessagesVisible"
+        assert alarm["Dimensions"] == [{"Name": "QueueName", "Value": {"GetAtt": "ApprovalWebhookDlq.QueueName"}}]
+        assert alarm["Threshold"] == 1
+        assert alarm["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
+        assert {"Ref": "AlertFallbackTopic"} in alarm["AlarmActions"]
+        assert {"Ref": "SecurityAlertTopic"} in alarm["AlarmActions"]
 
 
 class TestHubAlertTopicDelivery:

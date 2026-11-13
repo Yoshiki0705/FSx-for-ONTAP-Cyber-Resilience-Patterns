@@ -135,6 +135,7 @@ TASKS_THAT_MUST_CATCH = [
     "CreateForensicSnapshot",
     "RestrictExportPolicy",
     "SendAlert",
+    "NotifyFallback",
     "WaitForApproval",
     "RestoreAccess",
     "CreateFlexClone",
@@ -272,11 +273,41 @@ class TestStepFunctionsAslValidation:
         If the alert cannot be published, the workflow must still ask for an approval decision.
         Ending at NotifyFailure would leave the volume quarantined with nobody asked.
         """
-        catch_all = quarantine_asl["States"]["SendAlert"]["Catch"][-1]
-        assert catch_all["Next"] == "WaitForApproval"
+        states = quarantine_asl["States"]
+        catch_all = states["SendAlert"]["Catch"][-1]
+        assert catch_all["Next"] == "NotifyFallback"
         # The failure is kept in its own field, so the approval message shows it to the reviewer.
         assert catch_all["ResultPath"] == "$.alertError"
         assert catch_all["ResultPath"] not in ("$", "$.error")
+
+        fallback = states["NotifyFallback"]
+        assert fallback["Next"] == "WaitForApproval"
+        assert fallback["Parameters"]["TopicArn"] == "${AlertFallbackTopic}"
+        assert fallback["Retry"][-1]["ErrorEquals"] == ["States.ALL"]
+        # A failed fallback must not end the workflow either: the approval request still goes out.
+        fallback_catch = fallback["Catch"][-1]
+        assert fallback_catch["ErrorEquals"] == ["States.ALL"]
+        assert fallback_catch["Next"] == "WaitForApproval"
+        assert fallback_catch["ResultPath"] == "$.fallbackError"
+
+    @pytest.mark.parametrize(
+        ("send_alert", "fallback", "expected_path"),
+        [
+            ("ok", None, ["SendAlert", "WaitForApproval"]),
+            ("fail", "ok", ["SendAlert", "NotifyFallback", "WaitForApproval"]),
+            ("fail", "fail", ["SendAlert", "NotifyFallback", "WaitForApproval"]),
+        ],
+    )
+    def test_alert_outcomes_all_lead_to_the_approval_step(self, quarantine_asl, send_alert, fallback, expected_path):
+        states = quarantine_asl["States"]
+        outcomes = {"SendAlert": send_alert, "NotifyFallback": fallback}
+        name, path = "SendAlert", []
+        while name != "WaitForApproval":
+            path.append(name)
+            state = states[name]
+            name = state["Next"] if outcomes[name] == "ok" else state["Catch"][-1]["Next"]
+        path.append(name)
+        assert path == expected_path
 
     def test_every_catch_and_choice_target_is_a_state(self, quarantine_asl):
         states = quarantine_asl["States"]

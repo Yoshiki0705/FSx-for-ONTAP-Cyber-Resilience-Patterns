@@ -167,10 +167,94 @@ Test on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run per case.
 - A missing datapoint counts as healthy (`notBreaching`).
 - Only `ExecutionsFailed` is watched. `ExecutionsTimedOut` and `ExecutionsAborted` are not. The definition sets no execution timeout, and the 24-hour approval wait is caught and escalated by `EscalateTimeout`.
 - `NotifyFailure` and `EscalateTimeout` retry the publish 3 times and then end in the `NotificationFailed` Fail state. A topic that cannot be published to therefore still produces a failed execution, which this alarm counts. This alarm notifies the same topic, so if the topic itself is the problem the alarm may reach nobody. Check the execution history in that case.
-- `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the execution continues to `WaitForApproval` and stores the error in `$.alertError`, which the approval message carries. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on a mocked failure (retries used up): the failure was caught and the next state was `WaitForApproval`. A deployed execution was not run.
+- `SendAlert` runs after the export policy is restricted. If it still fails after 3 retries, the error is stored in `$.alertError` and `NotifyFallback` publishes to `AlertFallbackTopic` (see [Approval Wait Alarm and Fallback Topic](#approval-wait-alarm-and-fallback-topic)). Whether `NotifyFallback` succeeds or fails (its error goes to `$.fallbackError`), the execution continues to `WaitForApproval`, and the approval message carries both fields. The volume stays restricted, and the approval step and its 24-hour escalation still run. Confirmed with the Step Functions TestState API on mocked failures and successes of both states (retries used up for the failures): every case reached `WaitForApproval`. A deployed execution was not run.
 - CloudWatch metrics for Step Functions are delivered on a best-effort basis, so a datapoint can arrive late or not at all ([Step Functions metrics](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)).
 
 Measured on 2026-11-12 (UTC) in one account in `ap-northeast-1`, one run: a state machine whose only state is `Fail`, with an alarm of the same shape (period 60 seconds). The execution ended in `FAILED`, the metric showed a Sum of 1, the alarm reached `ALARM` 104 seconds after the execution, and the notification arrived at a subscribed queue. A deployment of this template with the 300-second period was run once on 2026-11-13: a failed execution of the quarantine workflow raised the alarm about 49 seconds after it started ([results](alert-path-verification.md#results)).
+
+## Approval Wait Alarm and Fallback Topic
+
+All other alarms and workflow notices go through `SecurityAlertTopic`. If that topic or its key fails, they all fail together. `event-driven.yaml` therefore adds a second path for the approval request.
+
+| Resource | Purpose |
+|----------|---------|
+| `AlertFallbackTopic` and `AlertFallbackTopicKey` | A second topic with its own customer managed key (rotation on). CloudWatch in the same account may publish, and the Step Functions role has `sns:Publish` and the key permissions |
+| `NotifyFallback` state | Publishes when `SendAlert` fails, then continues to `WaitForApproval` whether or not it succeeds |
+| `ApprovalWaitingAlarm` | Watches `ApproximateAgeOfOldestMessage` (namespace `AWS/SQS`, `Maximum`, period 300 seconds) of the approval queue, and notifies both topics |
+| Parameter `FallbackNotificationEmail` | Subscribes an address to the fallback topic. Use an address other than `NotificationEmail`; the template cannot check this |
+| Parameter `ApprovalWaitingAlarmThresholdSeconds` | Default 3,600 seconds, 300 to 82,800. The maximum leaves room for the 300-second period inside the 24-hour approval timeout |
+
+How it behaves:
+
+- The alarm also fires when the primary alert was sent but nobody answered it.
+- The metric keeps counting a message until it is deleted, so the [ransomware recovery runbook](../runbooks/ransomware-recovery.md) deletes the message after `send-task-success`, and after a timeout. Without that, the alarm stays in `ALARM` after the request is answered.
+- AWS documents that a message received three or more times and not deleted is moved to the back of a standard queue and left out of the metric ([Amazon SQS CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html)). With one message in the queue this did not happen in the test below. With several waiting requests, the metric may follow the next one instead (not measured).
+- Both topics are SNS in the same Region. A Regional SNS outage stops both.
+
+Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per case, with standalone resources (a queue, an alarm with a 60-second threshold and period, and a topic encrypted with a customer managed key):
+
+| Case | Result |
+|------|--------|
+| Empty queue | The alarm stayed `OK` for 3 minutes |
+| One message sent | `ALARM` about 222 seconds after the send; the notification arrived at a subscribed queue through the encrypted topic |
+| Message received once, then three times, not deleted | The metric kept rising (from 285 to 762 seconds); the alarm stayed in `ALARM` |
+| Message deleted | `OK` about 174 seconds after the delete |
+
+Not measured: a deployment of this template, the 300-second period with the default threshold, several messages in the queue, and the Step Functions role publishing to the fallback topic in a deployed stack.
+
+## Approval Wait Webhook
+
+Both topics in the previous section are SNS. Setting `ApprovalWebhookEndpoint` adds a path that does not use SNS: an EventBridge rule on the default event bus sends each state change of `ApprovalWaitingAlarm` (`ALARM` and `OK`) to an [API destination](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html). The receiver is any HTTPS endpoint that accepts a JSON `POST` and checks an API key header. Leave the parameter empty to create none of these resources.
+
+| Resource or parameter | Purpose |
+|-----------------------|---------|
+| Parameter `ApprovalWebhookEndpoint` | HTTPS URL of the webhook. `http://` is rejected by the parameter pattern |
+| Parameters `ApprovalWebhookApiKeyName` and `ApprovalWebhookApiKeyValue` | Header name (default `x-api-key`) and value. The value is `NoEcho`, and a template rule rejects an empty value when the endpoint is set |
+| `ApprovalWebhookConnection` | `API_KEY` connection. EventBridge stores the key in a Secrets Manager secret whose name starts with `events!connection/`. The secret is encrypted with an AWS owned key, or with the key in `ApprovalWebhookKmsKeyArn` when you set it |
+| Parameter `ApprovalWebhookKmsKeyArn` | Optional KMS key ARN for that secret. Empty by default. See the next subsection before you set it |
+| `ApprovalWebhookDestination` | `POST` to the endpoint, at most 1 invocation per second |
+| `ApprovalWebhookRule` and `ApprovalWebhookRuleRole` | Matches `aws.cloudwatch` / `CloudWatch Alarm State Change` events for this alarm only. The role may call `events:InvokeApiDestination` on this destination only |
+| `ApprovalWebhookDlq` and `ApprovalWebhookDlqPolicy` | Standard queue with SQS managed encryption. Only this rule may send to it |
+| `ApprovalWebhookDlqAlarm` | Notifies both topics when the dead-letter queue holds a message |
+
+How it behaves, as documented by AWS:
+
+- A request times out after 5 seconds.
+- Responses 401, 407, 409, 429 and 5xx are retried. The target's retry policy is set to 24 hours and 185 attempts. Other 4xx responses are not retried, and the event goes to the dead-letter queue.
+- The dead-letter message carries `ERROR_CODE` and `ERROR_MESSAGE` attributes. Resend events from it after you fix the receiver.
+
+The rule and the alarm are in the same Region as the topics. The path covers an SNS failure, and a Regional EventBridge or CloudWatch outage stops it too. The webhook receiver needs its own monitoring: the dead-letter alarm notifies the SNS topics.
+
+Measured on 2026-11-13 (UTC) in one account in `ap-northeast-1`, one run per case, with standalone resources of the same shape (alarm, rule, `API_KEY` connection, API destination, dead-letter queue). The receiver was a Lambda function URL that checked the key header.
+
+| Case | Result |
+|------|--------|
+| Control: request without the key, then with it | 403 without the key, 200 with it |
+| Alarm to `ALARM`, then `OK`, receiver returns 200 | Both events arrived, about 0.7 seconds after each state change |
+| Receiver returns 500, then 200 again | Attempts got 500 at about 1, 55 and 166 seconds. After the receiver was switched back to 200, the event arrived at about 386 seconds. The dead-letter queue stayed empty |
+| Receiver returns 400 | One attempt and no retry. Both events (`ALARM` and `OK`) went to the dead-letter queue with `ERROR_CODE` `INVALID_PARAMETER` |
+
+A deployment of this template was then checked once (C6 in the [alert path verification](alert-path-verification.md#results)): delivery with a 200 response, the dead-letter queue with a 400 response, and the dead-letter alarm reaching the fallback topic. Not measured in the deployment: retries on a 5xx response.
+
+`main.yaml` exposes the same parameters as this section and the previous one (`FallbackNotificationEmail`, `ApprovalWaitingAlarmThresholdSeconds`, `ApprovalWebhookEndpoint`, `ApprovalWebhookApiKeyName`, `ApprovalWebhookApiKeyValue` and `ApprovalWebhookKmsKeyArn`) and passes them to the Event-Driven stack. It also carries a template rule that fails the creation of the stack when an endpoint is set without a key. Measured once (ap-northeast-1, 2026-11-14 JST) with a probe stack that has the same rule and one free resource: creating it with an endpoint and no key ended in `ROLLBACK_COMPLETE` with `Parameter validation failed: assertion error`, and the resource was never created; with a key it was created. A change set for `main.yaml` with an endpoint and no key was accepted, so the failure appears when the stack is created, not when the change set is. The probe used the text of the rule, not `main.yaml` itself. A deployment through `main.yaml` has not been run.
+
+### Customer Managed Key for the Connection Secret
+
+Set `ApprovalWebhookKmsKeyArn` to encrypt the connection secret with your own key. The key must be a symmetric encryption key and must carry the tag `EventBridgeApiDestinations=true`. The template does not create the key, so the key policy stays yours.
+
+**A missing tag is silent at creation.** Without the tag, the connection is created and shows `AUTHORIZED`, and no template check or deployment error appears. Every delivery then fails and goes to `ApprovalWebhookDlq`, so the first signal is the dead-letter alarm.
+
+Measured on 2026-11-14 (JST) in one account in `ap-northeast-1`, one run per case, with probe stacks that hold a connection, an API destination, a rule and a dead-letter queue. The key policy was the default one that delegates to the account.
+
+| Case | Result |
+|------|--------|
+| No key set (AWS owned key) | Connection `AUTHORIZED`. The event reached the receiver. The dead-letter queue stayed empty |
+| Key with the tag | Connection `AUTHORIZED`, `KmsKeyIdentifier` set. The event reached the receiver. The dead-letter queue stayed empty |
+| Same key without the tag | Stack created and connection `AUTHORIZED`. The event did not reach the receiver. The dead-letter queue got 1 message with `ERROR_CODE` `UNKNOWN` and the text `Unable to invoke ApiDestination endpoint: An error occurred while obtaining the connection authentication details for the API destination.` |
+
+A condition on `kms:ResourceTag` in the key policy cannot be used to restrict the key to this tag: KMS rejected the key at creation with `These condition keys are not permitted in a key policy`.
+
+Not measured: a key policy that does not delegate to the account, disabling or deleting the key after the connection exists, the permissions the deploying identity needs on the key, and a deployment through `main.yaml` with the parameter set. Deployment of the alert path with a customer managed key has been run only with the probe stacks.
 
 ## VPC Endpoint Conflict Matrix
 

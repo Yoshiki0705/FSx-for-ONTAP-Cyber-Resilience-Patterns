@@ -167,10 +167,94 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - データポイントがない場合は正常として扱います（`notBreaching`）。
 - 監視するのは `ExecutionsFailed` だけです。`ExecutionsTimedOut` と `ExecutionsAborted` は監視しません。定義に実行全体のタイムアウトはなく、24 時間の承認待ちは `EscalateTimeout` が捕捉して通知します。
 - `NotifyFailure` と `EscalateTimeout` は、発行を 3 回リトライし、それでも失敗すると `NotificationFailed` の Fail 状態で終わります。トピックに発行できない場合も、失敗した実行が残り、このアラームが数えます。このアラームも同じトピックに通知するため、トピック自体に問題があるときは、アラームが誰にも届かないことがあります。その場合は実行履歴を確認してください。
-- `SendAlert` は、エクスポートポリシーを制限した後に動きます。3 回リトライしても失敗した場合、実行は `WaitForApproval` に進み、エラーを `$.alertError` に保存します。承認メッセージにこのエラーが含まれます。ボリュームは制限されたままで、承認の手順と 24 時間後のエスカレーションは動きます。Step Functions の TestState API で、失敗をモックして（リトライを使い切った状態）確認しました。失敗は捕捉され、次の状態は `WaitForApproval` でした。デプロイした環境での実行は、していません。
+- `SendAlert` は、エクスポートポリシーを制限した後に動きます。3 回リトライしても失敗した場合、エラーを `$.alertError` に保存し、`NotifyFallback` が `AlertFallbackTopic` に発行します（[承認待ちのアラームと予備のトピック](#承認待ちのアラームと予備のトピック)）。`NotifyFallback` が成功しても失敗しても（失敗のエラーは `$.fallbackError`）、実行は `WaitForApproval` に進みます。承認メッセージには両方のフィールドが含まれます。ボリュームは制限されたままで、承認の手順と 24 時間後のエスカレーションは動きます。Step Functions の TestState API で、両方の状態の失敗と成功をモックして（失敗はリトライを使い切った状態）確認しました。どの場合も `WaitForApproval` に進みました。デプロイした環境での実行は、していません。
 - Step Functions の CloudWatch 指標はベストエフォートで配信されるため、データポイントが遅れる、または届かないことがあります（[Step Functions の指標](https://docs.aws.amazon.com/step-functions/latest/dg/procedure-cw-metrics.html)）。
 
 2026-11-12（UTC）に、1 アカウントの `ap-northeast-1` で、1 回実行して測りました。状態が `Fail` だけのステートマシンと、同じ形のアラーム（期間 60 秒）を使っています。実行は `FAILED` で終わり、指標の Sum は 1 になり、アラームは実行の 104 秒後に `ALARM` になり、購読したキューに通知が配信されました。このテンプレートを期間 300 秒でデプロイした確認は、2026-11-13 に 1 回実行しました。隔離ワークフローの実行が失敗し、開始の約 49 秒後にアラームが鳴りました（[測定結果](alert-path-verification.md#測定結果)）。
+
+## 承認待ちのアラームと予備のトピック
+
+ほかのアラームとワークフローの通知は、すべて `SecurityAlertTopic` を通ります。このトピックかその鍵に問題があると、全部が同時に届かなくなります。そのため `event-driven.yaml` は、承認の依頼に 2 つ目の経路を足しています。
+
+| リソース | 役割 |
+|----------|------|
+| `AlertFallbackTopic` と `AlertFallbackTopicKey` | 専用のお客様管理キー（ローテーション有効）で暗号化した 2 つ目のトピック。同じアカウントの CloudWatch が発行でき、Step Functions のロールは `sns:Publish` と鍵の権限を持つ |
+| `NotifyFallback` の状態 | `SendAlert` が失敗したときに発行する。成功しても失敗しても `WaitForApproval` に進む |
+| `ApprovalWaitingAlarm` | 承認キューの `ApproximateAgeOfOldestMessage`（名前空間 `AWS/SQS`、`Maximum`、期間 300 秒）を監視し、両方のトピックに通知する |
+| パラメータ `FallbackNotificationEmail` | 予備のトピックに購読させるアドレス。`NotificationEmail` とは別のアドレスにする。テンプレートでは確かめられない |
+| パラメータ `ApprovalWaitingAlarmThresholdSeconds` | 既定 3,600 秒、範囲 300〜82,800。上限は、24 時間の承認タイムアウトの中に期間 300 秒が収まるようにしてある |
+
+動き方は次のとおりです。
+
+- 主の通知が届いても、誰も応答しない場合にもアラームが鳴ります。
+- この指標は、メッセージを削除するまで数え続けます。そのため[ランサムウェア復旧の手順書](../runbooks/ransomware-recovery.md)では、`send-task-success` の後と、タイムアウトの後に、メッセージを削除します。削除しないと、応答した後もアラームは `ALARM` のままです。
+- AWS のドキュメントには、3 回以上受信して削除していないメッセージは、標準キューの後ろに回され、この指標から外れるとあります（[Amazon SQS の CloudWatch 指標](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html)）。下の試験では、キューに 1 件だけのときはこの動きは見えませんでした。複数の依頼が待っているときは、指標が次のメッセージを指すことがあります（未測定）。
+- 2 つのトピックは、同じリージョンの SNS です。リージョン単位の SNS の障害では、両方が止まります。
+
+2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、単独のリソース（キュー、閾値と期間が 60 秒のアラーム、お客様管理キーで暗号化したトピック）を使い、各 1 回測りました。
+
+| 場合 | 結果 |
+|------|------|
+| 空のキュー | アラームは 3 分間 `OK` のまま |
+| メッセージを 1 件送信 | 送信の約 222 秒後に `ALARM`。暗号化したトピックを通って、購読したキューに通知が届いた |
+| 1 回、続けて 3 回まで受信し、削除しない | 指標は増え続けた（285 秒から 762 秒）。アラームは `ALARM` のまま |
+| メッセージを削除 | 削除の約 174 秒後に `OK` |
+
+未測定のものは、このテンプレートのデプロイ、既定の閾値と期間 300 秒での動作、キューに複数のメッセージがある場合、デプロイしたスタックで Step Functions のロールが予備のトピックに発行できるか、です。
+
+## 承認待ちの Webhook
+
+前の節の 2 つのトピックは、どちらも SNS です。`ApprovalWebhookEndpoint` を指定すると、SNS を使わない経路が加わります。既定のイベントバスの EventBridge ルールが、`ApprovalWaitingAlarm` の状態の変化（`ALARM` と `OK`）を [API 送信先](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html)に送ります。受信側は、JSON の `POST` を受け付け、API キーのヘッダーを確かめる HTTPS のエンドポイントであれば種類を問いません。パラメータを空にすると、これらのリソースは作られません。
+
+| リソースまたはパラメータ | 役割 |
+|--------------------------|------|
+| パラメータ `ApprovalWebhookEndpoint` | Webhook の HTTPS の URL。`http://` はパラメータのパターンで拒否される |
+| パラメータ `ApprovalWebhookApiKeyName` と `ApprovalWebhookApiKeyValue` | ヘッダーの名前（既定 `x-api-key`）と値。値は `NoEcho` で、エンドポイントを指定したときに値が空だと、テンプレートのルールが拒否する |
+| `ApprovalWebhookConnection` | `API_KEY` の接続。EventBridge は、名前が `events!connection/` で始まる Secrets Manager のシークレットにキーを保存する。シークレットは、AWS 所有のキーで暗号化される。`ApprovalWebhookKmsKeyArn` を指定したときは、そのキーで暗号化される |
+| パラメータ `ApprovalWebhookKmsKeyArn` | そのシークレットを暗号化する KMS キーの ARN（任意、既定は空）。指定する前に次の小節を読む |
+| `ApprovalWebhookDestination` | エンドポイントへの `POST`。呼び出しは毎秒 1 回まで |
+| `ApprovalWebhookRule` と `ApprovalWebhookRuleRole` | このアラームの `aws.cloudwatch` / `CloudWatch Alarm State Change` のイベントだけに一致する。ロールは、この送信先への `events:InvokeApiDestination` だけを持つ |
+| `ApprovalWebhookDlq` と `ApprovalWebhookDlqPolicy` | SQS マネージドの暗号化を使う標準キュー。送信できるのはこのルールだけ |
+| `ApprovalWebhookDlqAlarm` | デッドレターキューにメッセージがあると、両方のトピックに通知する |
+
+AWS のドキュメントにある動き方は次のとおりです。
+
+- リクエストは 5 秒でタイムアウトします。
+- 401、407、409、429、5xx の応答はリトライされます。ターゲットのリトライポリシーは 24 時間、185 回にしてあります。ほかの 4xx はリトライされず、イベントはデッドレターキューに入ります。
+- デッドレターキューのメッセージには、属性 `ERROR_CODE` と `ERROR_MESSAGE` が付きます。受信側を直した後、そこからイベントを送り直します。
+
+ルールとアラームは、トピックと同じリージョンにあります。この経路が補うのは SNS の障害で、リージョン単位の EventBridge や CloudWatch の障害では、この経路も止まります。Webhook の受信側は、別に監視が要ります。デッドレターキューのアラームは SNS のトピックに通知するためです。
+
+2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、同じ形の単独のリソース（アラーム、ルール、`API_KEY` の接続、API 送信先、デッドレターキュー）を使い、各 1 回測りました。受信側は、キーのヘッダーを確かめる Lambda の関数 URL です。
+
+| 場合 | 結果 |
+|------|------|
+| 対照: キーなし、続けてキーありのリクエスト | キーなしは 403、キーありは 200 |
+| アラームを `ALARM`、続けて `OK` にし、受信側は 200 を返す | 両方のイベントが、状態の変化から約 0.7 秒で届いた |
+| 受信側が 500 を返し、その後 200 に戻す | 約 1 秒、55 秒、166 秒の試行が 500 を受けた。受信側を 200 に戻した後、約 386 秒でイベントが届いた。デッドレターキューは空のまま |
+| 受信側が 400 を返す | 試行は 1 回で、リトライはなかった。両方のイベント（`ALARM` と `OK`）が、`ERROR_CODE` `INVALID_PARAMETER` 付きでデッドレターキューに入った |
+
+その後、このテンプレートのデプロイを 1 回確かめました（[通知経路の確認](alert-path-verification.md#測定結果)の C6）。200 の応答での配信、400 の応答でのデッドレターキュー、デッドレターキューのアラームが予備のトピックに通知することです。デプロイでは、5xx の応答でのリトライは測っていません。
+
+`main.yaml` にも、この節と前の節のパラメータ（`FallbackNotificationEmail`、`ApprovalWaitingAlarmThresholdSeconds`、`ApprovalWebhookEndpoint`、`ApprovalWebhookApiKeyName`、`ApprovalWebhookApiKeyValue`、`ApprovalWebhookKmsKeyArn`）があり、Event-Driven スタックに渡します。エンドポイントを指定してキーが空のときにスタックの作成を失敗させる、テンプレートのルールも持ちます。2026-11-14（日本時間）に `ap-northeast-1` で、同じルールと無料のリソース 1 つだけの試験用スタックを使い、1 回測りました。エンドポイントありでキーなしで作成すると、`Parameter validation failed: assertion error` で `ROLLBACK_COMPLETE` になり、リソースは作られませんでした。キーありでは作成できました。`main.yaml` の変更セットは、エンドポイントありでキーなしでも作成できました。失敗が現れるのは変更セットの作成時ではなく、スタックの作成時です。試験に使ったのはルールの文面で、`main.yaml` そのものではありません。`main.yaml` からのデプロイは実行していません。
+
+### 接続のシークレットに対するカスタマー管理キーの指定
+
+`ApprovalWebhookKmsKeyArn` を指定すると、接続のシークレットを自分のキーで暗号化できます。キーは対称暗号化キーで、タグ `EventBridgeApiDestinations=true` が必要です。テンプレートはキーを作らないので、キーポリシーは利用者の管理下にあります。
+
+**タグがなくても、作成時には何も起きません。** タグがなくても接続は作られて `AUTHORIZED` と表示され、テンプレートの検査にもデプロイにもエラーは出ません。その後の配信がすべて失敗して `ApprovalWebhookDlq` に入るため、最初の信号はデッドレターキューのアラームです。
+
+2026-11-14（日本時間）に 1 アカウントの `ap-northeast-1` で、接続、API 送信先、ルール、デッドレターキューを持つ試験用スタックを使い、各 1 回測りました。キーポリシーは、アカウントに委任する既定のものです。
+
+| 場合 | 結果 |
+|------|------|
+| キーを指定しない（AWS 所有のキー） | 接続は `AUTHORIZED`。イベントは受信側に届き、デッドレターキューは空のまま |
+| タグ付きのキー | 接続は `AUTHORIZED` で、`KmsKeyIdentifier` が設定された。イベントは受信側に届き、デッドレターキューは空のまま |
+| 同じキーでタグなし | スタックは作成され、接続は `AUTHORIZED`。イベントは受信側に届かず、デッドレターキューに `ERROR_CODE` `UNKNOWN` のメッセージが 1 件入った。本文は `Unable to invoke ApiDestination endpoint: An error occurred while obtaining the connection authentication details for the API destination.` |
+
+キーポリシーの `kms:ResourceTag` の条件で、このタグにキーを限定することはできません。KMS が `These condition keys are not permitted in a key policy` でキーの作成を拒否しました。
+
+測っていないもの: アカウントに委任しないキーポリシー、接続の作成後にキーを無効化または削除したときの動き、デプロイする ID にキーで必要な権限、パラメータを指定した `main.yaml` からのデプロイです。カスタマー管理キーを使う通知経路のデプロイは、試験用スタックでしか実行していません。
 
 ## VPC Endpoint 競合マトリクス
 
