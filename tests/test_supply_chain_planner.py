@@ -202,6 +202,28 @@ def test_malicious_package_is_never_suppressed_by_vex() -> None:
     assert plan.rejected_vex == ((".vex/a.json", "malicious_package_not_suppressible"),)
 
 
+def test_vex_statement_on_an_alias_of_a_malicious_finding_is_rejected_and_not_applied() -> None:
+    mal = _finding("MAL-2026-0001", None, aliases=("GHSA-aaaa-bbbb-cccc",))
+    plan = planner.plan(_inputs((mal,), vex={REPO: (_vex("not_affected", "GHSA-aaaa-bbbb-cccc"),)}))
+    assert [a.op for a in plan.actions] == ["create"]
+    assert plan.rejected_vex == ((".vex/a.json", "malicious_package_not_suppressible"),)
+
+
+def test_kev_listed_finding_without_severity_is_below_threshold_when_kev_opening_is_off() -> None:
+    bare = _finding("CVE-2026-0006", None)
+    feeds = _feeds(kev={"CVE-2026-0006": (date(2026, 11, 8), None)})
+    plan = planner.plan(_inputs((bare,), policy=_policy(kev=False), feeds=feeds))
+    assert (plan.actions, plan.below_threshold, plan.unscored) == ((), (bare,), ())
+
+
+def test_origin_is_the_later_of_publication_and_first_observation() -> None:
+    late = _finding(published=NOW - timedelta(days=3), observed=NOW - timedelta(days=1))
+    early = _finding("CVE-2026-0002", published=NOW - timedelta(days=3), observed=NOW - timedelta(days=8))
+    plan = planner.plan(_inputs((late, early)))
+    origins = {a.vuln_id: _state(plan, i)["origin_at"] for i, a in enumerate(plan.actions)}
+    assert origins == {"CVE-2026-0001": "2026-11-09T06:00:00Z", "CVE-2026-0002": "2026-11-07T06:00:00Z"}
+
+
 # --- step 3: grouping ----------------------------------------------------------------------------
 
 
@@ -306,6 +328,42 @@ def test_a_low_kev_issue_keeps_its_deadline() -> None:
     first = _inputs((low,), feeds=kev)
     second = _next(first, planner.plan(first), now=LATER, run_id="201-1")
     assert planner.plan(second).actions == ()
+
+
+def test_a_low_issue_that_enters_kev_keeps_its_deadline() -> None:
+    low = _finding("CVE-2026-0004", "LOW")
+    first = _inputs((low,), policy=_policy(minimum="LOW"))
+    kev = _feeds(kev={"CVE-2026-0004": (date(2026, 11, 11), None)})
+    second = _next(first, planner.plan(first), now=LATER, run_id="201-1", feeds=kev)
+    plan = planner.plan(second)
+    assert [a.op for a in plan.actions] == ["update"]
+    assert _state(plan)["due_at"] == "2026-11-24T06:00:00Z"  # fix_days_high, unchanged
+
+
+def test_duplicate_open_issues_are_left_alone_and_the_lowest_open_one_is_updated() -> None:
+    opened = _opened((_finding(),))
+    state = opened.issues[0].body_state
+    extra = models.ManagedIssue(REPO, 9, "finding", "CVE-2026-0001", "open", state)
+    closed = models.ManagedIssue(REPO, 3, "finding", "CVE-2026-0001", "closed", state)
+    epss = {"CVE-2026-0001": ("0.1", date(2026, 11, 11), "v1")}
+    plan = planner.plan(replace(opened, issues=(*opened.issues, extra, closed), feeds=_feeds(epss=epss)))
+    assert [(a.op, a.number) for a in plan.actions] == [("update", 1)]  # not the closed 3, not the duplicate 9
+
+
+def test_a_new_mal_id_for_another_version_does_not_take_over_the_issue() -> None:
+    first = _inputs((_finding("MAL-2026-0001", None, purl="pkg:npm/evil@1.0.0"),))
+    other = _finding("MAL-2026-0002", None, purl="pkg:npm/evil@2.0.0")
+    second = _next(first, planner.plan(first), findings=frozenset({other}), feeds=_feeds())
+    ops = _ops(planner.plan(second))
+    assert ("create", "finding", "MAL-2026-0002") in ops and ("close", "finding", "MAL-2026-0001") in ops
+
+
+def test_ghsa_advisory_with_a_severity_is_not_absorbed_into_a_malicious_issue() -> None:
+    mal = _finding("MAL-2026-0007", None)
+    real = _finding("GHSA-rrrr-aaaa-llll", "MEDIUM")  # same package version, a real advisory below the threshold
+    plan = planner.plan(_inputs((mal, real)))
+    assert plan.below_threshold == (real,)
+    assert issue_body.parse_marker(plan.actions[0].body).aliases == ()  # type: ignore[union-attr]
 
 
 # --- step 5: the opening limit ---------------------------------------------------------------------
