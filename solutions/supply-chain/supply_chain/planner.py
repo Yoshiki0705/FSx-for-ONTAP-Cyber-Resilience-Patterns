@@ -219,6 +219,20 @@ def _build_groups(included: Sequence[Finding], rest: Sequence[Finding]) -> tuple
             units.setdefault((_repo_key(f.repo), f.component.purl, f.component.version), []).append(f)
         else:
             plain.setdefault((_repo_key(f.repo), f.vuln_id), []).append(f)
+    for key in sorted(plain):  # a GHSA that met the threshold (e.g. on the KEV list) joins the MAL- group too
+        if not key[1].startswith(_GHSA_PREFIX):
+            continue
+        keep: list[Finding] = []
+        for f in plain[key]:
+            unit = (key[0], f.component.purl, f.component.version)
+            if unit in units and f.cvss_severity is None:
+                units[unit].append(f)
+            else:
+                keep.append(f)
+        if keep:
+            plain[key] = keep
+        else:
+            del plain[key]
     absorbed: set[Finding] = set()
     for f in rest:
         unit = (_repo_key(f.repo), f.component.purl, f.component.version)
