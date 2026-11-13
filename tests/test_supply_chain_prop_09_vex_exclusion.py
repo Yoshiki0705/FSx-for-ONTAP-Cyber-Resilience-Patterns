@@ -23,6 +23,7 @@ from supply_chain import issue_body, models, planner
 
 from tests.fakes import issue_store as fake
 from tests.strategies import supply_chain as sc
+from tests.test_supply_chain_planner import OTHER, REPO, _finding, _inputs, _policy, _vex
 
 STATUSES: tuple[models.VexStatus, ...] = ("not_affected", "fixed", "affected", "under_investigation")
 EXCLUDING = frozenset({"not_affected", "fixed"})
@@ -65,10 +66,19 @@ def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, list[tuple[models.Findin
     """Inputs plus, for some findings, the status and shape of a statement that names them."""
     policy = draw(sc.policies())
     inputs = draw(sc.plan_inputs(12, 0, policy=policy))
+    ok = sorted(inputs.fetch_ok, key=_rk)
+    originals = [f for f in _ordered(inputs.findings) if not f.vuln_id.startswith("MAL-")]
+    copy_flags = draw(st.lists(st.booleans(), min_size=len(originals), max_size=len(originals)))
+    copies = {  # the same finding in the next fetched repository, so a statement can match in one repository only
+        replace(f, repo=ok[(ok.index(f.repo) + 1) % len(ok)])
+        for f, flag in zip(originals, copy_flags, strict=True)
+        if flag and len(ok) > 1
+    }
+    inputs = replace(inputs, findings=inputs.findings | copies)
     found = _ordered(inputs.findings)
     picks = draw(
         st.lists(
-            st.tuples(st.booleans(), st.sampled_from(STATUSES), st.integers(0, 7)),
+            st.tuples(st.booleans(), st.sampled_from(STATUSES), st.integers(0, 63)),
             min_size=len(found),
             max_size=len(found),
         )
@@ -83,6 +93,15 @@ def _statements(picks: Sequence[tuple[models.Finding, models.VexStatus, int]]) -
         ids = _ids(f)
         head = ids[shape % len(ids)]
         rest = tuple(i for i in ids if i != head) if shape & 4 else ()
+        aliases_only = [i for i in ids if not i.startswith("MAL-")]
+        if (
+            shape & 32 and planner.is_malicious(f) and aliases_only
+        ):  # a statement on a non-MAL- id of a malicious finding
+            head, rest = aliases_only[0], ()
+        elif shape & 16:  # a malicious-package statement that lists the finding only as an alias
+            head, rest = "MAL-2098-0001", ids
+        elif shape & 8:  # a statement about another vulnerability that lists the finding's ids as aliases
+            head, rest = "CVE-2098-0001", ids
         entries.append((f.repo, _doc(f".vex/{n:03d}.json", head, rest, f.component.purl, status)))
     return _vex_map(entries)
 
@@ -233,3 +252,42 @@ def test_generated_cases_exercise_suppression_and_the_statements_that_do_not_app
         if not seen[k]
     ]
     assert not missing, f"never seen: {missing}; counts {sorted(seen.items())}"
+
+
+# --- fixed examples for the cases the generators reach only occasionally -----------------------
+
+
+def test_a_statement_naming_only_an_alias_of_the_finding_suppresses_it() -> None:
+    finding = _finding("CVE-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
+    plan = planner.plan(_inputs((finding,), vex={REPO: (_vex("not_affected", "GHSA-aaaa-bbbb-cccc"),)}))
+    assert plan.actions == ()
+    assert [f for f, _ in plan.vex_exclusions] == [finding]
+
+
+def test_a_statement_listing_the_finding_as_an_alias_suppresses_it() -> None:
+    finding = _finding("CVE-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
+    plan = planner.plan(
+        _inputs((finding,), vex={REPO: (_vex("fixed", "CVE-2026-9999", aliases=("GHSA-aaaa-bbbb-cccc",)),)})
+    )
+    assert plan.actions == ()
+
+
+def test_a_statement_in_one_repository_does_not_suppress_the_same_finding_in_another() -> None:
+    here, there = _finding(repo=REPO), _finding(repo=OTHER)
+    plan = planner.plan(_inputs((here, there), vex={REPO: (_vex("not_affected", "CVE-2026-0001"),)}))
+    assert [(a.op, a.repo) for a in plan.actions] == [("create", OTHER)]
+
+
+def test_a_status_the_policy_does_not_list_does_not_suppress() -> None:
+    policy = replace(_policy(), vex_exclude_statuses=("not_affected",))
+    plan = planner.plan(_inputs((_finding(),), policy=policy, vex={REPO: (_vex("fixed", "CVE-2026-0001"),)}))
+    assert [a.op for a in plan.actions] == ["create"]
+    assert plan.vex_exclusions == ()
+
+
+def test_a_statement_that_lists_a_malicious_id_never_suppresses_a_plain_finding() -> None:
+    finding = _finding("GHSA-aaaa-bbbb-cccc")
+    statement = _vex("not_affected", "MAL-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
+    plan = planner.plan(_inputs((finding,), vex={REPO: (statement,)}))
+    assert [a.op for a in plan.actions] == ["create"]
+    assert plan.vex_exclusions == ()
