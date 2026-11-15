@@ -126,6 +126,13 @@ _PROBE_COMMANDS: Final[tuple[str, ...]] = (
     'git commit -m "x"',
     "git rev-parse",
     "make",
+    "npm",
+    "npm ls",
+    "npm ci --ignore-scripts",
+    "npm install --package-lock-only --ignore-scripts",
+    "npm exec",
+    "npm run",
+    "npx",
     "python",
     "python3",
     "cat",
@@ -262,9 +269,82 @@ _WRITER_LINES: Final[tuple[str, ...]] = (
     "install x y",
     "truncate -s 0 x",
 )
+#: The npm lines that no entry of ``allowedCommands`` may match (task 5.56): each leaves the three fixed forms by one
+#: argument, option, subcommand or path. ``npm exec``, ``npx`` and ``npm run`` start code that the list does not name;
+#: ``--prefix``, ``--registry``, ``--userconfig``, ``--cache`` and ``-g`` move what npm reads or writes; without
+#: ``--ignore-scripts`` the lifecycle scripts of the project and its dependencies run.
+_NPM_LINES: Final[tuple[str, ...]] = (
+    "npm install",
+    "npm install --package-lock-only",
+    "npm install --ignore-scripts",
+    "npm ci",
+    "npm install --package-lock-only --ignore-scripts left-pad",
+    "npm install --package-lock-only --ignore-scripts --prefix /tmp/x",
+    "npm install --package-lock-only --ignore-scripts --prefix x",
+    "npm install --package-lock-only --ignore-scripts --registry http://127.0.0.1:1/",
+    "npm install --package-lock-only --ignore-scripts --userconfig /tmp/x",
+    "npm install --package-lock-only --ignore-scripts -g",
+    "npm install --package-lock-only --ignore-scripts; id",
+    "npm install --package-lock-only --ignore-scripts && id",
+    "npm install --package-lock-only --ignore-scripts $(id)",
+    "npm install left-pad",
+    "npm install -g left-pad",
+    "npm install ../x",
+    "npm install file:/etc",
+    "npm install git+https://127.0.0.1/x.git",
+    "npm ci --ignore-scripts --prefix /tmp/x",
+    "npm ci --ignore-scripts --cache /tmp/x",
+    "npm ci --ignore-scripts --script-shell /bin/sh",
+    "npm ci --ignore-scripts --foreground-scripts",
+    "npm ls --prefix /",
+    "npm ls --all",
+    "npm ls ../x",
+    "npm exec id",
+    "npm exec -- id",
+    "npm x id",
+    "npx id",
+    "npx --yes cowsay",
+    "npm run build",
+    "npm run-script test",
+    "npm test",
+    "npm start",
+    "npm init x",
+    "npm create x",
+    "npm config set registry http://127.0.0.1:1/",
+    "npm set registry http://127.0.0.1:1/",
+    "npm publish",
+    "npm login",
+    "npm adduser",
+    "npm token create",
+    "npm pack",
+    "npm link",
+    "npm rebuild",
+    "npm cache clean --force",
+    "npm explore x",
+    "npm --prefix /tmp/x ls",
+    "npm --prefix x ls",
+    "npm -C x ls",
+    "npm -g ls",
+    "npm --registry http://127.0.0.1:1/ ci --ignore-scripts",
+    "npm --userconfig /tmp/x ls",
+    "npm --workspaces ls",
+    "/usr/local/bin/npm ls",
+    "./node_modules/.bin/npm ls",
+)
 #: Characters that no character class of an allowed entry may hold: they are what a path leaves the worktree with,
 #: what the shell expands, redirects, chains or quotes, and a newline.
 _BOUNDARY_CHARACTERS: Final = frozenset("/~$;&|`<>\\*?(){}!#'\"\n\r\t")
+#: The npm lines that ``deniedCommands`` (and the deny rules of CLI V3) must match: what starts other code or moves
+#: what npm reads and writes. The three fixed forms stay outside them.
+_NPM_REQUIRED_DENIED: Final[tuple[str, ...]] = (
+    "npx id",
+    "npm exec id",
+    "npm run x",
+    "npm config set x y",
+    "npm install --package-lock-only --ignore-scripts --prefix /tmp/x",
+    "npm ci --ignore-scripts --registry http://127.0.0.1:1/",
+    "npm -g ls",
+)
 #: Command lines that ``deniedCommands`` must match: the routes of the first two groups above.
 _REQUIRED_DENIED: Final[tuple[str, ...]] = (
     "curl http://127.0.0.1:1/",
@@ -279,6 +359,7 @@ _REQUIRED_DENIED: Final[tuple[str, ...]] = (
     "git worktree add x",
     "bash -c id",
     "sh -c id",
+    *_NPM_REQUIRED_DENIED,
 )
 #: ``deniedCommands`` of the configuration that :func:`build_agent_config` builds.
 _DENIED_COMMANDS: Final[tuple[str, ...]] = (
@@ -288,6 +369,9 @@ _DENIED_COMMANDS: Final[tuple[str, ...]] = (
     r"(?:curl|wget|ssh|scp|sftp|nc|ncat|telnet|ftp|rsync|sudo|xargs|env|printenv)(?: .*)?",
     r"(?:ba|z|da)?sh(?: .*)?",
     r"(?:python3?|node|perl|ruby)(?: +-[ce]| +--eval| +--command)(?: .*)?",
+    r"npx(?: .*)?",
+    r"npm(?: .*)? +(?:exec|x|run|run-script|rum|urn|start|stop|restart|test|t|init|create|config|c|set|get|publish|login|adduser|token|pack|link|ln|rebuild|rb|cache|explore|edit|prefix|root|bin)(?: .*)?",
+    r"npm .*(?:--(?:prefix|registry|userconfig|globalconfig|cache|script-shell|workspaces?|global|location|foreground-scripts)|(?<= )-[gC]\b).*",
 )
 #: One name of a path below the worktree: it does not start with ``-`` (so that no option can pass as a path),
 #: ``.`` or ``/``, and has no ``..``. A path is names joined by ``/`` with one extension at most.
@@ -309,6 +393,12 @@ _ALLOWED_COMMANDS: Final[tuple[str, ...]] = (
     r"git rev-parse --short HEAD",
     r"make [a-z0-9][a-z0-9_-]*",
     rf"python3? {_NAME}(?:/{_NAME})*\.py",
+    # npm (task 5.56): three whole lines. The lifecycle scripts of the project and of its dependencies do not run, so
+    # the lock file is written without starting code; ``npm_config_*`` of the run (command.child_env) pins the
+    # registry, the cache and the configuration files.
+    r"npm install --package-lock-only --ignore-scripts",
+    r"npm ci --ignore-scripts",
+    r"npm ls",
 )
 #: The shell commands that CLI V3 may allow without asking: literal lines only, because a shell rule of V3 is a glob
 #: in which ``*`` stands for any text, and a glob cannot say that an argument is a path below the worktree (R2-03).
@@ -321,6 +411,9 @@ _V3_ALLOWED_SHELL: Final[tuple[str, ...]] = (
     "git add -A",
     "git rev-parse --short HEAD",
     "make test",
+    "npm install --package-lock-only --ignore-scripts",
+    "npm ci --ignore-scripts",
+    "npm ls",
 )
 #: Shell rules of CLI V3 that deny (``*`` is any text; a deny wins over every allow, in every scope). They state what a
 #: glob can say: whole commands and options that cross the boundary. Reads of files go through the read tool, which
@@ -404,6 +497,39 @@ _V3_DENIED_SHELL: Final[tuple[str, ...]] = (
     "launchctl*",
     "security*",
     "defaults*",
+    "npx*",
+    "npm exec*",
+    "npm x *",
+    "npm run*",
+    "npm rum*",
+    "npm start*",
+    "npm test*",
+    "npm init*",
+    "npm create*",
+    "npm config*",
+    "npm set *",
+    "npm publish*",
+    "npm login*",
+    "npm adduser*",
+    "npm token*",
+    "npm pack*",
+    "npm link*",
+    "npm rebuild*",
+    "npm cache*",
+    "npm explore*",
+    "npm -g*",
+    "npm * -g*",
+    "npm *-C *",
+    "npm *--prefix*",
+    "npm *--registry*",
+    "npm *--userconfig*",
+    "npm *--globalconfig*",
+    "npm *--cache*",
+    "npm *--script-shell*",
+    "npm *--global*",
+    "npm *--location*",
+    "npm *--workspace*",
+    "npm *--foreground-scripts*",
 )
 #: Command lines that the V3 deny rules must match (the approval tries each against the rules, as globs).
 _V3_REQUIRED_DENIED: Final[tuple[str, ...]] = (
@@ -420,6 +546,7 @@ _V3_REQUIRED_DENIED: Final[tuple[str, ...]] = (
     "python3 -c print(1)",
     "tee /tmp/x",
     "cp a /tmp/x",
+    *_NPM_REQUIRED_DENIED,
 )
 #: Capabilities that the allow rules of a V3 configuration may name. A meta-capability (``all``, ``builtin``,
 #: ``filesystem``) or another capability would grant more than the three tools of the ceiling.
@@ -565,7 +692,7 @@ def _probe_lines(home: str) -> list[str]:
     The fixed lines of :data:`_FORBIDDEN_ALLOWED`, :data:`_OPTION_AFTER_GIT_LINES` and :data:`_WRITER_LINES`, and each word of :data:`_PROBE_COMMANDS` with each of
     :data:`_ADVERSARIAL_ARGUMENTS`, alone and after ``--stat``. ``home`` stands where an argument names it.
     """
-    lines = [*_FORBIDDEN_ALLOWED, *_OPTION_AFTER_GIT_LINES, *_WRITER_LINES]
+    lines = [*_FORBIDDEN_ALLOWED, *_OPTION_AFTER_GIT_LINES, *_WRITER_LINES, *_NPM_LINES]
     for word in _PROBE_COMMANDS:
         for argument in _ADVERSARIAL_ARGUMENTS:
             shown = argument.replace("{home}", home)
