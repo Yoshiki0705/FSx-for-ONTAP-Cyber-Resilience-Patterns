@@ -1,0 +1,18 @@
+{
+  "pull_request": {
+    "user": "author-user",
+    "head_sha": "headsha1",
+    "body": "## 機械の欄\n\n- reachability_command: `grep -r left-pad dist/`\n- reachability_output_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n- target_purl: pkg:npm/left-pad@1.3.0\n- advisory_url: https://example.com/advisory/1\n- advisory_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+  },
+  "files": [
+    ".vex/CVE-2026-0001.openvex.json"
+  ],
+  "reviews": [
+    {
+      "user": "reviewer-user",
+      "state": "COMMENTED",
+      "commit_id": "headsha1",
+      "body": "## 判断理由\n\nビルド成果物に left-pad が含まれないことを grep で確かめた。\n"
+    }
+  ]
+}

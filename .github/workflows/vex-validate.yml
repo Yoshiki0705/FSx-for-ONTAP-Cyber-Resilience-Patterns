@@ -1,0 +1,49 @@
+name: vex-validate
+
+# Required status check (Requirement 11.40). It runs on every pull request, with no `paths` filter, so that
+# a required check is never "expected but missing"; a pull request that does not touch `.vex/` passes.
+# `edited` re-evaluates after the body changes, `pull_request_review` after an approval or a dismissal.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  vex-validate:
+    runs-on: ubuntu-latest
+    steps:
+      # The gate code comes from the default branch, not from the pull request: a pull request that edits the
+      # gate is judged by the gate it would replace.
+      - name: Checkout (default branch)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Read the pull request through the API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OUT: ${{ runner.temp }}/vex-validate-input.json
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '{user: .user.login, head_sha: .head.sha, body: (.body // "")}')"
+          files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename' | jq -R . | jq -s .)"
+          reviews="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+            --jq '.[] | {user: .user.login, state: .state, commit_id: .commit_id, body: (.body // "")}' | jq -s .)"
+          jq -n --argjson pr "$pr" --argjson files "$files" --argjson reviews "$reviews" \
+            '{pull_request: $pr, files: $files, reviews: $reviews}' > "$OUT"
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.12'
+      - name: Run the vex-validate gate
+        env:
+          VEX_VALIDATE_INPUT: ${{ runner.temp }}/vex-validate-input.json
+        run: python3 scripts/check_supply_chain.py vex-validate

@@ -62,6 +62,7 @@ class StoredIssue:
     body: str | None
     body_state: Mapping[str, object] | None
     close_reason: CloseReason | None = None
+    labels: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +75,7 @@ class IssueStore:
     def from_managed(cls, managed: Iterable[ManagedIssue]) -> IssueStore:
         """Builds a store from the issues of a ``PlanInputs`` (``failure`` issues included)."""
         return cls(
-            tuple(StoredIssue(m.repo, m.number, m.kind, m.vuln_id, m.state, None, m.body_state, None) for m in managed)
+            tuple(StoredIssue(m.repo, m.number, m.kind, m.vuln_id, m.state, None, m.body_state, None, m.labels) for m in managed)
         )
 
     def get(self, repo: Repo, number: int) -> StoredIssue:
@@ -135,6 +136,9 @@ class IssueStore:
         if action.number is None:
             raise ValueError(f"{action.op} needs an issue number")
         old = self.get(action.repo, action.number)
+        labels = (old.labels | set(action.add_labels)) - set(action.remove_labels)
+        if action.op == "update" and action.body is None:
+            return self._replace(old, replace(old, labels=frozenset(labels)))  # a label-only update keeps the body
         if action.op == "update":
             # The marker is the first line of the body, so a written body carries the action's identifier (T12-R4-06).
             return self._replace(
@@ -144,6 +148,7 @@ class IssueStore:
                     vuln_id=action.vuln_id or old.vuln_id,
                     body=action.body,
                     body_state=None,
+                    labels=frozenset(labels),
                 ),
             )
         if action.op == "close":
@@ -157,6 +162,7 @@ class IssueStore:
                     state="open",
                     close_reason=None,
                     vuln_id=action.vuln_id or old.vuln_id,
+                    labels=frozenset(labels),
                 ),
             )
         raise ValueError(f"unknown op {action.op!r}")
@@ -212,5 +218,5 @@ def to_managed_issues(
     out = []
     for i in store.issues:
         state = parse_body(i.body) if parse_body is not None and i.body is not None else i.body_state
-        out.append(ManagedIssue(i.repo, i.number, i.kind, i.vuln_id, i.state, state))
+        out.append(ManagedIssue(i.repo, i.number, i.kind, i.vuln_id, i.state, state, labels=i.labels))
     return tuple(out)

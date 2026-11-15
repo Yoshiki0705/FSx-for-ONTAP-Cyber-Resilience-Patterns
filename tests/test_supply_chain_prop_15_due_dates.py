@@ -166,7 +166,8 @@ def test_newly_kev_listed_high_issue_is_due_at_the_earlier_of_existing_and_now_p
         issues=(replace(second.issues[0], body_state=ib.parse_state(updates[0].body)),),
     )
     later = [a for a in planner.plan(third).actions if a.number == 1]
-    assert all(_at(ib.parse_state(a.body)["due_at"]) <= due for a in later)  # type: ignore[index]
+    # a label-only update has no body and moves no date
+    assert all(_at(ib.parse_state(a.body)["due_at"]) <= due for a in later if a.body is not None)  # type: ignore[index]
 
 
 def test_the_generated_cases_exercise_every_branch() -> None:
