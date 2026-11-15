@@ -31,7 +31,7 @@ def valid_doc() -> dict[str, Any]:
             "epss_used_for_opening": False,
         },
         "cooldown_days": {"default": 3, "major": 7},
-        "package_manager_wait": {"default_days": 3, "major_days": 7},
+        "package_manager_wait": {"default_days": 3},
         "dependency_scope": {"non_production_paths": ["tests/", "docs/"]},
         "automerge": {
             "enabled_repositories": [],
@@ -83,7 +83,7 @@ def test_valid_document_parses() -> None:
     assert len(policy.target_repositories) == 2
     assert len(policy.excluded_repositories) == 4
     assert policy.cooldown_days.major == 7
-    assert policy.package_manager_wait.default == 3
+    assert policy.package_manager_wait == 3
     assert policy.automerge_enabled_repositories == ()
     assert policy.automerge_include[0].dep_types == ("devDependencies",)
     assert policy.response_target.fix_days_high == 14
@@ -210,18 +210,27 @@ def test_extra_exclusions_are_allowed() -> None:
 def test_major_below_default() -> None:
     doc = valid_doc()
     doc["cooldown_days"] = {"default": 7, "major": 3}
-    doc["package_manager_wait"] = {"default_days": 7, "major_days": 3}
+    doc["package_manager_wait"] = {"default_days": 7}
     issues = issues_of(dump(doc))
     assert has(issues, "$.cooldown_days.major", "range")
-    assert has(issues, "$.package_manager_wait.major_days", "range")
 
 
 def test_package_manager_wait_must_equal_cooldown() -> None:
     doc = valid_doc()
-    doc["package_manager_wait"] = {"default_days": 4, "major_days": 8}
+    doc["package_manager_wait"] = {"default_days": 4}
     issues = issues_of(dump(doc))
     assert has(issues, "$.package_manager_wait.default_days", "range")
-    assert has(issues, "$.package_manager_wait.major_days", "range")
+
+
+def test_package_manager_wait_is_one_value_and_major_days_is_rejected() -> None:
+    """Requirement 12.21: no separate value for major updates."""
+    doc = valid_doc()
+    doc["package_manager_wait"] = {"default_days": 3, "major_days": 7}
+    issues = issues_of(dump(doc))
+    assert has(issues, "$.package_manager_wait.major_days", "unknown_key")
+    doc["package_manager_wait"] = {"major_days": 7}
+    issues = issues_of(dump(doc))
+    assert has(issues, "$.package_manager_wait.default_days", "missing")
 
 
 def test_fix_days_ordering() -> None:
@@ -423,13 +432,13 @@ def test_package_manager_wait_is_derived_from_cooldown_when_absent() -> None:
     del doc["package_manager_wait"]
     doc["cooldown_days"] = {"default": 5, "major": 9}
     policy = parse_policy(dump(doc))
-    assert policy.package_manager_wait == policy.cooldown_days
+    assert policy.package_manager_wait == policy.cooldown_days.default == 5
     assert "package_manager_wait" not in json.loads(render_policy(policy))
 
 
 def test_a_stated_package_manager_wait_must_still_equal_cooldown() -> None:
     doc = valid_doc()
-    doc["package_manager_wait"] = {"default_days": 4, "major_days": 7}
+    doc["package_manager_wait"] = {"default_days": 4}
     assert has(issues_of(dump(doc)), "$.package_manager_wait.default_days", "range")
 
 

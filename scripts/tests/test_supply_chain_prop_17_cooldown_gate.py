@@ -107,7 +107,7 @@ def _build(root: Path, default: int, major: int, fd: Field, fm: Field) -> None:
     policy_path = root / POLICY_REL
     policy = json.loads(policy_path.read_text(encoding="utf-8"))
     policy["cooldown_days"] = {"default": default, "major": major}
-    policy["package_manager_wait"] = {"default_days": default, "major_days": major}
+    policy["package_manager_wait"] = {"default_days": default}
     policy_path.write_text(json.dumps(policy, indent=2), encoding="utf-8")
     preset_path = root / PRESET_REL
     preset = json.loads(preset_path.read_text(encoding="utf-8"))

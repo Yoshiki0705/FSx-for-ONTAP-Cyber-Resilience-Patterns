@@ -15,7 +15,7 @@ every array element (``[3]`` in an issue path, ``[]`` in a table key).
 Issue kinds used for the checks JSON Schema cannot express:
 
 * ``range``: a value outside its allowed set or order (``major < default``,
-  ``package_manager_wait`` different from ``cooldown_days``,
+  ``package_manager_wait`` different from ``cooldown_days.default``,
   ``fix_days_kev_or_malicious > fix_days_high``, an ``enabled_repositories``
   entry that is not a target, a ``const`` that is not the required value).
 * ``overlap``: a repository that is both a target and an exclusion.
@@ -89,7 +89,7 @@ OBJECT_KEYS: Mapping[str, tuple[str, ...]] = {
         "epss_used_for_opening",
     ),
     "$.cooldown_days": ("default", "major"),
-    "$.package_manager_wait": ("default_days", "major_days"),
+    "$.package_manager_wait": ("default_days",),
     "$.dependency_scope": ("non_production_paths",),
     "$.automerge": ("enabled_repositories", "include", "exclude"),
     "$.automerge.include[]": ("manager", "dep_types", "update_types"),
@@ -151,7 +151,6 @@ INT_RANGES: Mapping[str, tuple[int, int | None]] = {
     "$.cooldown_days.default": (1, None),
     "$.cooldown_days.major": (1, None),
     "$.package_manager_wait.default_days": (1, None),
-    "$.package_manager_wait.major_days": (1, None),
     "$.vex.max_age_days": (1, None),
     "$.unscored_review_days": (1, None),
     "$.watchdog.limit_hours": (1, None),
@@ -448,7 +447,8 @@ def parse_policy(text: str) -> Policy:
 
     threshold = _parse_threshold(chk, root)
     cooldown = _parse_pair(chk, root, "cooldown_days", ("default", "major"))
-    wait = _parse_pair(chk, root, "package_manager_wait", ("default_days", "major_days"))
+    wait_sec = _section(chk, root, "package_manager_wait")
+    wait = chk.integer(wait_sec, "default_days", "$.package_manager_wait", "$.package_manager_wait") if wait_sec else None
     preset_given = "renovate_preset" in root
     preset = _parse_preset(chk, root)
     paths = _parse_scope(chk, root)
@@ -463,7 +463,7 @@ def parse_policy(text: str) -> Policy:
     wait_given = "package_manager_wait" in root
     _cross_checks(chk, targets, excluded, cooldown, wait, automerge, target)
     if not wait_given:
-        wait = cooldown  # derived (T1-15): one source of truth for the waiting period
+        wait = cooldown.default if cooldown is not None else None  # derived (T1-15): one source of truth for the waiting period
 
     if (
         chk.issues
@@ -646,32 +646,19 @@ def _cross_checks(
     targets: tuple[Repo, ...] | None,
     excluded: tuple[Repo, ...] | None,
     cooldown: CooldownDays | None,
-    wait: CooldownDays | None,
+    wait: int | None,
     automerge: tuple[tuple[AutomergeRule, ...], tuple[str, ...], tuple[Repo, ...]] | None,
     response: ResponseTarget | None,
 ) -> None:
     """Checks that JSON Schema cannot express; each runs only when its inputs parsed."""
     if cooldown is not None and cooldown.major < cooldown.default:
         chk.add("$.cooldown_days.major", "range", f"major ({cooldown.major}) must be >= default ({cooldown.default})")
-    if wait is not None and wait.major < wait.default:
+    if cooldown is not None and wait is not None and wait != cooldown.default:
         chk.add(
-            "$.package_manager_wait.major_days",
+            "$.package_manager_wait.default_days",
             "range",
-            f"major_days ({wait.major}) must be >= default_days ({wait.default})",
+            f"must equal cooldown_days.default ({cooldown.default}), got {wait}",
         )
-    if cooldown is not None and wait is not None:
-        if wait.default != cooldown.default:
-            chk.add(
-                "$.package_manager_wait.default_days",
-                "range",
-                f"must equal cooldown_days.default ({cooldown.default}), got {wait.default}",
-            )
-        if wait.major != cooldown.major:
-            chk.add(
-                "$.package_manager_wait.major_days",
-                "range",
-                f"must equal cooldown_days.major ({cooldown.major}), got {wait.major}",
-            )
     if response is not None and response.fix_days_kev_or_malicious > response.fix_days_high:
         chk.add(
             "$.response_target.fix_days_kev_or_malicious",
@@ -711,7 +698,7 @@ def render_policy(policy: Policy) -> str:
     with one newline and non-ASCII characters are written as they are. The same
     Policy always yields the same bytes. ``epss_used_for_opening`` is not part of
     the Policy (the schema fixes it to false) and is always written as false.
-    ``package_manager_wait`` is derived from ``cooldown_days`` and is not written.
+    ``package_manager_wait`` is derived from ``cooldown_days.default`` and is not written.
 
     Args:
         policy: A Policy that already satisfies the parser's rules.

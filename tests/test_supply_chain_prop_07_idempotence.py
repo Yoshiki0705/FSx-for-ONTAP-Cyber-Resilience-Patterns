@@ -34,7 +34,7 @@ def _policy(limit: int) -> models.Policy:
         automerge_include=(),
         automerge_exclude=(),
         automerge_enabled_repositories=(),
-        package_manager_wait=models.CooldownDays(3, 7),
+        package_manager_wait=3,
         non_production_paths=(),
         vex_directory=".vex",
         vex_exclude_statuses=("not_affected", "fixed"),

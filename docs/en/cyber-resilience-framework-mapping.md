@@ -189,18 +189,16 @@ The mapping to best-practice IDs is neither the result of a Well-Architected rev
 
 ### Correspondence to NIST SSDF
 
-This document refers to NIST SP 800-218 "Secure Software Development Framework (SSDF) Version 1.1" (February 2022, final) and NIST SP 800-218 Rev. 1 (Draft, SSDF Version 1.2, published 2025-12-17). As of 2026-11-14, Rev. 1 is a draft, and no final version appears on the NIST page (reference date 2026-11-14). No sentence in this document relies on the content of the draft.
-
-As of 2026-11-14, the body of neither document has been read (open). What was read is the title, the publication date and the abstract shown on the NIST page. For that reason, the right column of the table below is this project's assumption (hypothesis) about which part of the first pillar addresses the same topic as the group on the left, and it does not give the wording of any ID. After the bodies are read, the groups will be corrected for gaps and surplus, including whether the group that holds provenance signature verification is PS.3 or another group.
-
-| SSDF group | Part of the first pillar assumed to correspond | Evidence type |
+This document refers to NIST SP 800-218 "Secure Software Development Framework (SSDF) Version 1.1" (February 2022, final) and NIST SP 800-218 Rev. 1 (Draft, SSDF Version 1.2, published 2025-12-17). As of 2026-11-15, Rev. 1 is a draft, and no final version appears on the NIST page (reference date 2026-11-15). No sentence in this document relies on the content of the draft.
+The body of the Version 1.1 PDF was read on 2026-11-15, and the wording of the IDs of the four groups below was checked. The Rev. 1 PDF was also read, and the wording of PS.3.2, PW.4.4 and RV.2.2 is the same as in the final version. The draft rewords RV.1.2 and adds examples; this document does not rely on RV.1.2. In the final version, PS.3.2 covers provenance data, and PS.2.1, which makes integrity verification information available to acquirers, sits in another group. The parts used to verify signatures and provenance belong to PS.2, not PS.3. The table does not list PS.2.
+The left column is the wording of the SSDF body, and the right column is this project's reading of which part of the first pillar addresses the same topic. The right column is interpretation and is labeled `hypothesis`.
+| SSDF group and wording of the body (final Version 1.1) | Part of the first pillar mapped to it | Evidence type |
 |---|---|---|
-| RV.1 | Continuous detection of vulnerabilities by the aggregation job | hypothesis |
-| RV.2 | Prioritization and fixing by the opening condition, VEX and the response-time target | hypothesis |
-| PS.3 | Storage of SBOMs and provenance attestations | hypothesis |
-| PW.4 | Pinned dependencies and the Cooldown | hypothesis |
-
-This correspondence is neither a certification by NIST nor a judgment that a procurement requirement is met. If you are asked for an explanation along SSDF, read the bodies yourself and confirm the correspondence.
+| RV.1: identify and confirm vulnerabilities on an ongoing basis. RV.1.1 gathers information on potential vulnerabilities from acquirers, users and public sources and investigates all credible reports | Continuous detection of vulnerabilities by the aggregation job | hypothesis |
+| RV.2: assess, prioritize and remediate vulnerabilities. RV.2.1 analyzes the risk of each vulnerability, and RV.2.2 plans and implements risk responses | Prioritization and fixing by the opening condition, VEX and the response-time target | hypothesis |
+| PS.3: archive and protect each software release. PS.3.1 securely archives the files and supporting data for each release, and PS.3.2 collects, safeguards, maintains and shares provenance data (an SBOM is the example) | Storage of SBOMs and provenance attestations | hypothesis |
+| PW.4: reuse existing, well-secured software. PW.4.1 acquires and maintains third-party components, and PW.4.4 verifies that acquired components meet the organization's requirements throughout their life cycles | Pinned dependencies and the Cooldown | hypothesis |
+This correspondence is neither a certification by NIST nor a judgment that a procurement requirement is met. If you are asked for an explanation along SSDF, read the body for your own software and confirm the correspondence.
 
 ## CIS Controls v8 Mapping
 

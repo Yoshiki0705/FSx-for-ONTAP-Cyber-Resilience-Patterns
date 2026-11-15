@@ -42,7 +42,6 @@ REQUIRED_KEYS = (
 #: period is the Cooldown. A guide marker on the derived path is compared with its source.
 DERIVED_KEYS = {
     "package_manager_wait.default_days": "cooldown_days.default",
-    "package_manager_wait.major_days": "cooldown_days.major",
 }
 #: Values the Policy_File may omit; an absent key is read as its default, so a guide marker on it still compares.
 DEFAULTS = {"watchdog.limit_hours": 8}

@@ -255,7 +255,7 @@ def policies(draw: st.DrawFn) -> Policy:
         ),
         automerge_exclude=("vulnerability_fix", *optional_excludes),
         automerge_enabled_repositories=tuple(enabled),
-        package_manager_wait=CooldownDays(default=default_days, major=major_days),
+        package_manager_wait=default_days,
         non_production_paths=tuple(paths),
         vex_directory=".vex",
         vex_exclude_statuses=draw(st.sampled_from((("not_affected",), ("fixed",), ("not_affected", "fixed")))),
