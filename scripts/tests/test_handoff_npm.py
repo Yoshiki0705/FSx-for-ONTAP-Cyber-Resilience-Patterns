@@ -284,3 +284,37 @@ def test_without_a_cache_directory_the_environment_is_what_it_was() -> None:
     """The parameter is optional: a caller that does not run npm gets no npm variable."""
     env = command.child_env({"PATH": "/usr/bin"}, push_url="/t/n", gh_config_dir="/t/g", aws_empty_file="/t/a")
     assert not [key for key in env if key.lower().startswith("npm_config_")]
+
+
+# --- the dialect of kiro-cli's regular expressions (task 5.56, the selftest of 2026-11-16) ----------------------
+
+
+def all_shell_entries() -> list[str]:
+    """Every regular expression of ``toolsSettings.shell`` in the built change configuration."""
+    return [*shell()["allowedCommands"], *shell()["deniedCommands"]]
+
+
+def test_no_built_entry_uses_a_construct_that_kiro_cli_cannot_read() -> None:
+    """A look-around or a back-reference made ``kiro-cli`` 2.32.0 refuse ``git add README.md`` in the selftest."""
+    for entry in all_shell_entries():
+        assert agent_policy._dialect_problem(entry) is None, entry
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [r"npm .*(?<= )-g.*", r"npm .*(?<! )-g.*", r"npm (?=x).*", r"npm (?!x).*", r"(a)\1", r"(?P<n>a)(?P=n)"],
+)
+@pytest.mark.parametrize("key", ["allowedCommands", "deniedCommands"])
+def test_an_entry_that_kiro_cli_cannot_read_fails_the_approval(entry: str, key: str) -> None:
+    """Python's ``re`` reads these, ``kiro-cli`` does not: the approval must name them."""
+    document = change_config()
+    document["toolsSettings"]["shell"][key].append(entry)
+    assert f"toolsSettings.shell.{key}" in {check for check, _ in problems(document)}
+
+
+def test_the_option_deny_still_matches_short_global_options() -> None:
+    """The rewrite without look-behind keeps ``-g`` and ``-C`` denied and leaves the three forms alone."""
+    for line in ("npm -g ls", "npm -C x ls", "npm install --package-lock-only --ignore-scripts -g", "npm ls -g"):
+        assert matches(shell()["deniedCommands"], line), line
+    for line in ALLOWED_LINES:
+        assert not matches(shell()["deniedCommands"], line), line

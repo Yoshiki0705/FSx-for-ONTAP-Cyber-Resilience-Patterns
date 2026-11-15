@@ -371,7 +371,8 @@ _DENIED_COMMANDS: Final[tuple[str, ...]] = (
     r"(?:python3?|node|perl|ruby)(?: +-[ce]| +--eval| +--command)(?: .*)?",
     r"npx(?: .*)?",
     r"npm(?: .*)? +(?:exec|x|run|run-script|rum|urn|start|stop|restart|test|t|init|create|config|c|set|get|publish|login|adduser|token|pack|link|ln|rebuild|rb|cache|explore|edit|prefix|root|bin)(?: .*)?",
-    r"npm .*(?:--(?:prefix|registry|userconfig|globalconfig|cache|script-shell|workspaces?|global|location|foreground-scripts)|(?<= )-[gC]\b).*",
+    r"npm .*--(?:prefix|registry|userconfig|globalconfig|cache|script-shell|workspaces?|global|location|foreground-scripts).*",
+    r"npm(?: .*)? -[gC](?: .*)?",
 )
 #: One name of a path below the worktree: it does not start with ``-`` (so that no option can pass as a path),
 #: ``.`` or ``/``, and has no ``..``. A path is names joined by ``/`` with one extension at most.
@@ -856,13 +857,30 @@ def _matches(entries: Sequence[str], line: str) -> bool:
     return False
 
 
+#: Constructs that Python's ``re`` reads and the regular expressions of ``kiro-cli`` do not: look-around and
+#: back-references (the Rust ``regex`` crate has neither). An entry of ``deniedCommands`` with a look-behind made
+#: ``kiro-cli`` 2.32.0 refuse ``git add README.md`` in the selftest of 2026-11-16 (task 5.56); a check in Python alone
+#: would have passed it.
+_UNSUPPORTED_SYNTAX: Final = re.compile(r"\(\?<?[=!]|\(\?P=|\\[1-9]|\\k<")
+
+
+def _dialect_problem(entry: str) -> str | None:
+    """Why ``kiro-cli`` cannot read ``entry``, or ``None`` (the check is on the text, outside character classes too)."""
+    if _UNSUPPORTED_SYNTAX.search(entry):
+        return "uses a look-around or a back-reference, which kiro-cli does not read"
+    return None
+
+
 def _invalid(entries: Sequence[str]) -> list[str]:
-    """The entries that are not valid regular expressions."""
+    """The entries that are not valid regular expressions, in Python or in the dialect of ``kiro-cli``."""
     bad: list[str] = []
     for entry in entries:
         try:
             re.compile(entry)
         except re.error:
+            bad.append(entry)
+            continue
+        if _dialect_problem(entry) is not None:
             bad.append(entry)
     return bad
 
