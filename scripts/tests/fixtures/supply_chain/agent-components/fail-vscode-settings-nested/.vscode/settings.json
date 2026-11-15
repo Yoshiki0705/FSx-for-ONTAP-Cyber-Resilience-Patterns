@@ -1,0 +1,9 @@
+{
+  // user settings with a comment
+  "editor.tabSize": 2,
+  "mcp": {
+    "servers": {
+      "docs": {"command": "npx", "args": ["-y", "example-mcp"]},
+    }
+  }
+}
