@@ -1,6 +1,9 @@
 # Layer B of the supply-chain design: generate an SBOM and a scan of this repository on each push to
 # main, with the reusable workflow of the Hub repository. The artifact is `sbom-<commit-sha>`. The
-# reference is a full commit SHA (the commit that is also tagged supply-chain-preset-v1.0.0).
+# reference is a full commit SHA of the Hub's main branch, the first one that has the `skip-paths` input.
+# `skip-paths` leaves the test fixtures out of the SBOM and the scan: they hold deliberately old pinned
+# versions for the gates' tests and are neither installed nor shipped. The paths stay on record in
+# `skipped_paths` of `generation.json`.
 name: sbom
 on:
   push:
@@ -11,4 +14,8 @@ jobs:
   sbom:
     permissions:
       contents: read
-    uses: Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/.github/workflows/sbom-generate.yml@8dfe0318f82ef3d086b96e24760447e0be85a30a # supply-chain-preset-v1.0.0
+    uses: Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/.github/workflows/sbom-generate.yml@0e4bc3e887db461b96e68d3459d173d67ec30ab6 # Hub main, PR 389 (adds skip-paths)
+    with:
+      skip-paths: |
+        scripts/tests/fixtures
+        tests/fixtures
