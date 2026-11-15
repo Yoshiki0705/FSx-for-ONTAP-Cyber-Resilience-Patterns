@@ -1,4 +1,4 @@
-# Reduced copy of templates/event-driven.yaml in the shape task 12.2 gives it (design section 12).
+# Reduced copy of templates/event-driven.yaml in the shape the canary reference has (design section 12).
 # Only the resources the Lambda_Canary_Reference test reads are kept; the other resources the
 # Outputs point at are empty stand-ins. All names and values are synthetic.
 # MUTATION: AutoPublishAlias removed
@@ -11,13 +11,19 @@ Resources:
       FunctionName: example-event-transformer
       Runtime: python3.12
       Handler: event_transformer.handler
+      Timeout: 30
       CodeUri:
         Bucket: example-artifact-bucket
         Key: lambda/event-transformer.zip
       DeploymentPreference:
-        Type: Canary10Percent5Minutes
+        Type: Canary10Percent10Minutes
         Alarms:
-          - !Ref EventTransformerAliasErrorsAlarm
+          - !Ref EventTransformerNewVersionErrorsAlarm
+          - !Ref EventTransformerNewVersionFailedRecordsAlarm
+          - !Ref EventTransformerNewVersionDurationAlarm
+          - !Ref EventTransformerThrottlesAlarm
+        Hooks:
+          PreTraffic: !Ref EventTransformerPreTrafficFunction
       RuntimeManagementConfig:
         UpdateRuntimeOn: FunctionUpdate
   EventTransformerAliasErrorsAlarm:
@@ -36,16 +42,120 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+  EventTransformerNewVersionErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+        - Name: Resource
+          Value: !Sub '${EventTransformerLambda}:live'
+        - Name: ExecutedVersion
+          Value: !GetAtt EventTransformerLambda.Version.Version
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+  EventTransformerNewVersionFailedRecordsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: FsxnCyberResilience/EventTransformer
+      MetricName: FailedRecords
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+        - Name: ExecutedVersion
+          Value: !GetAtt EventTransformerLambda.Version.Version
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+  EventTransformerNewVersionDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+        - Name: Resource
+          Value: !Sub '${EventTransformerLambda}:live'
+        - Name: ExecutedVersion
+          Value: !GetAtt EventTransformerLambda.Version.Version
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 15000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+  EventTransformerThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EventTransformerLambda
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopic
+  EventTransformerPreTrafficFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'CodeDeployHook_example-et-pretraffic'
+      Runtime: python3.12
+      Handler: index.handler
+      InlineCode: |
+        def handler(event, context):
+            return "Succeeded"
+  EventTransformerDeploymentFailedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.codedeploy
+        detail-type:
+          - CodeDeploy Deployment State-change Notification
+        detail:
+          state:
+            - FAILURE
+            - STOP
+      Targets:
+        - Id: NotificationTopic
+          Arn: !Ref SecurityAlertTopic
   EventTransformerMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt SecurityEventQueue.Arn
       FunctionName: !Ref EventTransformerLambda.Alias
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
   BatchScanResultMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt BatchScanResultQueue.Arn
       FunctionName: !Ref EventTransformerLambda.Alias
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
   SecurityEventQueue:
     Type: AWS::SQS::Queue
   ApprovalQueue:
