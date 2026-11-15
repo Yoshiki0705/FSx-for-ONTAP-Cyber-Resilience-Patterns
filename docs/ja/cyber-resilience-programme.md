@@ -68,6 +68,8 @@
 
 第 2 の柱と第 3 の柱は、受け渡しの項目を共有する。第 3 の柱から第 2 の柱へ渡すのは、どの復旧点に戻すかを判断した記録である。復旧点を決める時間を RTO に含めるかは、第 2 の柱が決める。どちらも他方の完了を前提にせず、先に着手する柱が受け渡しの形を定義する。
 
+CISA の KEV のカタログには、エントリーごとに `forensicTriage` の欄がある。`Yes` のエントリーは、第 3 の柱へ渡す入力の候補にする。2026-11-15 に取得したカタログ（`catalogVersion` 2026.11.13）では、1,781 件のうち 105 件が `Yes` だった（1 回の取得）。この欄の意味と使い方は、第 3 の柱の計画で決める。第 1 の柱は、Issue の本文に値を表示するだけで、起票の判定には使わない。
+
 ## サービスレベルの考え方
 
 SLA/SLO/SLI と RTO/RPO は、サービス提供者がエンドユーザーに向けて設定する値である。ベンダーの SLAではない。SLA/SLO/SLI の定義は、Resilience lifecycle framework の Stage 1 の節にある [13]。
@@ -141,7 +143,7 @@ PDCA の 4 段階を、AWS Prescriptive Guidance の Resilience lifecycle framew
 
 第 2 の柱が追加で扱うベストプラクティスは、その柱の計画が範囲を決めたときに足す。10 件とも、2026-11-13 に全文を読み、framework mapping の表の記述と照合した。
 
-NIST SP 800-218 の SSDF との対応は、framework mapping の[SSDF との対応](cyber-resilience-framework-mapping.md#ssdf-との対応)にだけ置く。SSDF Rev. 1 は 2026-11-14 時点で草案で、本文は読んでいない（open）。
+NIST SP 800-218 の SSDF との対応は、framework mapping の[SSDF との対応](cyber-resilience-framework-mapping.md#ssdf-との対応)にだけ置く。SSDF の確定版 Version 1.1 の本文を 2026-11-15 に読んだ。Rev. 1 は 2026-11-15 時点で草案で、この文書は草案に依拠しない。
 
 上の Well-Architected の対応は、AWS Well-Architected のレビューの結果ではなく、AWS による承認でもない。サービス提供者は、自身のワークロードのレビューを [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) で記録できる [16]。NIST CSF 2.0 への対応と SSDF への対応は、どちらも NIST による認定ではない。
 
