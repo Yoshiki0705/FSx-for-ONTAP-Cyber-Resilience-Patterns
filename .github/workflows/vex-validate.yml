@@ -43,7 +43,16 @@ jobs:
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.12'
+      # The gate tool imports PyYAML when it starts (another of its subcommands needs it).
+      - name: Install PyYAML
+        run: python3 -m pip install --disable-pip-version-check "pyyaml==6.0.3"
       - name: Run the vex-validate gate
         env:
           VEX_VALIDATE_INPUT: ${{ runner.temp }}/vex-validate-input.json
-        run: python3 scripts/check_supply_chain.py vex-validate
+        run: |
+          # Until the gate is on the default branch (the pull request that adds it), there is nothing trusted to run.
+          if [ ! -f scripts/supply_chain_checks/vex_validate.py ]; then
+            echo "::notice::the default branch has no vex-validate gate yet; nothing to check"
+            exit 0
+          fi
+          python3 scripts/check_supply_chain.py vex-validate
