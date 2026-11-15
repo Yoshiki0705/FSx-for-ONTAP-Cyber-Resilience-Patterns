@@ -1338,7 +1338,11 @@ def kiro_fingerprint(
         raise KiroCliMissing(f"kiro_cli of config.json: {exc}") from exc
     with _ChildPaths() as child:
         env = command.child_env(
-            os.environ, push_url=child.push_url, gh_config_dir=child.gh_config_dir, aws_empty_file=child.aws_empty_file
+            os.environ,
+            push_url=child.push_url,
+            gh_config_dir=child.gh_config_dir,
+            aws_empty_file=child.aws_empty_file,
+            npm_cache_dir=child.npm_cache_dir,
         )
         result = _run_process(
             (program, "--version"),
@@ -2667,6 +2671,7 @@ class _QueryRun:
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                npm_cache_dir=child.npm_cache_dir,
                 path_prepend=self._path_prepend(),
             )
             self._check_login(invocation.argv[0], env, child.directory)
@@ -4064,6 +4069,7 @@ class _ChangeRun(_QueryRun):
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                npm_cache_dir=child.npm_cache_dir,
                 path_prepend=self._path_prepend(),
             )
             ran = _run_process(
@@ -5185,6 +5191,7 @@ class _Selftest:
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                npm_cache_dir=child.npm_cache_dir,
             )
             env[command.GUARD_LOG_VARIABLE] = paths.guard_log
             result = _run_process(
@@ -5418,6 +5425,7 @@ class _Selftest:
                 push_url=child.push_url,
                 gh_config_dir=child.gh_config_dir,
                 aws_empty_file=child.aws_empty_file,
+                npm_cache_dir=child.npm_cache_dir,
             )
             result = _run_process(
                 (program, "whoami"),
@@ -5571,6 +5579,7 @@ class _ChildPaths:
         push_url: ``<directory>/no-such-remote``, which is never created.
         gh_config_dir: ``<directory>/gh``, an empty directory.
         aws_empty_file: ``<directory>/aws-empty``, an empty file.
+        npm_cache_dir: ``<directory>/npm-cache``, an empty directory for npm's cache (task 5.56).
     """
 
     def __enter__(self) -> _ChildPaths:
@@ -5579,7 +5588,9 @@ class _ChildPaths:
         self.push_url = posixpath.join(self.directory, "no-such-remote")
         self.gh_config_dir = posixpath.join(self.directory, "gh")
         self.aws_empty_file = posixpath.join(self.directory, "aws-empty")
+        self.npm_cache_dir = posixpath.join(self.directory, "npm-cache")
         os.mkdir(self.gh_config_dir, 0o700)
+        os.mkdir(self.npm_cache_dir, 0o700)
         with open(self.aws_empty_file, "xb"):
             pass
         return self

@@ -297,6 +297,9 @@ class PilotIssueOutcome:
         duplicate: True when the Issue is the duplicate side of another Issue (``duplicate_of`` is set,
             Requirement 8.38). It is counted under its representative, so it is left out of the denominator
             and of the undecided count (T12-R4-08).
+        cause_key: Identifies the cause of a detector error: the same component and the same detection mistake
+            (Requirement 22.65, D-78). Issues with equal keys are one cause. ``None`` means this Issue is its own
+            cause. The key is only read for Issues counted as detector errors.
         opened_at: When the Issue was opened (UTC). Needed only when ``compute_pilot_rates`` is given a window
             (a restart of the observation, or an evaluation time); ``None`` otherwise.
     """
@@ -306,6 +309,7 @@ class PilotIssueOutcome:
     detector_error: bool = False
     duplicate: bool = False
     opened_at: datetime | None = None
+    cause_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,7 +319,7 @@ class PilotRates:
     Attributes:
         issued: Issues the pilot opened, duplicate sides excluded. It equals
             ``false_positive + not_affected_other + fixed + affected + undecided``.
-        false_positive: Issues where the detector was wrong: ``not_affected`` with
+        false_positive: Issues (not causes) where the detector was wrong: ``not_affected`` with
             ``component_not_present`` (the component is not in the product, so it should not have been
             reported), or classified by a maintainer as a detector error.
         not_affected_other: ``not_affected`` for any other justification. The detector was right and the
@@ -327,7 +331,7 @@ class PilotRates:
         affected: Issues with an ``affected`` statement that are not detector errors (a correct detection
             waiting for a fix).
         duplicates: Duplicate-side Issues, which are not in ``issued`` (Requirement 8.38).
-        rate_percent: ``100 * false_positive / issued``, or ``None`` when ``issued`` is below
+        rate_percent: ``100 * false_positive_causes / issued`` (causes over Issues, D-78), or ``None`` when ``issued`` is below
             ``min_issues`` (too few Issues for a rate to mean anything) or when ``awaiting_decisions``.
             The sample size and the rate both count the Issues the pilot opened, decided or not.
         min_issues: The smallest sample for a rate.
@@ -355,6 +359,7 @@ class PilotRates:
     under_investigation: int = 0
     carried_over: int = 0
     before_window: int = 0
+    false_positive_causes: int = 0
 
 
 def compute_pilot_rates(
@@ -407,14 +412,17 @@ def compute_pilot_rates(
         all_items = inside
     items = [i for i in all_items if not i.duplicate]
     false_positive = not_affected_other = undecided = fixed = affected = under_investigation = 0
-    for item in items:
+    causes: set[object] = set()
+    for index, item in enumerate(items):
         if item.vex_status == "not_affected":
             if item.justification == FALSE_POSITIVE_JUSTIFICATION or item.detector_error:
                 false_positive += 1
+                causes.add(item.cause_key if item.cause_key is not None else index)
             else:
                 not_affected_other += 1
         elif item.detector_error:
             false_positive += 1
+            causes.add(item.cause_key if item.cause_key is not None else index)
         elif item.vex_status == "fixed":
             fixed += 1
         elif item.vex_status == "affected":
@@ -425,7 +433,7 @@ def compute_pilot_rates(
     issued = len(items)
     awaiting = issued > 0 and 100 * undecided > MAX_UNDECIDED_PERCENT * issued
     enough = issued >= max(min_issues, 1)
-    rate = 100.0 * false_positive / issued if enough and not awaiting else None
+    rate = 100.0 * len(causes) / issued if enough and not awaiting else None
     return PilotRates(
         issued,
         false_positive,
@@ -440,6 +448,7 @@ def compute_pilot_rates(
         under_investigation,
         carried_over,
         before_window,
+        len(causes),
     )
 
 
@@ -498,7 +507,8 @@ class LowSampleReview:
         awaiting_decisions: The sample is large enough but too many Issues are undecided, so no rate is reported
             and the report says "awaiting decisions" (T3-R3-04).
         issued: Issues the pilot opened.
-        detector_errors: Issues counted as the detector's error (Requirement 22.11).
+        detector_errors: Detector errors counted by cause (Requirement 22.11, 22.65, D-78).
+        detector_error_issues: The Issues those errors opened (``PilotRates.false_positive``).
         not_affected_other: ``not_affected`` for any other justification.
         undecided: Issues no reviewer has decided yet; a one-by-one judgement of every Issue is not complete while this is above 0.
         within_error_limit: ``detector_errors`` is at most ``MAX_DETECTOR_ERRORS_LOW_SAMPLE``. It does not mean
@@ -547,6 +557,7 @@ class LowSampleReview:
     can_restart_observation: bool = False
     needs_maintainer_decision: bool = False
     may_restart_now: bool = False
+    detector_error_issues: int = 0
 
 
 def review_low_sample(
@@ -578,9 +589,9 @@ def review_low_sample(
     """
     if restarts_done is not None and restarts_done < 0:
         raise ValueError("restarts_done must be 0 or more")
-    within = rates.false_positive <= max_detector_errors
+    within = rates.false_positive_causes <= max_detector_errors
     applies = rates.rate_percent is None and not rates.awaiting_decisions
-    majority = rates.issued > 0 and 2 * rates.false_positive >= rates.issued
+    majority = rates.issued > 0 and 2 * rates.false_positive_causes >= rates.issued
     causes = (
         *(("errors_over_limit",) if not within else ()),
         *(("errors_majority",) if majority else ()),
@@ -594,7 +605,8 @@ def review_low_sample(
     return LowSampleReview(
         applies=applies,
         issued=rates.issued,
-        detector_errors=rates.false_positive,
+        detector_errors=rates.false_positive_causes,
+        detector_error_issues=rates.false_positive,
         not_affected_other=rates.not_affected_other,
         undecided=rates.undecided,
         within_error_limit=within,

@@ -98,6 +98,8 @@ FORBIDDEN_GIT_WORDS: Final[frozenset[str]] = frozenset(
 PUSH_URL_KEY: Final = "remote.origin.pushurl"
 
 #: Prefixes of the parent's environment variables that :func:`child_env` drops.
+#: The registry that ``npm`` in a run uses (``npm_config_registry``); a command line cannot change it (task 5.56).
+NPM_REGISTRY: Final = "https://registry.npmjs.org/"
 DROPPED_ENV_PREFIXES: Final[tuple[str, ...]] = ("AWS_", "GIT_", "GH_", "GITHUB_")
 
 #: The variable that names the file where the guard wrapper appends one entry per call (task
@@ -972,6 +974,7 @@ def child_env(
     gh_config_dir: str,
     aws_empty_file: str,
     path_prepend: Sequence[str] = (),
+    npm_cache_dir: str | None = None,
 ) -> dict[str, str]:
     """Build the environment of a ``kiro-cli`` run: layer 3 of design section 20.
 
@@ -1015,6 +1018,14 @@ def child_env(
       then the parent's ``PATH`` (nothing after them when the parent has none, since an empty
       entry would mean the current directory). This is how a repository's pinned tools reach a
       worktree (``config.Prerequisites.path_prepend``).
+    - Every variable whose name starts with ``npm_config_`` in any letter case: npm reads both spellings, and a
+      parent's registry, prefix, cache or token would otherwise move what ``npm`` in a run reads and writes (task 5.56).
+    - When ``npm_cache_dir`` is given, ``npm_config_cache`` set to it (a directory of the run's temporary directory,
+      which stays writable whether layer 0 is a list of denials or, later, of permissions), ``npm_config_userconfig``
+      and ``npm_config_globalconfig`` set to ``aws_empty_file`` (so ``~/.npmrc``, which layer 0 does not let anyone
+      read, is not consulted), the registry set to the public one, and ``ignore_scripts``, ``audit``, ``fund`` and
+      ``update_notifier`` set. Environment variables rank above a project's ``.npmrc`` in npm's order of
+      precedence, so the registry cannot be moved by a file the run writes.
     - ``AWS_CONFIG_FILE`` and ``AWS_SHARED_CREDENTIALS_FILE`` both set to
       ``aws_empty_file``, and ``AWS_EC2_METADATA_DISABLED=true``.
 
@@ -1036,6 +1047,8 @@ def child_env(
             ``AWS_SHARED_CREDENTIALS_FILE``.
         path_prepend: Directories for the front of ``PATH``: absolute, in normal form, without
             ``:``.
+        npm_cache_dir: A directory for npm's cache, absolute and in normal form; ``None`` for a caller that does not
+            run npm (no ``npm_config_*`` variable is set).
 
     Returns:
         A new dictionary. ``parent`` is not changed.
@@ -1072,7 +1085,9 @@ def child_env(
     env = {
         key: value
         for key, value in parent.items()
-        if not key.startswith(DROPPED_ENV_PREFIXES) and key not in DROPPED_ENV_NAMES
+        if not key.startswith(DROPPED_ENV_PREFIXES)
+        and key not in DROPPED_ENV_NAMES
+        and not key.lower().startswith("npm_config_")
     }
     env.update(
         {
@@ -1087,6 +1102,21 @@ def child_env(
             "AWS_EC2_METADATA_DISABLED": "true",
         }
     )
+    if npm_cache_dir is not None:
+        if type(npm_cache_dir) is not str or not _is_normal_absolute(npm_cache_dir):
+            raise ValueError(f"npm_cache_dir must be an absolute path in normal form, got {_show(npm_cache_dir)}")
+        env.update(
+            {
+                "npm_config_cache": npm_cache_dir,
+                "npm_config_userconfig": aws_empty_file,
+                "npm_config_globalconfig": aws_empty_file,
+                "npm_config_registry": NPM_REGISTRY,
+                "npm_config_ignore_scripts": "true",
+                "npm_config_audit": "false",
+                "npm_config_fund": "false",
+                "npm_config_update_notifier": "false",
+            }
+        )
     if path_prepend:
         env["PATH"] = ":".join((*path_prepend, *([parent["PATH"]] if parent.get("PATH") else [])))
     return env
