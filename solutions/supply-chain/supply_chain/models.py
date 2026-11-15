@@ -133,7 +133,7 @@ class Policy:
     automerge_include: tuple[AutomergeRule, ...]
     automerge_exclude: tuple[str, ...]  # includes "hub_reusable_workflow"
     automerge_enabled_repositories: tuple[Repo, ...]  # empty at the start (14.7)
-    package_manager_wait: CooldownDays  # derived from cooldown_days (Requirement 12.9); the key is optional in the file
+    package_manager_wait: int  # days; one value, equal to cooldown_days.default (Requirements 12.9, 12.21); the key is optional in the file
     non_production_paths: tuple[str, ...]  # dependency_scope (Requirement 13.2)
     vex_directory: str
     vex_exclude_statuses: tuple[VexStatus, ...]
