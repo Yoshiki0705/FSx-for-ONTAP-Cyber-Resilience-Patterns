@@ -39,10 +39,12 @@ from supply_chain.issue_body import (
 )
 from supply_chain.models import (
     DEFAULT_UNSCORED_REVIEW_DAYS,
+    OVERDUE_LABEL,
     CloseReason,
     Component,
     Finding,
     IssueAction,
+    KevEntry,
     ManagedIssue,
     Plan,
     PlanInputs,
@@ -113,12 +115,12 @@ class _Run:
     """Per-run constants read from the inputs."""
 
     inputs: PlanInputs
-    kev: Mapping[str, tuple[date, bool | None]] | None
+    kev: Mapping[str, KevEntry | tuple[date, bool | None]] | None
     # (repo, primary id) -> path of a VEX statement that names only an alias of the Finding (T12-R5-02); set after
     # the classification, read when the Issue bodies are built.
     vex_alias_only: Mapping[tuple[RepoKey, str], str] = field(default_factory=dict)
 
-    def kev_of(self, ids: Iterable[str]) -> tuple[date, bool | None] | None:
+    def kev_of(self, ids: Iterable[str]) -> KevEntry | tuple[date, bool | None] | None:
         if self.kev is None:
             return None
         return next((self.kev[i] for i in ids if i in self.kev), None)
@@ -389,7 +391,7 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
 # --- bodies --------------------------------------------------------------------------------------
 
 
-def _origin(group: _Group, run: _Run, kev: tuple[date, bool | None] | None) -> tuple[datetime | None, bool]:
+def _origin(group: _Group, run: _Run, kev: KevEntry | tuple[date, bool | None] | None) -> tuple[datetime | None, bool]:
     """Origin = the later of "threshold first met" and "component version first observed" (Requirement 18.3).
 
     When the time that met the threshold is unknown the origin is ``None`` (shown as unknown and left out of
@@ -707,6 +709,52 @@ def _close_actions(
     return actions, unconfirmed, held, duplicates
 
 
+# --- overdue label (Requirement 18.19) -------------------------------------------------------------
+def _overdue_label_actions(
+    actions: Sequence[IssueAction], run: _Run, duplicates: Sequence[tuple[Repo, int, str, str]]
+) -> list[IssueAction]:
+    """Adds or removes ``OVERDUE_LABEL`` on the open Finding Issues, so that the label follows ``due_at``.
+
+    An Issue is overdue when its ``due_at`` is before ``now``; the ``due_at`` is the one the Issue will have
+    after this run's own ``update`` or ``reopen``. A closed Issue (or one closed in this run), a duplicate that
+    stays open for a person to merge, a repository that was not fetched, and an Issue without a ``due_at`` are
+    left alone. The label rides on the action that already writes the Issue; otherwise an ``update`` without a
+    body carries it. Once applied, the next plan has nothing to add.
+    """
+    inputs = run.inputs
+    ok = {_repo_key(r) for r in inputs.fetch_ok}
+    closing = {(_repo_key(a.repo), a.number) for a in actions if a.op == "close" and a.number is not None}
+    dup = {(_repo_key(r), n) for r, n, _v, _rep in duplicates}
+    writing = {
+        (_repo_key(a.repo), a.number): index
+        for index, a in enumerate(actions)
+        if a.kind == "finding" and a.op in ("update", "reopen") and a.number is not None
+    }
+    out = list(actions)
+    for issue in sorted(inputs.issues, key=lambda i: (_repo_key(i.repo), i.number)):
+        key = (_repo_key(issue.repo), issue.number)
+        if issue.kind != "finding" or issue.vuln_id is None or key[0] not in ok or key in closing or key in dup:
+            continue
+        index = writing.get(key)
+        if index is None and issue.state != "open":
+            continue
+        state = parse_state(actions[index].body) if index is not None and actions[index].body else issue.body_state
+        due = _state_time(state, "due_at")
+        if due is None:
+            continue
+        overdue = due < inputs.now
+        if overdue == (OVERDUE_LABEL in issue.labels):
+            continue
+        add, remove = ((OVERDUE_LABEL,), ()) if overdue else ((), (OVERDUE_LABEL,))
+        if index is not None:
+            out[index] = replace(out[index], add_labels=add, remove_labels=remove)
+        else:
+            out.append(
+                IssueAction("update", issue.repo, "finding", issue.vuln_id, issue.number, None, None, add, remove)
+            )
+    return out
+
+
 # --- entry point -----------------------------------------------------------------------------------
 
 
@@ -753,7 +801,8 @@ def plan(inputs: PlanInputs) -> Plan:
     scored = set(no_severity)
     below = tuple(f for f in leftovers if f not in scored)
     unscored_actions = _unscored_actions(unscored, held, run)
-    ordered = sorted([*actions, *summary_actions, *close_actions, *unscored_actions], key=_action_key)
+    combined = [*actions, *summary_actions, *close_actions, *unscored_actions]
+    ordered = sorted(_overdue_label_actions(combined, run, duplicates), key=_action_key)
     return Plan(
         actions=tuple(ordered),
         vex_exclusions=cls.exclusions,

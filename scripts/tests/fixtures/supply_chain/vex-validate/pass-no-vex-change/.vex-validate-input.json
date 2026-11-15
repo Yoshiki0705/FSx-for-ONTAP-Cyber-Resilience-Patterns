@@ -1,0 +1,12 @@
+{
+  "pull_request": {
+    "user": "author-user",
+    "head_sha": "headsha1",
+    "body": ""
+  },
+  "files": [
+    "README.md",
+    "docs/a.md"
+  ],
+  "reviews": []
+}

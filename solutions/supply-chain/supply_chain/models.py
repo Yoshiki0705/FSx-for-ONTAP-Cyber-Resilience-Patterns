@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Literal, NamedTuple
 
 Severity = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 VexStatus = Literal["not_affected", "affected", "fixed", "under_investigation"]
@@ -201,12 +201,30 @@ class Finding:
         _require_utc("first_observed_component_at", self.first_observed_component_at)
 
 
+#: Label of an open Issue whose Response_Target due time has passed (Requirement 18.19).
+OVERDUE_LABEL = "response-target-overdue"
+
+
+class KevEntry(NamedTuple):
+    """One KEV catalogue entry, as the Aggregator reads it (CISA field names in the comments).
+
+    ``due_date`` and ``forensic_triage`` are shown in the Issue and decide nothing (Requirement 8.19).
+    ``None`` means the entry did not carry the field. A plain ``(date_added, known_ransomware)`` pair is
+    still read as an entry without the two items.
+    """
+
+    date_added: date  # dateAdded
+    known_ransomware: bool | None  # knownRansomwareCampaignUse: "Known" -> True, "Unknown" -> None or False
+    due_date: date | None = None  # dueDate
+    forensic_triage: bool | None = None  # forensicTriage: "Yes" -> True, "No" -> False
+
+
 @dataclass(frozen=True, slots=True)
 class FeedSnapshot:
     """Feed contents for one run. ``None`` means the fetch failed."""
 
-    # id -> (dateAdded, knownRansomwareCampaignUse)
-    kev: Mapping[str, tuple[date, bool | None]] | None
+    # id -> (dateAdded, knownRansomwareCampaignUse, dueDate, forensicTriage); the last two may be absent
+    kev: Mapping[str, KevEntry | tuple[date, bool | None]] | None
     # id -> (score, date, model version)
     epss: Mapping[str, tuple[str, date, str]] | None
     # MAL- id -> published time
@@ -274,6 +292,8 @@ class ManagedIssue:
     body_state: Mapping[str, object] | None
     # When GitHub closed the Issue. ``None`` when unknown (a reopen then continues the earlier deadline).
     closed_at: datetime | None = None
+    # The labels GitHub shows on the Issue. Read for ``OVERDUE_LABEL`` only; the I/O layer fills it (task 15.8).
+    labels: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         _require_utc("closed_at", self.closed_at)
@@ -325,6 +345,10 @@ class IssueAction:
     number: int | None
     body: str | None
     close_reason: CloseReason | None
+    # Labels to add to or remove from the Issue (``OVERDUE_LABEL`` only). An ``update`` with ``body=None`` changes
+    # labels and nothing else: the I/O layer must not write a body for it.
+    add_labels: tuple[str, ...] = ()
+    remove_labels: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

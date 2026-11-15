@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-from supply_chain.models import Component, Repo, Severity
+from supply_chain.models import Component, KevEntry, Repo, Severity
 from supply_chain.threshold import MALICIOUS_PREFIX
 
 MARKER_PREFIX = "supply-chain-aggregator:v1"
@@ -58,11 +58,17 @@ class HistoryEntry:
     at: datetime
 
 
+def _kev_entry(value: KevEntry | tuple[date, bool | None]) -> KevEntry:
+    """Reads a KEV value that may be a plain ``(dateAdded, knownRansomwareCampaignUse)`` pair."""
+    return value if isinstance(value, KevEntry) else KevEntry(*value)
+
+
 @dataclass(frozen=True, slots=True)
 class FindingIssue:
     """Everything the body of a finding Issue shows.
 
-    ``kev`` is ``(dateAdded, knownRansomwareCampaignUse)`` or ``None`` when the
+    ``kev`` is ``(dateAdded, knownRansomwareCampaignUse, dueDate, forensicTriage)`` (a ``models.KevEntry``; the
+    last two may be absent, and a plain two-item pair is read as absent) or ``None`` when the
     vulnerability is not listed (or KEV was not obtained). ``epss`` is
     ``(score, date, model_version)`` or ``None`` when not obtained. Datetimes
     are UTC (see ``models``).
@@ -73,7 +79,7 @@ class FindingIssue:
     aliases: tuple[str, ...]
     components: tuple[Component, ...]
     cvss_severity: Severity | None
-    kev: tuple[date, bool | None] | None
+    kev: KevEntry | tuple[date, bool | None] | None
     epss: tuple[str, date, str] | None
     fixed_version: str | None
     origin_at: datetime | None  # None when the time that met the threshold is unknown (Requirement 18.4)
@@ -285,7 +291,13 @@ def render_finding(data: FindingIssue, max_chars: int = MAX_BODY_CHARS) -> str:
         omitted = len(comps) - len(shown)
         kev = None
         if data.kev is not None:
-            kev = {"date_added": data.kev[0].isoformat(), "known_ransomware_campaign_use": data.kev[1]}
+            entry = _kev_entry(data.kev)
+            kev = {
+                "date_added": entry.date_added.isoformat(),
+                "known_ransomware_campaign_use": entry.known_ransomware,
+                "due_date": entry.due_date.isoformat() if entry.due_date is not None else None,
+                "forensic_triage": entry.forensic_triage,
+            }
         epss = None
         if data.epss is not None:
             epss = {"score": data.epss[0], "date": data.epss[1].isoformat(), "model_version": data.epss[2]}
@@ -337,11 +349,14 @@ def _compose_finding(
         epss = f"{data.epss[0]}（取得日 {data.epss[1].isoformat()}、モデルの版 {data.epss[2]}）"
     if data.kev is None:
         kev = "掲載なし"
-        ransomware = "該当なし（KEV 掲載なし）"
+        ransomware = due = triage = "該当なし（KEV 掲載なし）"
     else:
-        kev = f"掲載あり（dateAdded {data.kev[0].isoformat()}）"
-        flag = data.kev[1]
+        entry = _kev_entry(data.kev)
+        kev = f"掲載あり（dateAdded {entry.date_added.isoformat()}）"
+        flag = entry.known_ransomware
         ransomware = "不明" if flag is None else ("確認あり" if flag else "確認なし")
+        due = entry.due_date.isoformat() if entry.due_date is not None else "不明"
+        triage = "不明" if entry.forensic_triage is None else ("Yes" if entry.forensic_triage else "No")
     if data.origin_at is None:
         origin = "不明（脅威の公開日時を取得できていない。検出の実績から除く）"
     else:
@@ -353,6 +368,8 @@ def _compose_finding(
         ("CVSS 重大度", data.cvss_severity if data.cvss_severity else "未付与"),
         ("KEV 掲載", kev),
         ("KEV の knownRansomwareCampaignUse（表示のみ）", ransomware),
+        ("KEV の dueDate（表示のみ）", due),
+        ("KEV の forensicTriage（表示のみ）", triage),
         ("EPSS", epss),
         ("修正済みバージョン", fixed),
         ("起点", origin),

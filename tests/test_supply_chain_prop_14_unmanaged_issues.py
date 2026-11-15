@@ -61,7 +61,7 @@ def _raw_of(issue: ManagedIssue) -> RawIssue:
     body = ib.render_marker(issue.kind, issue.repo, issue.vuln_id)
     if issue.body_state is not None:
         body += "\n\n" + _state_block(dict(issue.body_state))
-    return RawIssue(issue.repo, issue.number, (LABEL,), body, issue.state)
+    return RawIssue(issue.repo, issue.number, (LABEL, *sorted(issue.labels)), body, issue.state)
 
 
 def _unmanaged(variant: str, repo: Repo, number: int, vuln_id: str, state: IssueState, other: Repo) -> RawIssue:
@@ -86,7 +86,17 @@ def _collect(raw: tuple[RawIssue, ...]) -> tuple[ManagedIssue, ...]:
             continue
         kind: IssueKind = marker.kind  # type: ignore[assignment]
         vuln_id = marker.vuln_id if kind == "finding" else None
-        out.append(ManagedIssue(issue.repo, issue.number, kind, vuln_id, issue.state, ib.parse_state(issue.body)))
+        out.append(
+            ManagedIssue(
+                issue.repo,
+                issue.number,
+                kind,
+                vuln_id,
+                issue.state,
+                ib.parse_state(issue.body),
+                labels=frozenset(issue.labels) - {LABEL},
+            )
+        )
     return tuple(out)
 
 
