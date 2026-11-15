@@ -68,6 +68,8 @@ The first pillar refers to these sources:
 
 The second and third pillars share a hand-off. The third pillar passes the record of the decision on which recovery point to restore. Whether the time spent choosing the recovery point counts toward RTO is decided by the second pillar. Neither pillar assumes the other is finished, and the pillar that starts first defines the shape of the hand-off.
 
+Each entry in the CISA KEV catalog has a `forensicTriage` field. Entries where it is `Yes` are candidates for input passed to the third pillar. In the catalog fetched on 2026-11-15 (`catalogVersion` 2026.11.13), 105 of 1,781 entries were `Yes` (one fetch). The meaning and use of the field are decided in the third pillar's plan. The first pillar only shows the value in the Issue body and does not use it to decide whether to open an Issue.
+
 ## Service levels
 
 SLA/SLO/SLI and RTO/RPO are values that the service owner sets for end users. They are not the vendor SLA. The definitions of SLA, SLO, and SLI are in the stage 1 section of the Resilience lifecycle framework [13].
@@ -141,7 +143,7 @@ The correspondence between the subjects this project covers and the AWS Well-Arc
 
 Best practices that the second pillar handles beyond these are added when that pillar's plan sets its scope. All ten pages were read in full on 2026-11-13 and checked against the entries in the framework mapping table.
 
-The correspondence to the NIST SP 800-218 SSDF is in the framework mapping only, under [Correspondence to NIST SSDF](cyber-resilience-framework-mapping.md#correspondence-to-nist-ssdf). SSDF Rev. 1 is a draft as of 2026-11-14, and its body has not been read (open).
+The correspondence to the NIST SP 800-218 SSDF is in the framework mapping only, under [Correspondence to NIST SSDF](cyber-resilience-framework-mapping.md#correspondence-to-nist-ssdf). The body of the final SSDF Version 1.1 was read on 2026-11-15. Rev. 1 is a draft as of 2026-11-15, and this document does not rely on it.
 
 The Well-Architected correspondence above is not the result of a Well-Architected review and is not an approval by AWS. A service owner can record a review of their own workload in the [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) [16]. Neither the NIST CSF 2.0 correspondence nor the SSDF correspondence is a NIST certification.
 
