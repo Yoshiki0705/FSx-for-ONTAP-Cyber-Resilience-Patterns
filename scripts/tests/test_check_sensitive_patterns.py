@@ -79,3 +79,11 @@ def test_output_never_echoes_the_value(tmp_path):
     leak.write_text(f"account {SYNTHETIC_ACCOUNT}\n")
     out = subprocess.run([sys.executable, str(SCRIPT), str(leak)], capture_output=True, text=True).stdout
     assert SYNTHETIC_ACCOUNT not in out
+
+
+def test_placeholder_home_paths_pass_and_real_looking_ones_fail() -> None:
+    from check_sensitive_patterns import scan_text
+
+    assert scan_text("/Users/u/Projects/r and /Users/example/x", []) == []
+    for text in ("/Users/yoshiki/x", "/Users/ux/y", "/Users/u-v/z"):
+        assert [c for _, c in scan_text(text, [])] == ["absolute home-directory path"], text

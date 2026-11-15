@@ -42,7 +42,8 @@ EXCLUDED = {"scripts/check_sensitive_patterns.py", "scripts/tests/test_check_sen
 ACCOUNT_ID = re.compile(r"(?<![0-9A-Za-z_])[0-9]{12}(?![0-9A-Za-z_])")
 IPV4 = re.compile(r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9]|\.[0-9])")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}")
-HOME_PATH = re.compile(r"/Users/[A-Za-z0-9._-]+")
+# ``/Users/u`` and ``/Users/example`` are the placeholders of the tests and docs: they name no real user.
+HOME_PATH = re.compile(r"/Users/(?!(?:u|example)(?![A-Za-z0-9._-]))[A-Za-z0-9._-]+")
 
 
 def load_literals() -> list[str]:
