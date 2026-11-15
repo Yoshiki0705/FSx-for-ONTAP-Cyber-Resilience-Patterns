@@ -55,8 +55,7 @@
     "open_if_malicious": true
   },
   "package_manager_wait": {
-    "default_days": 3,
-    "major_days": 7
+    "default_days": 3
   },
   "renovate_preset": {
     "commit": "89abcdef0123456789abcdef0123456789abcdef",

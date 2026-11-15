@@ -142,7 +142,7 @@ def _policy() -> models.Policy:
         automerge_include=(),
         automerge_exclude=("hub_reusable_workflow",),
         automerge_enabled_repositories=(),
-        package_manager_wait=cd,
+        package_manager_wait=cd.default,
         non_production_paths=(),
         vex_directory=".vex",
         vex_exclude_statuses=("not_affected", "fixed"),
