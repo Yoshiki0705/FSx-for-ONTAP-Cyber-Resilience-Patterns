@@ -104,7 +104,9 @@ def _statements(
         purl = _other_version(f.component.purl) if shape & 16 else f.component.purl
         path = f".vex/{n:03d}.json"
         out.setdefault(f.repo, []).append(_doc(path, head, rest, purl, status))
-        if status in EXCLUDING and not shape & 16 and {head, *rest} & set(ids):  # a statement covers what it names (11.37)
+        if (
+            status in EXCLUDING and not shape & 16 and {head, *rest} & set(ids)
+        ):  # a statement covers what it names (11.37)
             matches.append((f, path))
     return {repo: tuple(docs) for repo, docs in out.items()}, matches
 

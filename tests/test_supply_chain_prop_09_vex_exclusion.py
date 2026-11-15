@@ -116,7 +116,9 @@ def _statements(picks: Sequence[tuple[models.Finding, models.VexStatus, int]]) -
             head, rest = aliases_only[0], ()
         elif shape & 16:  # a malicious-package statement that lists the finding only as an alias
             head, rest = "MAL-2098-0001", ids
-        elif shape & 8:  # a statement about another vulnerability that lists the finding's ids as aliases (it covers them, 11.37)
+        elif (
+            shape & 8
+        ):  # a statement about another vulnerability that lists the finding's ids as aliases (it covers them, 11.37)
             head, rest = "CVE-2098-0001", ids
         entries.append((f.repo, _doc(f".vex/{n:03d}.json", head, rest, f.component.purl, status)))
     return _vex_map(entries)

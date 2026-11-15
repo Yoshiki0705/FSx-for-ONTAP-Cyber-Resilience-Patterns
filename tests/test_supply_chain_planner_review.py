@@ -286,9 +286,7 @@ def test_property_alias_linked_reports_open_one_issue_per_connected_identifier_s
     for ident, names in holders.items():
         # An identifier the sources declare with two CVEs is listed under each CVE's Issue (T2-R2-02); nothing
         # else may appear in two Issues (a CVE or MAL- identifier never does).
-        assert len(names) == 1 or not ident.startswith(("CVE-", "MAL-")), (
-            "one identifier appears in two Issues"
-        )
+        assert len(names) == 1 or not ident.startswith(("CVE-", "MAL-")), "one identifier appears in two Issues"
     settled = _next(inputs, plan)
     assert planner.plan(settled).actions == ()
 

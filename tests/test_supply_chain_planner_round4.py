@@ -1,4 +1,5 @@
 """Planner behaviour added after the third expert review (T2-R3-02, T2-R3-03)."""
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -8,8 +9,8 @@ import pytest
 from supply_chain import planner
 
 from tests.test_supply_chain_planner import NOW, REPO, _finding, _inputs, _next, _ops, _state
-from tests.test_supply_chain_planner_round3 import _closed_at, _flapped
 from tests.test_supply_chain_planner_review import CVE, _doc
+from tests.test_supply_chain_planner_round3 import _closed_at, _flapped
 
 GHSA = "GHSA-aaaa-bbbb-cccc"
 CVE2 = "CVE-2026-0002"

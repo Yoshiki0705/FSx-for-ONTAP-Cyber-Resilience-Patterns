@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from supply_chain import planner
 
 from tests.test_supply_chain_planner import NOW, REPO, _finding, _inputs, _next, _ops

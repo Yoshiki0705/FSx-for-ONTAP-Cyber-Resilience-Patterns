@@ -567,7 +567,8 @@ def test_a_policy_file_failure_still_writes_a_report_in_the_error_state(tmp_path
     _write(runs, NOW - timedelta(hours=1), "1-1")
     report_file = tmp_path / "report.json"
     code = watchdog_cli.main(
-        ["--runs-dir", str(runs), "--policy-file", str(tmp_path / "absent.json"), "--report-file", str(report_file)], NOW
+        ["--runs-dir", str(runs), "--policy-file", str(tmp_path / "absent.json"), "--report-file", str(report_file)],
+        NOW,
     )
     assert code == 1
     report = json.loads(report_file.read_text(encoding="utf-8"))
