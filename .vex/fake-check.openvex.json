@@ -1,0 +1,16 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://example.invalid/vex/fake-check",
+  "author": "test",
+  "timestamp": "2026-11-15T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {"name": "CVE-2000-0001"},
+      "products": [{"@id": "pkg:pypi/example@1.0.0"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Throwaway ruleset check; not a real decision."
+    }
+  ]
+}
