@@ -68,6 +68,7 @@ def _cases(draw: st.DrawFn) -> tuple[Finding, ib.FindingIssue] | None:
         due_at=due,
         last_run_id=draw(st.sampled_from(["run-1", "run-2"])),
         history=(),
+        malicious=is_malicious(finding),  # the planner passes the group's flag (a GHSA malware advisory has no MAL-)
     )
     return finding, issue
 

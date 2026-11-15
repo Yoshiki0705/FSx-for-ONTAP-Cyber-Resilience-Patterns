@@ -23,6 +23,7 @@ from datetime import UTC, date, datetime
 from hypothesis import event, given, settings
 from hypothesis import strategies as st
 from supply_chain import issue_body, models, planner
+from supply_chain.canonical import canonicalize
 from supply_chain.vex import REASON_MALICIOUS
 
 from tests.fakes import issue_store as fake
@@ -49,7 +50,9 @@ def _ordered(found: Sequence[models.Finding]) -> list[models.Finding]:
 
 
 def _doc(path: str, vuln_id: str, aliases: tuple[str, ...], purl: str, status: models.VexStatus) -> models.VexDocument:
-    statement = models.VexStatement(vuln_id, aliases, (purl,), status, "component_not_present", None, STAMP)
+    statement = models.VexStatement(
+        vuln_id, aliases, (purl,), status, "component_not_present", "reviewed: component is not shipped", STAMP
+    )
     return models.VexDocument("urn:example:21", CONTEXT, "example", None, STAMP, 1, None, (statement,), path)
 
 
@@ -70,6 +73,7 @@ def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, list[tuple[models.Findin
         for n, (f, flag) in enumerate(zip(mal_list, flags, strict=True))
     )
     mal_issues = tuple(i for i in inputs.issues if (i.vuln_id or "").startswith("MAL-"))
+    mal_findings = frozenset(canonicalize(mal_findings))  # what plan works on: aliases joined first (T2-02)
     inputs = replace(inputs, findings=mal_findings, issues=mal_issues)
     found = _ordered(mal_findings)
     picks = draw(
@@ -100,7 +104,9 @@ def _statements(
         purl = _other_version(f.component.purl) if shape & 16 else f.component.purl
         path = f".vex/{n:03d}.json"
         out.setdefault(f.repo, []).append(_doc(path, head, rest, purl, status))
-        if status in EXCLUDING and not shape & 16:
+        if (
+            status in EXCLUDING and not shape & 16 and {head, *rest} & set(ids)
+        ):  # a statement covers what it names (11.37)
             matches.append((f, path))
     return {repo: tuple(docs) for repo, docs in out.items()}, matches
 

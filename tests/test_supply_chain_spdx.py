@@ -18,12 +18,19 @@ SHA = "0123456789abcdef0123456789abcdef01234567"
 ADAPTER_DIR = Path(__file__).parent.parent / "solutions" / "supply-chain" / "adapters"
 
 
-def sbom(packages: list[dict[str, Any]] | None = None, **extra: Any) -> dict[str, Any]:
-    """Builds a minimal SPDX 2.3 document with a described root package."""
+def sbom(packages: list[dict[str, Any]] | None = None, *, declare_empty: bool = True, **extra: Any) -> dict[str, Any]:
+    """Builds a minimal SPDX 2.3 document with a described root package.
+
+    Without packages the document declares itself empty (``CONTAINS`` -> ``NONE``) unless ``declare_empty`` is
+    false: an empty SBOM has to say so, otherwise it is refused (Requirement 4.10).
+    """
     root = {"SPDXID": "SPDXRef-root", "name": "example-app", "versionInfo": SHA}
     doc: dict[str, Any] = {
         "spdxVersion": "SPDX-2.3",
         "SPDXID": "SPDXRef-DOCUMENT",
+        "name": "example-app",
+        "dataLicense": "CC0-1.0",
+        "documentNamespace": "https://example.com/spdxdocs/example-app-0000",
         "creationInfo": {
             "created": "2026-11-10T01:02:03Z",
             "creators": ["Tool: syft-1.2.3", "Organization: Example Org"],
@@ -33,6 +40,10 @@ def sbom(packages: list[dict[str, Any]] | None = None, **extra: Any) -> dict[str
             {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-root"}
         ],
     }
+    if not packages and declare_empty:
+        doc["relationships"].append(
+            {"spdxElementId": "SPDXRef-root", "relationshipType": "CONTAINS", "relatedSpdxElement": "NONE"}
+        )
     doc.update(extra)
     return doc
 
@@ -60,14 +71,62 @@ def test_zero_components_sbom_declared_empty() -> None:
     assert info.declared_empty is True
 
 
-def test_zero_components_without_packages_key_or_none_marker() -> None:
-    """Missing ``packages`` and a missing NONE marker both read as zero components."""
-    doc = sbom()
-    del doc["packages"]
-    info = parse_spdx(doc)
+def test_zero_components_without_a_none_marker_is_refused() -> None:
+    """A root-only or package-less document is a truncated export, not a clean SBOM (T1-08)."""
+    for doc in (sbom(declare_empty=False), {k: v for k, v in sbom(declare_empty=False).items() if k != "packages"}):
+        with pytest.raises(SbomFormatError, match="CONTAINS -> NONE"):
+            parse_spdx(doc)
+
+
+def test_a_document_with_only_the_version_is_refused() -> None:
+    with pytest.raises(SbomFormatError, match="missing or wrong"):
+        parse_spdx({"spdxVersion": "SPDX-2.3"})
+
+
+@pytest.mark.parametrize(
+    "drop", ["SPDXID", "dataLicense", "name", "documentNamespace", "creationInfo", "created", "creators"]
+)
+def test_each_required_document_field_is_checked(drop: str) -> None:
+    doc = sbom([pkg("SPDXRef-a", "alpha", "1", "pkg:npm/alpha@1")])
+    if drop == "created":
+        del doc["creationInfo"]["created"]
+    elif drop == "creators":
+        doc["creationInfo"]["creators"] = []
+    else:
+        del doc[drop]
+    with pytest.raises(SbomFormatError, match="missing or wrong"):
+        parse_spdx(doc)
+
+
+def test_only_unaddressable_packages_is_still_reported_not_refused() -> None:
+    info = parse_spdx(sbom([pkg("SPDXRef-a", "alpha", "1", None)]))
     assert info.component_count == 0
+    assert info.skipped_without_purl == 1
     assert info.declared_empty is False
-    assert info.commit_sha is None  # no root package to carry it
+
+
+def test_contains_is_not_a_dependency_and_a_flat_document_says_nothing_about_directness() -> None:
+    doc = sbom([pkg("SPDXRef-a", "alpha", "1", "pkg:npm/alpha@1"), pkg("SPDXRef-b", "beta", "1", "pkg:npm/beta@1")])
+    doc["relationships"] += [
+        rel("SPDXRef-root", "CONTAINS", "SPDXRef-a"),
+        rel("SPDXRef-b", "CONTAINED_BY", "SPDXRef-root"),
+    ]
+    assert [c.direct for c in parse_spdx(doc).components] == ["unknown", "unknown"]
+    flat = sbom([pkg("SPDXRef-a", "alpha", "1", "pkg:npm/alpha@1"), pkg("SPDXRef-b", "beta", "1", "pkg:npm/beta@1")])
+    flat["relationships"] += [
+        rel("SPDXRef-root", "DEPENDS_ON", "SPDXRef-a"),
+        rel("SPDXRef-root", "DEPENDS_ON", "SPDXRef-b"),
+    ]
+    assert [c.direct for c in parse_spdx(flat).components] == ["unknown", "unknown"]
+
+
+def test_real_github_dependency_graph_export_has_no_direct_marking() -> None:
+    """The export read on 2026-11-14 (names replaced): the root depends on all 20 packages, nothing else is related."""
+    path = Path(__file__).parent / "fixtures" / "supply_chain" / "github-dependency-graph-sbom.spdx.json"
+    info = read_spdx(path)
+    assert info.component_count == 18  # 20 packages, 18 distinct purls
+    assert {c.direct for c in info.components} == {"unknown"}
+    assert info.tools[0].name.startswith("protobom")
 
 
 def test_reads_created_tool_and_commit() -> None:
@@ -207,11 +266,15 @@ def test_property_component_count_is_distinct_purls(purls: list[str | None], add
     **Validates: Requirements 4.1, 4.6, 4.10**
     """
     packages = [pkg(f"SPDXRef-{i}", f"n{i}", "1", p) for i, p in enumerate(purls)]
-    doc = sbom(packages)
+    doc = sbom(packages, declare_empty=False)
     if add_none_marker:
         doc["relationships"].append(rel("SPDXRef-root", "CONTAINS", "NONE"))
-    info = parse_spdx(doc)
     expected = list(dict.fromkeys(p for p in purls if p))
+    if not purls and not add_none_marker:
+        with pytest.raises(SbomFormatError):
+            parse_spdx(doc)
+        return
+    info = parse_spdx(doc)
     event(f"components={min(len(expected), 3)}")
     assert [c.purl for c in info.components] == expected
     assert info.component_count == len(expected)
@@ -221,3 +284,33 @@ def test_property_component_count_is_distinct_purls(purls: list[str | None], add
 
 def test_module_exposes_supported_version() -> None:
     assert spdx.SUPPORTED_VERSION == "SPDX-2.3"
+
+
+def test_a_document_of_packages_without_purls_is_returned_but_not_complete() -> None:
+    info = parse_spdx(sbom([pkg("SPDXRef-a", "alpha", "1", None)], declare_empty=False))
+    assert (info.component_count, info.coverage_complete) == (0, False)
+    assert parse_spdx(sbom([pkg("SPDXRef-a", "alpha", "1", "pkg:npm/alpha@1")])).coverage_complete is True
+
+
+def test_a_purl_without_a_version_makes_the_list_incomplete() -> None:
+    info = parse_spdx(
+        sbom([pkg("SPDXRef-a", "alpha", "1", "pkg:pypi/alpha"), pkg("SPDXRef-b", "b", "1", "pkg:npm/b@1")])
+    )
+    assert info.component_count == 2
+    assert info.unresolved_version == 1
+    assert info.coverage_complete is False
+    scoped = parse_spdx(sbom([pkg("SPDXRef-a", "s", "1", "pkg:npm/%40scope/pkg@1.0.0?arch=x#sub")]))
+    assert scoped.unresolved_version == 0  # a version after a scoped name, with qualifiers, is a version
+
+
+def test_two_spellings_of_one_purl_are_one_component() -> None:
+    info = parse_spdx(
+        sbom(
+            [
+                pkg("SPDXRef-a", "Foo_Bar", "1", "pkg:pypi/Foo_Bar@1"),
+                pkg("SPDXRef-b", "foo-bar", "1", "pkg:pypi/foo-bar@1"),
+                pkg("SPDXRef-c", "foo-bar", "2", "pkg:pypi/foo-bar@2"),
+            ]
+        )
+    )
+    assert [c.purl for c in info.components] == ["pkg:pypi/Foo_Bar@1", "pkg:pypi/foo-bar@2"]

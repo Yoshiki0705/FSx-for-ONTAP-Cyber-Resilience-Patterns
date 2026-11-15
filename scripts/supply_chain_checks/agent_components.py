@@ -2,6 +2,13 @@
 
 Checks (design section 10, Requirements 6.1 to 6.8):
 
+* Server tables are found under ``mcpServers`` (Claude, Cursor, Amazon Q, Gemini CLI, Kiro),
+  ``servers`` (VS Code ``mcp.json``), ``context_servers`` (Zed), ``mcp_servers`` (Codex TOML),
+  ``amp.mcpServers``, and ``mcp`` (VS Code ``settings.json`` holds ``mcp.servers``; opencode
+  holds the servers directly under ``mcp`` with ``command`` as an array). A table may be a
+  list of ``{name, command, args}`` (Continue). ``.vscode/settings.json``,
+  ``.gemini/settings.json``, ``.zed/settings.json``, ``opencode.json[c]``, devcontainer files,
+  ``.continue``/``.windsurf`` files and ``.codex/config.toml`` are read (T4-08).
 * Files come from ``git ls-files`` when ``root`` is a repository (a fixture directory without
   ``.git`` is walked instead). ``scripts/tests/fixtures/`` is skipped when ``root`` is a
   repository, because those files are the deliberately bad inputs of the gates.
@@ -10,8 +17,10 @@ Checks (design section 10, Requirements 6.1 to 6.8):
   argument of ``claude mcp add-json``. Command lines (fenced blocks, inline code of Markdown,
   ``*.sh``, ``Makefile``, ``*.yml``) are then tokenised, and a package runner at command
   position is judged.
-* Runners: ``npx`` / ``bunx`` (``-y``, ``--yes``, ``-p``), ``uvx`` (``--from``), ``pipx run``
-  (``--spec``), ``dnx``. Kinds of violation: ``latest``, ``range``, ``unpinned``, and
+* Runners: ``npx`` / ``bunx`` / ``bun x`` (``-y``, ``--yes``, ``-p``), ``pnpm dlx``, ``yarn dlx``,
+  ``npm exec`` / ``npm x`` (also after ``--``), ``uvx`` / ``uv tool run`` (``--from``), ``pipx run``
+  (``--spec``), ``dnx``, and ``deno run npm:<package>``. (``pnpm exec`` only runs a binary that is
+  already installed, so it is not a fetch and is not judged.) Kinds of violation: ``latest``, ``range``, ``unpinned``, and
   ``digest`` (an MCP ``docker run`` image with a tag but no ``@sha256:`` digest).
 * A package that the nearest ``package.json`` declares with an exact version, next to a
   lock file, counts as pinned (its pin scope is the dependency tree).
@@ -38,6 +47,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -57,8 +67,21 @@ NOT_APPLICABLE = "該当なし"
 UNSPECIFIED = "未指定"
 
 MCP_FILE_NAMES = ("mcp.json", ".mcp.json", "mcp-config.json", "plugin.json")
-_AGENT_PATH = re.compile(r"(?:^|/)\.(?:kiro|cursor|amazonq|claude)/|(?:^|/)\.github/copilot-|(?:^|/)AGENTS\.md$")
-_SERVER_KEYS = ("mcpServers", "servers", "context_servers")
+_AGENT_PATH = re.compile(
+    r"(?:^|/)\.(?:kiro|cursor|amazonq|claude|gemini|codex|windsurf|continue|opencode)/"
+    r"|(?:^|/)\.github/copilot-|(?:^|/)AGENTS\.md$"
+)
+#: Client settings files that may hold an MCP server table next to unrelated settings. Read as
+#: JSONC (comments allowed); a file that mentions a server table and cannot be parsed is exit 2.
+_CLIENT_SETTINGS = re.compile(
+    r"(?:^|/)(?:\.vscode/settings\.json|\.gemini/settings\.json|\.zed/settings\.json"
+    r"|opencode\.jsonc?|\.opencode\.jsonc?|\.devcontainer/devcontainer\.json|\.devcontainer\.json"
+    r"|\.continue/.+\.(?:json|ya?ml)|\.windsurf/.+\.json)$"
+)
+_CLIENT_TOML = re.compile(r"(?:^|/)\.codex/config\.toml$")
+_SERVER_KEYS = ("mcpServers", "servers", "context_servers", "mcp", "mcp_servers", "amp.mcpServers")
+#: Keys that make a mapping a server entry (as opposed to a table that nests servers deeper).
+_SERVER_ENTRY_KEYS = ("command", "args", "url", "serverUrl", "httpUrl", "type")
 _LOCK_FILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb")
 _HOME_KIRO = re.compile(r"(?:~|\$HOME|\$\{HOME\})/\.kiro\b")
 
@@ -71,7 +94,14 @@ _PY_SPEC = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*(.*)$")
 _ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _WRAPPERS = frozenset({"sudo", "exec", "time", "nohup", "env", "then", "do", "else"})
 _PUNCT = frozenset("();<>|&")
+_DOWNLOADERS = frozenset({"curl", "wget"})
+_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ash", "ksh"})
+#: Lifecycle commands of a dev container; each is a string, an array or an object of either.
+_DEVCONTAINER_COMMANDS = ("postCreateCommand", "postStartCommand", "onCreateCommand", "updateContentCommand")
+_DEVCONTAINER_PATH = re.compile(r"(?:^|/)(?:\.devcontainer/devcontainer|\.devcontainer)\.json$")
 _JSON_HINT = re.compile(r'mcpServers|"command"|"args"')
+#: Words that make an unparseable client settings file a hard failure (exit 2) instead of "no servers".
+_SETTINGS_HINT = re.compile(r'mcpServers|mcp_servers|context_servers|"servers"|"mcp"|"command"|"args"|\bmcp\b')
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
 
 #: Options that take a value, by runner; the value is not the package.
@@ -83,6 +113,9 @@ _VALUE_FLAGS = {
     ),
     "pipx": frozenset({"--python", "--pip-args", "--spec", "--index-url"}),
     "dnx": frozenset({"--source", "--add-source", "--configfile", "--interactive", "--version"}),
+    "deno": frozenset(
+        {"--allow-read", "--allow-write", "--allow-env", "--allow-net", "--config", "-c", "--import-map"}
+    ),
 }
 _DOCKER_VALUE_FLAGS = frozenset(
     {"-e", "--env", "-v", "--volume", "-p", "--publish", "--name", "--network", "--net", "--entrypoint", "-w"}
@@ -265,7 +298,9 @@ def _segments(tokens: Sequence[str]) -> list[list[str]]:
     result: list[list[str]] = []
     current: list[str] = []
     for token in [*tokens, ";"]:
-        if token == "--" or (token and set(token) <= _PUNCT):
+        if token == "--" and current[:2] in (["npm", "exec"], ["npm", "x"]):
+            current.append(token)  # ``npm exec -- <package>``: the package follows the dashes
+        elif token == "--" or (token and set(token) <= _PUNCT):
             if current:
                 result.append(current)
             current = []
@@ -287,8 +322,6 @@ def _run_spec(tokens: Sequence[str], start: int, runner: str) -> tuple[str | Non
     version: str | None = None
     first_positional: str | None = None
     j = start + 1
-    if runner == "pipx":
-        j += 1
     while j < len(tokens):
         tok = tokens[j]
         name, eq, value = tok.partition("=")
@@ -333,7 +366,11 @@ def _component_from_run(
     server: str | None,
     index: PackageIndex,
 ) -> Component | None:
-    if runner == "dnx":
+    if runner == "deno":
+        if not spec.startswith("npm:"):
+            return None  # jsr: and https: imports are not npm packages; they are not judged here
+        judged = _judge_npm(spec[len("npm:") :])
+    elif runner == "dnx":
         if _is_local_or_placeholder(spec):
             return None
         name, _, at = spec.partition("@")
@@ -350,6 +387,34 @@ def _component_from_run(
         return None
     name, version, problem, scope = judged
     return Component(kind, name, path, line, runner, version, problem, scope, server)
+
+
+def _runner_at(tokens: Sequence[str], i: int) -> tuple[str, str, int] | None:
+    """Recognise a package runner at ``tokens[i]``.
+
+    Returns:
+        ``(runner family, label shown, tokens up to the runner's own arguments)`` or ``None``.
+        The family picks the option table (``npx``, ``bunx``, ``uvx``, ``pipx``, ``dnx``,
+        ``deno``); the third value counts the tokens of the runner itself (``pnpm dlx`` is 2).
+    """
+    base = PurePosixPath(tokens[i]).name
+    nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
+    third = tokens[i + 2] if i + 2 < len(tokens) else ""
+    if base in {"npx", "bunx", "uvx", "dnx"}:
+        return base, base, 1
+    if base == "pipx" and nxt == "run":
+        return "pipx", "pipx run", 2
+    if base in {"pnpm", "yarn"} and nxt == "dlx":
+        return "npx", f"{base} dlx", 2
+    if base == "npm" and nxt in {"exec", "x"}:
+        return "npx", f"npm {nxt}", 2
+    if base == "bun" and nxt == "x":
+        return "bunx", "bun x", 2
+    if base == "uv" and nxt == "tool" and third == "run":
+        return "uvx", "uv tool run", 3
+    if base == "deno" and nxt == "run":
+        return "deno", "deno run", 2
+    return None
 
 
 def _scan_tokens(
@@ -370,10 +435,14 @@ def _scan_tokens(
         base = PurePosixPath(token).name
         nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
         comp: Component | None = None
-        if base in {"npx", "bunx", "uvx", "dnx"} or (base == "pipx" and nxt == "run"):
-            spec, version_flag = _run_spec(tokens, i, base)
+        runner = _runner_at(tokens, i)
+        if runner is not None:
+            family, label, width = runner
+            spec, version_flag = _run_spec(tokens, i + width - 1, family)
             if spec:
-                comp = _component_from_run(base, spec, version_flag, path, line, kind, server, index)
+                comp = _component_from_run(family, spec, version_flag, path, line, kind, server, index)
+                if comp is not None and label != family:
+                    comp = comp._replace(executor=label)
         elif base == "docker" and nxt == "run":
             comp = _docker_component(tokens, i, path, line, kind, server, mcp)
         if comp is not None:
@@ -412,6 +481,32 @@ def _clean_line(line: str, make_recipe: bool) -> str:
     for prefix in _PREFIXES:
         text = prefix.sub("", text, count=1)
     return text.strip()
+
+
+def _pipe_to_shell(tokens: Sequence[str], path: str, line: int, kind: str) -> list[Component]:
+    """Find ``curl ... | sh`` and ``wget ... | bash``: code fetched and run with no version or hash.
+
+    A downloader at the start of a pipeline, followed by ``|`` and a shell (after ``sudo`` or another
+    wrapper). ``curl ... | tee`` or ``curl ... | jq`` is not a finding.
+    """
+    found: list[Component] = []
+    parts: list[list[str]] = [[]]
+    for token in tokens:
+        if token == "|":
+            parts.append([])
+        elif token and set(token) <= _PUNCT:
+            parts = [[]]  # a new command list (``&&``, ``;``): a pipeline does not continue across it
+        else:
+            parts[-1].append(token)
+    for before, after in zip(parts, parts[1:], strict=False):
+        head = [t for t in before if not _ENV_ASSIGN.match(t) and t not in _WRAPPERS]
+        tail = [t for t in after if not _ENV_ASSIGN.match(t) and t not in _WRAPPERS]
+        if not head or not tail:
+            continue
+        if PurePosixPath(head[0]).name in _DOWNLOADERS and PurePosixPath(tail[0]).name in _SHELLS:
+            target = next((t for t in head[1:] if "://" in t), PurePosixPath(head[0]).name)
+            found.append(Component(kind, target, path, line, "pipe-to-shell", UNSPECIFIED, "unpinned", "none"))
+    return found
 
 
 def scan_command_line(
@@ -453,6 +548,7 @@ def scan_command_line(
                 found.extend(server_components("add-json", spec, path, lineno, "mcp-server", index))
     for seg in _segments(tokens):
         found.extend(_scan_tokens(seg, path, lineno, kind, None, mcp, index, anywhere=False))
+    found.extend(_pipe_to_shell(tokens, path, lineno, kind))
     return found
 
 
@@ -474,11 +570,14 @@ def server_components(
         An entry that refers to ``~/.kiro`` gives none.
     """
     command = spec.get("command")
+    args = spec.get("args", [])
+    if isinstance(command, list) and command and all(isinstance(c, (str, int, float)) for c in command):
+        # opencode: ``"command": ["npx", "-y", "pkg"]`` carries the arguments in the array itself
+        command, args = str(command[0]), [*(str(c) for c in command[1:]), *(args if isinstance(args, list) else [])]
     if not isinstance(command, str) or not command:
-        if isinstance(spec.get("url"), str) or isinstance(spec.get("serverUrl"), str):
+        if any(isinstance(spec.get(k), str) for k in ("url", "serverUrl", "httpUrl")):
             return [Component(kind, name, path, line, "remote", NOT_APPLICABLE, None, NOT_APPLICABLE, name)]
         return []
-    args = spec.get("args", [])
     if isinstance(args, str):
         args = shlex.split(args)
     tokens = [command, *(str(a) for a in args if not isinstance(a, (dict, list)))]
@@ -498,13 +597,28 @@ def server_components(
 # ---------------------------------------------------------------- structure extraction
 
 
+def _is_server_entry(value: Any) -> bool:
+    return isinstance(value, dict) and any(k in value for k in _SERVER_ENTRY_KEYS)
+
+
 def find_servers(data: Any) -> list[tuple[str, dict[str, Any]]]:
-    """Return ``(name, entry)`` for every server table (``mcpServers`` and friends) in ``data``."""
+    """Return ``(name, entry)`` for every server table (``mcpServers`` and friends) in ``data``.
+
+    A table is a mapping of name to entry, or a list of entries that carry a ``name`` (Continue).
+    An item of a table that is not itself a server entry nests the tables one level deeper
+    (VS Code ``settings.json`` holds ``{"mcp": {"servers": {...}}}``), so the search goes on there.
+    """
     found: list[tuple[str, dict[str, Any]]] = []
     if isinstance(data, dict):
         for key, value in data.items():
             if key in _SERVER_KEYS and isinstance(value, dict):
-                found.extend((str(n), s) for n, s in value.items() if isinstance(s, dict))
+                for name, entry in value.items():
+                    if _is_server_entry(entry):
+                        found.append((str(name), entry))
+                    elif isinstance(entry, (dict, list)):
+                        found.extend(find_servers({name: entry}))
+            elif key in _SERVER_KEYS and isinstance(value, list):
+                found.extend((str(item.get("name", key)), item) for item in value if _is_server_entry(item))
             else:
                 found.extend(find_servers(value))
     elif isinstance(data, list):
@@ -518,11 +632,46 @@ def _line_of(text: str, needle: str, default: int = 1) -> int:
     return default if pos < 0 else text.count("\n", 0, pos) + 1
 
 
+def _strip_jsonc(text: str) -> str:
+    """Remove ``//`` and ``/* */`` comments and trailing commas that sit outside strings."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 1
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+            out.append(ch)
+        elif text.startswith("//", i):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        elif ch == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j >= n or text[j] not in "}]":
+                out.append(ch)
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _lenient_json(text: str) -> Any:
-    """Parse JSON that may carry ``//`` comment lines and trailing commas."""
-    cleaned = "\n".join(ln for ln in text.splitlines() if not ln.strip().startswith("//"))
-    cleaned = re.sub(r",(\s*[}\]])", r"\1", cleaned)
-    return json.loads(cleaned)
+    """Parse JSON that may carry comments and trailing commas (JSONC, as VS Code writes it)."""
+    return json.loads(_strip_jsonc(text))
 
 
 def _servers_from_data(
@@ -530,7 +679,12 @@ def _servers_from_data(
 ) -> list[Component]:
     found: list[Component] = []
     for name, spec in find_servers(data):
-        offset = _line_of(text, json.dumps(name), 0) or _line_of(text, f"{name}:", 1)
+        offset = (
+            _line_of(text, json.dumps(name), 0)
+            or _line_of(text, f"{name}:", 0)
+            or _line_of(text, f"mcp_servers.{name}]", 0)
+            or _line_of(text, name, 1)
+        )
         line = base_line + offset - 1
         found.extend(server_components(name, spec, path, line, kind, index))
     return found
@@ -696,11 +850,45 @@ def _scan_markdown(text: str, path: str, kind: str, index: PackageIndex) -> list
     return found
 
 
-def _scan_json_agent(text: str, path: str, index: PackageIndex, strict: bool) -> list[Component]:
+def _scan_toml(text: str, path: str, index: PackageIndex) -> list[Component]:
+    """Read ``[mcp_servers.<name>]`` tables (Codex ``config.toml``)."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        if _SETTINGS_HINT.search(text):
+            raise Unparseable(path, "the file cannot be parsed as TOML") from exc
+        return []
+    return _servers_from_data(data, text, path, 1, "mcp-server", index)
+
+
+def _devcontainer_lines(data: Any) -> list[str]:
+    """The lifecycle commands of a devcontainer file as command lines (string, array or object form)."""
+    out: list[str] = []
+    if not isinstance(data, dict):
+        return out
+    for key in _DEVCONTAINER_COMMANDS:
+        value = data.get(key)
+        forms = list(value.values()) if isinstance(value, dict) else [value]
+        for form in forms:
+            if isinstance(form, str):
+                out.append(form)
+            elif isinstance(form, list) and form and all(isinstance(x, str) for x in form):
+                if PurePosixPath(form[0]).name in _SHELLS and "-c" in form[1:] and form.index("-c") + 1 < len(form):
+                    out.append(
+                        form[form.index("-c") + 1]
+                    )  # ``["sh", "-c", "<script>"]``: the script is the command line
+                else:
+                    out.append(shlex.join(form))
+    return out
+
+
+def _scan_json_agent(
+    text: str, path: str, index: PackageIndex, strict: bool, hint: re.Pattern[str] = _JSON_HINT
+) -> list[Component]:
     try:
         data = _lenient_json(text)
     except ValueError as exc:
-        if strict or _JSON_HINT.search(text):
+        if strict or hint.search(text):
             raise Unparseable(path, "the file cannot be parsed as JSON") from exc
         return []
     servers = find_servers(data)
@@ -709,6 +897,11 @@ def _scan_json_agent(text: str, path: str, index: PackageIndex, strict: bool) ->
         found.extend(
             scan_command_line(command, path, _line_of(text, json.dumps(command)[1:-1][:40]), "agent-config", index)
         )
+    if _DEVCONTAINER_PATH.search(path):
+        for command in _devcontainer_lines(data):
+            found.extend(
+                scan_command_line(command, path, _line_of(text, json.dumps(command)[1:-1][:40]), "install-step", index)
+            )
     return found
 
 
@@ -732,6 +925,10 @@ def scan_file(path: str, text: str, index: PackageIndex = EMPTY_INDEX) -> list[C
     kind = "agent-config" if is_agent else "install-step"
     if name in MCP_FILE_NAMES:
         return _scan_json_agent(text, path, index, strict=True)
+    if _CLIENT_TOML.search(path):
+        return _scan_toml(text, path, index)
+    if _CLIENT_SETTINGS.search(path) and suffix in {".json", ".jsonc"}:
+        return _scan_json_agent(text, path, index, strict=False, hint=_SETTINGS_HINT)
     if suffix in {".json", ".hook"} and is_agent:
         return _scan_json_agent(text, path, index, strict=False)
     if suffix in {".md", ".mdc"}:
@@ -758,6 +955,8 @@ def is_target(path: str) -> bool:
     name = PurePosixPath(path).name
     suffix = PurePosixPath(path).suffix.lower()
     if name in MCP_FILE_NAMES or suffix in {".md", ".mdc", ".sh", ".mk", ".yml", ".yaml"} or name == "Makefile":
+        return True
+    if _CLIENT_SETTINGS.search(path) or _CLIENT_TOML.search(path):
         return True
     return bool(_AGENT_PATH.search(path)) and suffix in {".json", ".hook", "", ".txt"}
 
@@ -864,6 +1063,18 @@ def check(root: Path) -> Report:
     return Report([c.violation() for c in components if c.problem], scanned)
 
 
+#: What the scan reads, for the inventory's ``scanned_shapes``: a reader can tell "nothing found"
+#: from "nothing of that kind is looked at". Keep it in step with ``scan_file`` / ``is_target``.
+SCANNED_SHAPES = (
+    "mcpServers / servers / context_servers / mcp_servers / amp.mcpServers / mcp tables of JSON, JSONC, YAML, TOML",
+    "mcp.json, .mcp.json, mcp-config.json, plugin.json",
+    ".kiro, .cursor, .amazonq, .claude, .gemini, .codex, .windsurf, .continue, .opencode agent files",
+    ".vscode/settings.json, .zed/settings.json, opencode.json[c], devcontainer.json, .codex/config.toml",
+    "Markdown json/yaml blocks, front matter and inline code; *.sh, Makefile, *.yml workflow steps, Dockerfile FROM",
+    "runners: npx, bunx, bun x, pnpm dlx, yarn dlx, npm exec, uvx, uv tool run, pipx run, dnx, deno run npm:, docker run",
+)
+
+
 def build_inventory(root: Path, now: datetime | None = None) -> dict[str, Any]:
     """Build the content of ``docs/agent/agent-components.json``.
 
@@ -882,7 +1093,7 @@ def build_inventory(root: Path, now: datetime | None = None) -> dict[str, Any]:
     except (OSError, subprocess.SubprocessError):
         sha = "unknown"
     stamp = (now or datetime.now(UTC)).replace(microsecond=0).isoformat()
-    return {
+    inventory: dict[str, Any] = {
         "description": (
             "Generated file. Do not edit by hand. Inventory of MCP servers, agent settings and install steps "
             "that tracked files recommend, with the pinned version of each (Requirement 6). Regenerate with "
@@ -893,8 +1104,14 @@ def build_inventory(root: Path, now: datetime | None = None) -> dict[str, Any]:
         "commit_sha": sha,
         "files_scanned": scanned,
         "unpinned_count": sum(1 for c in components if c.problem),
+        "scanned_shapes": list(SCANNED_SHAPES),
         "components": [{k: v for k, v in c._asdict().items() if v is not None} for c in components],
     }
+    if not components:
+        inventory["empty_reason"] = (
+            f"no MCP server, agent config or install step found in {scanned} files; the shapes read are in scanned_shapes"
+        )
+    return inventory
 
 
 def main(argv: Sequence[str] | None = None) -> int:

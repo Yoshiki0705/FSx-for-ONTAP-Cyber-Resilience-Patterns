@@ -9,6 +9,8 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # Set environment variables before importing handler
 os.environ["EVENT_BUS_NAME"] = "test-security-bus"
 os.environ["ENVIRONMENT"] = "dev"
@@ -224,3 +226,140 @@ class TestHandler:
 
         assert result["published"] == 3
         assert result["failures"] == 0
+
+
+def _record(message_id: str, body: str | None = None) -> dict[str, str]:
+    """Builds one SQS record with a valid FPolicy body unless ``body`` is given."""
+    if body is None:
+        body = json.dumps(
+            {
+                "source": "fpolicy",
+                "event_type": "file_write",
+                "file_system_id": "fs-0123456789abcdef0",
+                "timestamp": "2026-06-25T10:30:00Z",
+            }
+        )
+    return {"messageId": message_id, "body": body}
+
+
+def _emf_lines(capsys: pytest.CaptureFixture[str]) -> list[dict[str, object]]:
+    """Returns the Embedded Metric Format objects the handler wrote to stdout."""
+    out = capsys.readouterr().out
+    return [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+
+
+class TestPublishFailuresAreReported:
+    """A record whose EventBridge publish failed goes back to the queue (ReportBatchItemFailures)."""
+
+    @patch("event_transformer.events_client")
+    def test_failed_entry_is_reported_by_message_id(self, mock_events: MagicMock) -> None:
+        mock_events.put_events.return_value = {
+            "FailedEntryCount": 1,
+            "Entries": [{"EventId": "e1"}, {"ErrorCode": "InternalFailure", "ErrorMessage": "x"}],
+        }
+        result = handler({"Records": [_record("m-ok"), _record("m-fail")]}, None)
+        assert result["failures"] == 1
+        assert result["batchItemFailures"] == [{"itemIdentifier": "m-fail"}]
+
+    @patch("event_transformer.events_client")
+    def test_whole_batch_exception_reports_every_record_of_the_batch(self, mock_events: MagicMock) -> None:
+        mock_events.put_events.side_effect = RuntimeError("throttled")
+        result = handler({"Records": [_record("m-1"), _record("m-2")]}, None)
+        assert result["failures"] == 2
+        assert {f["itemIdentifier"] for f in result["batchItemFailures"]} == {"m-1", "m-2"}
+
+    @patch("event_transformer.events_client")
+    def test_batches_beyond_ten_map_failures_to_the_right_record(self, mock_events: MagicMock) -> None:
+        def put_events(Entries: list[dict[str, str]]) -> dict[str, object]:  # noqa: N803
+            return {
+                "FailedEntryCount": 0,
+                "Entries": [{"EventId": "ok"} for _ in Entries],
+            }
+
+        calls: list[int] = []
+
+        def second_batch_fails(Entries: list[dict[str, str]]) -> dict[str, object]:  # noqa: N803
+            calls.append(len(Entries))
+            if len(calls) == 2:
+                return {
+                    "FailedEntryCount": 1,
+                    "Entries": [{"ErrorCode": "E"}, *({"EventId": "ok"} for _ in Entries[1:])],
+                }
+            return put_events(Entries)
+
+        mock_events.put_events.side_effect = second_batch_fails
+        records = [_record(f"m-{i:02d}") for i in range(12)]
+        result = handler({"Records": records}, None)
+        assert result["batchItemFailures"] == [{"itemIdentifier": "m-10"}]
+
+    @patch("event_transformer.events_client")
+    def test_json_body_that_is_not_an_object_is_a_parse_failure_not_an_exception(self, mock_events: MagicMock) -> None:
+        result = handler({"Records": [_record("m-list", body="[1, 2]")]}, None)
+        assert result["batchItemFailures"] == [{"itemIdentifier": "m-list"}]
+        mock_events.put_events.assert_not_called()
+
+
+class TestFailureMetric:
+    """The handler emits FailedRecords in Embedded Metric Format (Requirement 19.2)."""
+
+    @patch("event_transformer.events_client")
+    def test_emf_carries_failed_records_with_both_dimension_sets(
+        self, mock_events: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_events.put_events.return_value = {"FailedEntryCount": 0, "Entries": [{"EventId": "e"}]}
+        ctx = MagicMock()
+        ctx.function_name = "fn"
+        ctx.function_version = "7"
+        handler({"Records": [_record("ok"), _record("bad", body="{{")]}, ctx)
+        (emf,) = _emf_lines(capsys)
+        directive = emf["_aws"]["CloudWatchMetrics"][0]  # type: ignore[index]
+        assert directive["Namespace"] == event_transformer.METRIC_NAMESPACE
+        assert directive["Dimensions"] == [["FunctionName"], ["FunctionName", "ExecutedVersion"]]
+        assert {m["Name"] for m in directive["Metrics"]} == {"FailedRecords", "ProcessedRecords"}
+        assert emf["FailedRecords"] == 1
+        assert emf["ProcessedRecords"] == 2
+        assert emf["FunctionName"] == "fn"
+        assert emf["ExecutedVersion"] == "7"
+
+    @patch("event_transformer.events_client")
+    def test_zero_failures_are_still_emitted(self, mock_events: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """A 0 value keeps the metric present, so the alarm sees data when traffic flows."""
+        mock_events.put_events.return_value = {"FailedEntryCount": 0, "Entries": [{"EventId": "e"}]}
+        handler({"Records": [_record("ok")]}, None)
+        (emf,) = _emf_lines(capsys)
+        assert emf["FailedRecords"] == 0
+
+    @patch("event_transformer.events_client")
+    def test_publish_failure_counts_in_failed_records(
+        self, mock_events: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_events.put_events.side_effect = RuntimeError("down")
+        handler({"Records": [_record("a"), _record("b")]}, None)
+        (emf,) = _emf_lines(capsys)
+        assert emf["FailedRecords"] == 2
+
+
+class TestDryRun:
+    """The PreTraffic hook invokes the new version with ``dry_run``: transform, never publish."""
+
+    @patch("event_transformer.events_client")
+    def test_dry_run_transforms_without_publishing(self, mock_events: MagicMock) -> None:
+        result = handler({"dry_run": True, "Records": [_record("probe")]}, None)
+        assert result["dry_run"] is True
+        assert result["validated"] == 1
+        assert result["failures"] == 0
+        assert "batchItemFailures" not in result
+        mock_events.put_events.assert_not_called()
+
+    @patch("event_transformer.events_client")
+    def test_dry_run_reports_a_record_that_does_not_transform(self, mock_events: MagicMock) -> None:
+        result = handler({"dry_run": True, "Records": [_record("probe", body="{{")]}, None)
+        assert result["validated"] == 0
+        assert result["batchItemFailures"] == [{"itemIdentifier": "probe"}]
+        mock_events.put_events.assert_not_called()
+
+    @patch("event_transformer.events_client")
+    def test_sqs_event_without_the_flag_publishes(self, mock_events: MagicMock) -> None:
+        mock_events.put_events.return_value = {"FailedEntryCount": 0, "Entries": [{"EventId": "e"}]}
+        handler({"Records": [_record("m")]}, None)
+        mock_events.put_events.assert_called_once()

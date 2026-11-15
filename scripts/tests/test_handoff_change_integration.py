@@ -140,6 +140,7 @@ def item(item_id: str, sync_point: str, mode: str, verify: Sequence[Verify] = ()
         "knowledge_kinds": ["records under .private/"] if query else [],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
 
 
@@ -371,6 +372,12 @@ def test_a_change_run_ends_as_its_observations_decide(
         "conflicts": [],
         "remote_branch_exists": False,
         "main_tree_change": "none",
+        "common_dir_changed": [],
+        "control_plane_changed": [],
+        "secret_in_report": [],
+        "touches_execution_surface": [],
+        "cited_paths_missing": [],
+        "query_findings": "not_checked",
     }
     assert record["observations"] == {**clean, **differs}
 

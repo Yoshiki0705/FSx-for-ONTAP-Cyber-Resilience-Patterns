@@ -56,6 +56,7 @@ import pytest
 from handoff import command, dag, evaluate, runner, state
 from handoff import config as config_module
 from handoff import manifest as manifest_module
+from handoff import os_boundary as osb
 
 if TYPE_CHECKING:
     from conftest import HandoffSandbox
@@ -167,6 +168,7 @@ def query_item(item_id: str = ITEM, *, sync_point: str = "a", topic: str | None 
         "knowledge_kinds": ["records under .private/"],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
 
 
@@ -192,6 +194,14 @@ def deny_terms(sandbox: HandoffSandbox) -> runner.DenyTerms:
     return runner.load_deny_terms(str(customer), str(lists / "deny-terms.txt"))
 
 
+#: Layer 0 of the tests: the stand-in for ``sandbox-exec`` (it enforces nothing, so it is not verified).
+TEST_BOUNDARY = osb.OsBoundary(
+    program=str(Path(__file__).resolve().parent / "fixtures" / "handoff" / "fake-sandbox-exec"),
+    verify=False,
+    test_double=True,
+)
+
+
 def make_context(
     sandbox: HandoffSandbox, cfg: config_module.HandoffConfig, manifest: manifest_module.Manifest, **kw: Any
 ) -> runner.RunContext:
@@ -205,6 +215,7 @@ def make_context(
         session_worktrees_dir=str(sandbox.session_worktrees),
         deny=deny_terms(sandbox),
         kill_grace_seconds=kw.pop("kill_grace_seconds", 1.0),
+        os_boundary=kw.pop("os_boundary", TEST_BOUNDARY),
         **kw,
     )
 
@@ -330,7 +341,13 @@ def git_calls(log: Path) -> list[list[str]]:
     """The argv of each git that the wrapper ran, in order."""
     if not log.exists():
         return []
-    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    return [_without_hardening(json.loads(line)) for line in log.read_text(encoding="utf-8").splitlines()]
+
+
+def _without_hardening(call: list[str]) -> list[str]:
+    """``call`` without the options that ``command.harden_git`` puts after ``git`` (T4-R3-01): the plan's own argv."""
+    size = len(command.GIT_HARDENING)
+    return call[size:] if tuple(call[:size]) == command.GIT_HARDENING else call
 
 
 def writes_a_tree_or_a_branch(call: list[str]) -> bool:
@@ -485,12 +502,14 @@ def test_a_query_item_succeeds_in_a_detached_worktree(
     assert files_below(sb.handoff_dir) == {
         "status.json",
         "status.json.bak",
+        "status.log.jsonl",  # the append-only history of the saves (T4-04)
+        "common-dir.json",  # the shared git directory as the run ended (T4-R2-08)
         f"sync/a-{REPO}.md",
         f"{REPO}/{ITEM}/report.md",
         "templates/query.md",
         "templates/query-topic.md",
     }
-    for name in ("status.json", f"{REPO}/{ITEM}/report.md", f"sync/a-{REPO}.md"):
+    for name in ("status.json", "status.log.jsonl", f"{REPO}/{ITEM}/report.md", f"sync/a-{REPO}.md"):
         assert stat.S_IMODE((sb.handoff_dir / name).stat().st_mode) == 0o600
 
 

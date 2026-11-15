@@ -1,8 +1,97 @@
 {
   "description": "Generated file. Do not edit by hand. Inventory of MCP servers, agent settings and install steps that tracked files recommend, with the pinned version of each (Requirement 6). Regenerate with `python3 scripts/supply_chain_checks/agent_components.py --write`. The gate is `python3 scripts/check_supply_chain.py agent-components`.",
-  "generated_at": "2026-11-13T03:47:37+00:00",
-  "commit_sha": "2a9d2add5ac80adb16c4e23a108e3b4941585432",
-  "files_scanned": 97,
+  "generated_at": "2026-11-13T18:30:09+00:00",
+  "commit_sha": "2aa02526217fb9b2f9c7ec83841482aeba5f5a02",
+  "files_scanned": 131,
   "unpinned_count": 0,
-  "components": []
+  "scanned_shapes": [
+    "mcpServers / servers / context_servers / mcp_servers / amp.mcpServers / mcp tables of JSON, JSONC, YAML, TOML",
+    "mcp.json, .mcp.json, mcp-config.json, plugin.json",
+    ".kiro, .cursor, .amazonq, .claude, .gemini, .codex, .windsurf, .continue, .opencode agent files",
+    ".vscode/settings.json, .zed/settings.json, opencode.json[c], devcontainer.json, .codex/config.toml",
+    "Markdown json/yaml blocks, front matter and inline code; *.sh, Makefile, *.yml workflow steps, Dockerfile FROM",
+    "runners: npx, bunx, bun x, pnpm dlx, yarn dlx, npm exec, uvx, uv tool run, pipx run, dnx, deno run npm:, docker run"
+  ],
+  "components": [
+    {
+      "kind": "mcp-server",
+      "name": "example-uvx",
+      "path": "docs/en/supply-chain-adoption-guide.md",
+      "line": 58,
+      "executor": "uvx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-uvx"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-uvx-from",
+      "path": "docs/en/supply-chain-adoption-guide.md",
+      "line": 59,
+      "executor": "uvx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-uvx-from"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-npx",
+      "path": "docs/en/supply-chain-adoption-guide.md",
+      "line": 60,
+      "executor": "npx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-npx"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-docker",
+      "path": "docs/en/supply-chain-adoption-guide.md",
+      "line": 61,
+      "executor": "docker",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-docker"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-uvx",
+      "path": "docs/ja/supply-chain-adoption-guide.md",
+      "line": 58,
+      "executor": "uvx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-uvx"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-uvx-from",
+      "path": "docs/ja/supply-chain-adoption-guide.md",
+      "line": 59,
+      "executor": "uvx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-uvx-from"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-npx",
+      "path": "docs/ja/supply-chain-adoption-guide.md",
+      "line": 60,
+      "executor": "npx",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-npx"
+    },
+    {
+      "kind": "mcp-server",
+      "name": "example-docker",
+      "path": "docs/ja/supply-chain-adoption-guide.md",
+      "line": 61,
+      "executor": "docker",
+      "version": "該当なし",
+      "pin_scope": "該当なし",
+      "server": "example-docker"
+    }
+  ]
 }

@@ -360,3 +360,52 @@ def test_component_rows_keep_three_columns_whatever_the_text(data: ib.FindingIss
         # Split on pipes that are not escaped by an odd run of backslashes.
         cells = re.split(r"(?<!\\)(?:\\\\)*\|", row)
         assert len(cells) == 5  # leading and trailing empty strings plus three cells
+
+
+# ---- review additions (T2-05, T2-08, T2-12, T2-10) ----
+
+
+def test_an_unknown_origin_is_null_in_the_state_and_unknown_in_the_table() -> None:
+    body = ib.render_finding(_fi(origin_at=None))
+    state = ib.parse_state(body)
+    assert state is not None
+    assert state["origin_at"] is None
+    assert "| 起点 | 不明（脅威の公開日時を取得できていない。検出の実績から除く） |" in body
+
+
+def test_a_known_origin_is_unchanged() -> None:
+    state = ib.parse_state(ib.render_finding(_fi()))
+    assert state is not None
+    assert state["origin_at"] == ib._iso(NOW)  # noqa: SLF001
+
+
+def test_the_malicious_flag_can_come_from_the_planner_when_no_identifier_says_so() -> None:
+    plain = ib.parse_state(ib.render_finding(_fi(vuln_id="GHSA-aaaa-bbbb-cccc")))
+    flagged = ib.parse_state(
+        ib.render_finding(_fi(vuln_id="GHSA-aaaa-bbbb-cccc", malicious=True, fixed_version="1.0.0"))
+    )
+    assert plain is not None
+    assert flagged is not None
+    assert plain["malicious"] is False
+    assert flagged["malicious"] is True
+    assert flagged["fixed_version"] is None  # a malicious package has no fixed version
+    assert "| 悪意のあるパッケージ（MAL-） | はい |" in ib.render_finding(
+        _fi(vuln_id="GHSA-aaaa-bbbb-cccc", malicious=True)
+    )
+
+
+def test_the_kev_release_time_and_severity_sources_are_in_the_state_only() -> None:
+    released = datetime(2026, 11, 8, 19, 3, 29, tzinfo=UTC)
+    body = ib.render_finding(_fi(kev_first_release_at=released, cvss_sources=("NVD:3.1", "GHSA:CVSS_V4", "NVD:3.1")))
+    state = ib.parse_state(body)
+    assert state is not None
+    assert state["kev_first_release_at"] == "2026-11-08T19:03:29Z"
+    assert state["cvss_sources"] == ["GHSA:CVSS_V4", "NVD:3.1"]
+    assert ib.parse_state(ib.render_finding(_fi()))["kev_first_release_at"] is None  # type: ignore[index]
+
+
+def test_a_changed_source_changes_the_compared_state() -> None:
+    a = ib.parse_state(ib.render_finding(_fi(cvss_sources=("NVD:3.1",))))
+    b = ib.parse_state(ib.render_finding(_fi(cvss_sources=("GHSA:CVSS_V4",))))
+    assert a is not None and b is not None
+    assert ib.comparison_state(a) != ib.comparison_state(b)

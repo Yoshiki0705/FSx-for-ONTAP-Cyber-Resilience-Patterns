@@ -22,6 +22,11 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": "Pinning freezes what the reference already resolves to; delaying it only prolongs the unpinned state (a frequently released package would otherwise never clear the age check)",
+      "matchUpdateTypes": ["pinDigest"],
+      "minimumReleaseAge": null
+    },
+    {
       "description": "Default: no automerge",
       "matchPackageNames": ["*"],
       "automerge": false

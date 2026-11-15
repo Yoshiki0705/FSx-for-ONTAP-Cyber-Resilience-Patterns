@@ -9,11 +9,22 @@ Implements the "2. OpenVEX の扱い" section of the phase 4 design.
 * ``effective_exclusions`` builds the ``(vulnerability id, purl with version)``
   table that lets an approved ``not_affected`` / ``fixed`` statement suppress a
   Finding. ``MAL-`` statements never enter the table (Requirements 7.12, 11.12).
+  The newest statement for a key decides (OpenVEX: "a sequence of statements, each
+  overriding ... the previous ones"), a judgment expires after
+  ``policy.vex_max_age_days``, and a time in the future is not trusted.
 
 Stricter than the OpenVEX specification (still conforming to it): a
 ``not_affected`` statement must carry a ``justification`` (the specification
 also accepts ``impact_statement`` alone), the document ``version`` must be an
-integer of at least 1, and duplicate JSON keys are rejected.
+integer of at least 1, and duplicate JSON keys are rejected. When a statement
+is applied, ``effective_exclusions`` additionally requires a non-empty
+``impact_statement`` for ``not_affected`` and ``fixed``: a label alone is not
+evidence that a reviewer can check.
+
+OpenVEX v0.2.0 (read 2026-11-14, ``OPENVEX-SPEC.md``) has no ``supersedes``
+field. A statement's time is its ``timestamp``, else the document's
+(Inheritance Flow); ``last_updated`` is not used for ordering or expiry, so
+confirming a judgment again means issuing it with a new ``timestamp``.
 
 Fields the data model does not hold (``last_updated``, ``status_notes``,
 ``supplier``, ``action_statement``, ``hashes`` and so on) are ignored when
@@ -28,9 +39,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
-from supply_chain.models import VexDocument, VexStatement, VexStatus
+from supply_chain.canonical import canonical_id, purl_key
+from supply_chain.models import DEFAULT_VEX_MAX_AGE_DAYS, VexDocument, VexStatement, VexStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from supply_chain.models import Policy
 
 OPENVEX_CONTEXT = "https://openvex.dev/ns/v0.2.0"
@@ -44,6 +58,16 @@ JUSTIFICATIONS: tuple[str, ...] = (
 )
 MALICIOUS_PREFIX = "MAL-"
 REASON_MALICIOUS = "malicious_package_not_suppressible"
+REASON_FUTURE = "vex_timestamp_in_future"
+REASON_EXPIRED = "vex_expired"
+REASON_STALE_NON_EXCLUDING = "vex_stale_non_excluding"
+REASON_SUPERSEDED = "vex_superseded"
+#: A statement that names only an alias of a Finding, not the Finding's primary identifier (T12-R5-02).
+REASON_ALIAS_ONLY = "vex_names_finding_alias_only"
+REASON_PREDATES_KEV = "vex_predates_kev"
+REASON_NO_IMPACT = "vex_missing_impact_statement"
+REASON_UNPARSEABLE = "vex_product_unparseable"
+FUTURE_TOLERANCE = timedelta(minutes=5)
 _EXCLUDING_STATUSES = ("not_affected", "fixed")
 
 _RFC3339 = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?([Zz]|[+-]\d{2}:\d{2})$")
@@ -81,6 +105,7 @@ class VexRef:
     path: str
     status: VexStatus
     justification: str | None
+    at: datetime | None = None  # the time of the statement that decided (its timestamp, else the document's)
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -396,47 +421,112 @@ def _is_malicious(statement: VexStatement) -> bool:
     return any(i.upper().startswith(MALICIOUS_PREFIX) for i in (statement.vuln_id, *statement.aliases))
 
 
+@dataclass(frozen=True, slots=True)
+class _Entry:
+    when: datetime
+    path: str
+    statement: VexStatement
+
+
 def effective_exclusions(
-    docs: list[VexDocument], policy: Policy
+    docs: list[VexDocument], policy: Policy, *, now: datetime, merged_at: Mapping[str, datetime] | None = None
 ) -> tuple[dict[tuple[str, str], VexRef], list[tuple[str, str]]]:
     """Builds the table of Findings a VEX document may suppress.
 
-    A statement excludes ``(id, purl)`` for its name, each alias and each
-    product when its status is ``not_affected`` or ``fixed`` and is listed in
-    ``policy.vex_exclude_statuses``. ``affected`` and ``under_investigation``
-    never exclude. The purl is compared whole, version included, so a
-    statement about another version does not match.
+    The key is ``(canonical identifier, purl_key of a product)``, once for the statement's ``vulnerability.name``
+    and once for each of its ``aliases``; the version is part of the purl, so a statement about another version
+    does not match. A statement therefore covers exactly the identifiers it names itself. The alias list of a
+    Finding's record never widens it: a statement named by a GHSA that several CVEs share covers none of them
+    unless the statement lists that CVE in its own ``aliases`` (Requirement 11.37, T12-R4-05).
 
-    A statement whose name or alias starts with ``MAL-`` (case-insensitive)
-    never enters the table. If its status is ``not_affected`` or ``fixed`` the
-    document is reported in ``rejected`` with ``malicious_package_not_suppressible``
-    (once per path). The gate treats this as a warning, not a failure.
-
-    When several statements give the same key, the first one wins, with
-    documents taken in ``path`` order, so the result does not depend on the
-    order of ``docs``.
+    For each key every statement is collected. Its time is its ``timestamp``, else its document's. The
+    newest statement decides; on equal times a statement that does not exclude wins. The key is excluded
+    only if the deciding statement has a status in ``policy.vex_exclude_statuses`` (``not_affected`` /
+    ``fixed``), carries a non-empty ``impact_statement``, is not later than ``now`` plus five minutes, and
+    is not older than ``policy.vex_max_age_days`` at ``now``. Anything else is reported in ``rejected``:
+    ``vex_superseded`` (an older excluding statement lost to a newer one for every identifier it names; a statement
+    that still excludes another of its identifiers is not listed), ``vex_stale_non_excluding`` (a
+    statement that does not exclude lost to an excluding one that was merged earlier: check its timestamp;
+    only reported when ``merged_at`` has the merge time of both files), ``vex_timestamp_in_future``,
+    ``vex_expired``, ``vex_missing_impact_statement`` (the statement is ignored), ``vex_product_unparseable``
+    (a product that is not a purl). A statement whose name or alias starts with ``MAL-`` never enters the
+    table; if its status is ``not_affected`` or ``fixed`` it is reported as ``malicious_package_not_suppressible``.
 
     Args:
         docs: Documents read from the default branch (already parsed).
-        policy: Supplies ``vex_exclude_statuses``.
+        policy: Supplies ``vex_exclude_statuses`` and ``vex_max_age_days``.
+        now: The run time.
+        merged_at: Optional ``path -> time the file reached the default branch``, from the I/O layer. Used only
+            to tell a statement with a copied old timestamp from an ordinary older one.
 
     Returns:
-        ``(exclusions, rejected)``; ``rejected`` is a list of ``(path, reason)``.
+        ``(exclusions, rejected)``; ``rejected`` is a list of ``(path, reason)``, once each. The result does
+        not depend on the order of ``docs``.
     """
-    exclusions: dict[tuple[str, str], VexRef] = {}
-    rejected: list[tuple[str, str]] = []
     allowed = set(policy.vex_exclude_statuses) & set(_EXCLUDING_STATUSES)
+    max_age = timedelta(days=DEFAULT_VEX_MAX_AGE_DAYS if policy.vex_max_age_days is None else policy.vex_max_age_days)
+    rejected: list[tuple[str, str]] = []
+
+    def reject(path: str, reason: str) -> None:
+        if (path, reason) not in rejected:
+            rejected.append((path, reason))
+
+    entries: dict[tuple[str, str], list[_Entry]] = {}
     for doc in sorted(docs, key=lambda d: d.path):
         for statement in doc.statements:
             if _is_malicious(statement):
-                entry = (doc.path, REASON_MALICIOUS)
-                if statement.status in _EXCLUDING_STATUSES and entry not in rejected:
-                    rejected.append(entry)
+                if statement.status in _EXCLUDING_STATUSES:
+                    reject(doc.path, REASON_MALICIOUS)
                 continue
-            if statement.status not in allowed:
-                continue
-            ref = VexRef(doc.path, statement.status, statement.justification)
-            for vuln in (statement.vuln_id, *statement.aliases):
-                for purl in statement.products:
-                    exclusions.setdefault((vuln, purl), ref)
+            when = statement.timestamp or doc.timestamp
+            for product in statement.products:
+                key_purl = purl_key(product)
+                if key_purl is None:
+                    reject(doc.path, REASON_UNPARSEABLE)
+                    continue
+                for name in sorted({canonical_id(i) for i in (statement.vuln_id, *statement.aliases)}):
+                    entries.setdefault((name, key_purl), []).append(_Entry(when, doc.path, statement))
+    exclusions: dict[tuple[str, str], VexRef] = {}
+    superseded: list[str] = []  # paths that lost a key to a newer statement; reported below unless used elsewhere
+    for key in sorted(entries):
+        valid: list[_Entry] = []
+        for entry in entries[key]:
+            impact = (entry.statement.impact_statement or "").strip()
+            if entry.statement.status in _EXCLUDING_STATUSES and not impact:
+                reject(entry.path, REASON_NO_IMPACT)
+            else:
+                valid.append(entry)
+        if not valid:
+            continue
+        latest = max(valid, key=lambda e: (e.when, e.statement.status not in allowed, e.path))
+        status = latest.statement.status
+        if status not in allowed:
+            for entry in valid:
+                if entry is not latest and entry.statement.status in allowed:
+                    superseded.append(entry.path)
+            continue
+        won_at = (merged_at or {}).get(latest.path)
+        for entry in valid:
+            lost_at = (merged_at or {}).get(entry.path)
+            if (
+                entry.statement.status not in allowed
+                and won_at is not None
+                and lost_at is not None
+                and lost_at > won_at
+            ):
+                # A statement that does not exclude was merged after the excluding one that overrides it, yet
+                # carries an older time: its timestamp was probably copied from an older document (T2-R2-10).
+                reject(entry.path, REASON_STALE_NON_EXCLUDING)
+        if latest.when > now + FUTURE_TOLERANCE:
+            reject(latest.path, REASON_FUTURE)
+        elif now - latest.when > max_age:
+            reject(latest.path, REASON_EXPIRED)
+        else:
+            exclusions[key] = VexRef(latest.path, status, latest.statement.justification, latest.when)
+    # A statement is listed as superseded only when no key uses it: it may lose the key of one of its names and
+    # still exclude another (T12-R5-04).
+    used = {ref.path for ref in exclusions.values()}
+    for path in superseded:
+        if path not in used:
+            reject(path, REASON_SUPERSEDED)
     return exclusions, rejected

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "docs": {"type": "local", "command": ["npx", "-y", "example-mcp"]}
+  }
+}

@@ -154,6 +154,7 @@ class ItemRecord(TypedDict):
     rerun_skipped: list[Any]
     report_flags: list[Any]
     published: dict[str, Any]
+    provenance: NotRequired[dict[str, Any] | None]
 
 
 class ConfirmedRef(TypedDict):
@@ -204,7 +205,21 @@ _TOP_KEYS: Final = StatusDoc.__required_keys__ - _TOP_OPTIONAL_KEYS
 _CONFIRMED_KEYS: Final = ConfirmedRef.__required_keys__
 _REF_KINDS: Final = ("tag", "sha")
 _COMMIT_SHA: Final = re.compile(r"[0-9a-f]{40}")
-_ITEM_KEYS: Final = ItemRecord.__required_keys__
+#: ``NotRequired`` is not seen through string annotations (see ``_TOP_OPTIONAL_KEYS``), so the optional
+#: key of an item is named here and left out of the required ones.
+_ITEM_OPTIONAL_KEYS: Final = frozenset({"provenance"})
+_ITEM_KEYS: Final = ItemRecord.__required_keys__ - _ITEM_OPTIONAL_KEYS
+#: The keys of ``provenance``, and the form of each value.
+PROVENANCE_KEYS: Final[tuple[str, ...]] = (
+    "head_sha",
+    "diff_sha256",
+    "prompt_sha256",
+    "report_sha256",
+    "kiro_cli_version",
+    "config_sha256",
+    "started_at",
+    "ended_at",
+)
 _ENTRY_KEYS: Final = HistoryEntry.__required_keys__
 _EVENT_KEYS: Final = HarnessEvent.__required_keys__
 
@@ -659,7 +674,7 @@ def _check_item(path: str, record: object) -> None:
     """Check one item's record: its keys, its state and history, and its field types."""
     if type(record) is not dict:
         raise InvalidStatusError(f"{path}: expected an object, found {_json_type(record)}")
-    _check_keys(path, record, _ITEM_KEYS)
+    _check_keys(path, record, _ITEM_KEYS, _ITEM_OPTIONAL_KEYS)
     state = record["state"]
     if type(state) is not str or state not in STATES:
         raise InvalidStatusError(f"{_child(path, 'state')}: unknown state {_show(state)}")
@@ -683,6 +698,18 @@ def _check_item(path: str, record: object) -> None:
         raise InvalidStatusError(
             f"{_child(path, 'published')}: expected an object, found {_json_type(record['published'])}"
         )
+    if record.get("provenance") is not None:
+        _check_provenance(_child(path, "provenance"), record["provenance"])
+
+
+def _check_provenance(path: str, provenance: object) -> None:
+    """Check ``provenance``: an object with exactly the keys of ``PROVENANCE_KEYS``, each a string or null."""
+    if type(provenance) is not dict:
+        raise InvalidStatusError(f"{path}: expected an object or null, found {_json_type(provenance)}")
+    _check_keys(path, provenance, frozenset(PROVENANCE_KEYS))
+    for key, value in provenance.items():
+        if value is not None and (type(value) is not str or not value):
+            raise InvalidStatusError(f"{_child(path, key)}: expected a non-empty string or null, found {_show(value)}")
 
 
 def _check_history(item_path: str, state: str, history: object) -> None:

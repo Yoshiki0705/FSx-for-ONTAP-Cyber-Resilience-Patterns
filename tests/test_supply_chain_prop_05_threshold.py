@@ -26,7 +26,7 @@ def _ids(finding: Finding) -> tuple[str, ...]:
 
 def _expected(finding: Finding, kev: frozenset[str] | None, bar: OpeningThreshold) -> bool:
     """The definition of Property 5, written from the design text."""
-    if any(i.startswith("MAL-") for i in _ids(finding)):
+    if finding.advisory_type == "malware" or any(i.startswith("MAL-") for i in _ids(finding)):
         return True
     if finding.cvss_severity is not None and _RANK[finding.cvss_severity] >= _RANK[bar.min_cvss_severity]:
         return True
@@ -76,7 +76,7 @@ def test_threshold_follows_definition_and_ignores_epss(
         assert got is _expected(variant, kev, policy.opening_threshold)
 
     for finding in found:
-        malicious = any(i.startswith("MAL-") for i in _ids(finding))
+        malicious = finding.advisory_type == "malware" or any(i.startswith("MAL-") for i in _ids(finding))
         listed = kev is not None and any(i in kev for i in _ids(finding))
         bar = policy.opening_threshold
         got = meets_opening_threshold(finding, kev, bar)

@@ -26,7 +26,7 @@ MARKER_PREFIX = "supply-chain-aggregator:v1"
 STATE_FENCE_TAG = "supply-chain-aggregator-state"
 MAX_BODY_CHARS = 50_000
 MAX_COMPONENTS = 200
-KINDS = ("finding", "summary", "failure")
+KINDS = ("finding", "summary", "failure", "unscored")
 NOT_FIXED_YET = "未判明"
 EPSS_MISSING = "未取得"
 MALICIOUS_FIXED_TEXT = "該当なし（パッケージを取り除くか、記録に載っていないバージョンに変える）"
@@ -76,13 +76,27 @@ class FindingIssue:
     kev: tuple[date, bool | None] | None
     epss: tuple[str, date, str] | None
     fixed_version: str | None
-    origin_at: datetime
+    origin_at: datetime | None  # None when the time that met the threshold is unknown (Requirement 18.4)
     origin_is_date_only: bool
     detected_at: datetime
     opened_at: datetime
     due_at: datetime
     last_run_id: str
     history: tuple[HistoryEntry, ...]
+    # True for a malicious package even when no identifier starts with ``MAL-`` (a GitHub malware advisory);
+    # ``None`` derives it from the identifiers.
+    malicious: bool | None = None
+    # ``dateReleased`` of the KEV catalogue that first showed this Issue's KEV listing (an upper bound of the
+    # listing time; ``dateAdded`` is the lower bound). ``None`` when not listed or unknown.
+    kev_first_release_at: datetime | None = None
+    # Sources of the severity (e.g. ``GHSA:CVSS_V4``); shown in the state block only.
+    cvss_sources: tuple[str, ...] = ()
+    # Representative identifier of the vulnerability this Issue's identifier now belongs to (T2-R3-07). Set only on
+    # a duplicate that stays open for a person to merge; the state block then carries ``duplicate_of``.
+    duplicate_of: str | None = None
+    # Path of a VEX statement that names an alias of this Issue's vulnerability but not its identifier, so it did
+    # not exclude the Finding (T12-R5-02). The state block carries ``vex_names_alias_only`` only when set.
+    vex_names_alias_only: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +107,22 @@ class SummaryEntry:
     cvss_severity: Severity | None
     kev_listed: bool
     malicious: bool
+
+
+@dataclass(frozen=True, slots=True)
+class UnscoredEntry:
+    """One Finding listed in the per-repository ``unscored`` Issue (no severity after the review period).
+
+    ``since`` is when the Finding could first have been judged: the later of the advisory's publication and the
+    first observation of the component version. ``epss`` is ``(score, date, model_version)`` or ``None``; it
+    orders the list and is shown, and never decides whether an Issue is opened.
+    """
+
+    vuln_id: str
+    aliases: tuple[str, ...]
+    components: tuple[tuple[str, str], ...]  # (purl, version), sorted
+    since: datetime
+    epss: tuple[str, date, str] | None
 
 
 def _iso(value: datetime) -> str:
@@ -113,7 +143,7 @@ def render_marker(kind: str, repo: Repo, vuln_id: str | None = None, aliases: Se
     """Renders the marker line.
 
     Args:
-        kind: ``finding``, ``summary`` or ``failure``.
+        kind: ``finding``, ``summary``, ``failure`` or ``unscored``.
         repo: Repository that holds the Issue.
         vuln_id: Representative identifier (finding only).
         aliases: Other identifiers of the same record; sorted, deduplicated, and
@@ -248,7 +278,7 @@ def render_finding(data: FindingIssue, max_chars: int = MAX_BODY_CHARS) -> str:
         The body.
     """
     comps = sorted(data.components, key=lambda c: (c.purl, c.version, c.name))
-    malicious = _is_malicious(data.vuln_id, data.aliases)
+    malicious = data.malicious if data.malicious is not None else _is_malicious(data.vuln_id, data.aliases)
 
     def render(n_components: int, n_history: int) -> str:
         shown = comps[:n_components]
@@ -270,7 +300,9 @@ def render_finding(data: FindingIssue, max_chars: int = MAX_BODY_CHARS) -> str:
             "malicious": malicious,
             "epss": epss,
             "fixed_version": None if malicious else data.fixed_version,
-            "origin_at": _iso(data.origin_at),
+            "origin_at": _iso(data.origin_at) if data.origin_at is not None else None,
+            "kev_first_release_at": _iso(data.kev_first_release_at) if data.kev_first_release_at else None,
+            "cvss_sources": sorted(set(data.cvss_sources)),
             "origin_is_date_only": data.origin_is_date_only,
             "detected_at": _iso(data.detected_at),
             "opened_at": _iso(data.opened_at),
@@ -278,6 +310,10 @@ def render_finding(data: FindingIssue, max_chars: int = MAX_BODY_CHARS) -> str:
             "last_run_id": data.last_run_id,
             "history": [{"op": h.op, "run_id": h.run_id, "at": _iso(h.at)} for h in hist],
         }
+        if data.duplicate_of is not None:
+            state["duplicate_of"] = data.duplicate_of  # only when set, so other bodies keep their bytes
+        if data.vex_names_alias_only is not None:
+            state["vex_names_alias_only"] = data.vex_names_alias_only
         return _compose_finding(data, shown, omitted, state, malicious)
 
     n = _largest_fit(min(len(comps), MAX_COMPONENTS), lambda k: render(k, len(data.history)), max_chars)
@@ -306,7 +342,10 @@ def _compose_finding(
         kev = f"掲載あり（dateAdded {data.kev[0].isoformat()}）"
         flag = data.kev[1]
         ransomware = "不明" if flag is None else ("確認あり" if flag else "確認なし")
-    origin = _iso(data.origin_at) + ("（日付だけの値）" if data.origin_is_date_only else "")
+    if data.origin_at is None:
+        origin = "不明（脅威の公開日時を取得できていない。検出の実績から除く）"
+    else:
+        origin = _iso(data.origin_at) + ("（日付だけの値）" if data.origin_is_date_only else "")
     rows: list[tuple[str, object]] = [
         ("脆弱性識別子", data.vuln_id),
         ("別名", ", ".join(sorted(set(data.aliases) - {data.vuln_id})) or "なし"),
@@ -321,6 +360,10 @@ def _compose_finding(
         ("起票日時", _iso(data.opened_at)),
         ("修正の期限（Response_Target）", _iso(data.due_at)),
     ]
+    if data.duplicate_of is not None:
+        rows.append(("重複の代表（この Issue は集計に数えない）", data.duplicate_of))
+    if data.vex_names_alias_only is not None:
+        rows.append(("別名だけを名指しした VEX statement（除外には使っていない）", data.vex_names_alias_only))
     comp_lines = ["| purl | 名前 | バージョン |", "|---|---|---|"]
     comp_lines += [f"| {_cell(c.purl)} | {_cell(c.name)} | {_cell(c.version)} |" for c in shown]
     parts = [
@@ -412,3 +455,79 @@ def render_failure(
         )
 
     return _clip(render(_largest_fit(len(messages), render, max_chars)), max_chars)
+
+
+def _epss_value(entry: UnscoredEntry) -> float:
+    if entry.epss is None:
+        return -1.0
+    try:
+        return float(entry.epss[0])
+    except ValueError:
+        return -1.0
+
+
+def unscored_order(entries: Sequence[UnscoredEntry]) -> list[UnscoredEntry]:
+    """Orders entries by EPSS descending (not obtained last), then identifier. Only the display uses EPSS."""
+    return sorted(entries, key=lambda e: (-_epss_value(e), e.vuln_id))
+
+
+def render_unscored(
+    repo: Repo, entries: Sequence[UnscoredEntry], review_days: int, run_id: str, max_chars: int = MAX_BODY_CHARS
+) -> str:
+    """Renders the Issue that lists the Findings still without a severity after ``review_days`` days (T2-07).
+
+    One Issue per repository. It does not open an Issue for a Finding: the Opening_Threshold is unchanged. The
+    state block holds nothing that changes only with the passing of time (no age), so a run that finds the same
+    list writes the same state and the planner leaves the Issue alone.
+
+    Args:
+        repo: Repository the Issue is for.
+        entries: Findings to list. Reordered by ``unscored_order``.
+        review_days: The Policy_File's ``unscored_review_days``.
+        run_id: Run that wrote this body (not compared; see ``comparison_state``).
+        max_chars: Upper bound on the body length.
+
+    Returns:
+        The body. Entries that do not fit are left out and counted in the body.
+    """
+    ordered = unscored_order(entries)
+
+    def render(n: int) -> str:
+        shown = ordered[:n]
+        omitted = len(ordered) - n
+        state = {
+            "review_days": review_days,
+            "entries": [
+                {
+                    "vuln_id": e.vuln_id,
+                    "aliases": sorted(set(e.aliases) - {e.vuln_id}),
+                    "components": [{"purl": p, "version": v} for p, v in e.components],
+                    "since": _iso(e.since),
+                    "epss": (
+                        None
+                        if e.epss is None
+                        else {"score": e.epss[0], "date": e.epss[1].isoformat(), "model_version": e.epss[2]}
+                    ),
+                }
+                for e in shown
+            ],
+            "entries_omitted": omitted,
+            "total": len(ordered),
+            "last_run_id": run_id,
+        }
+        lines = ["| 脆弱性識別子 | 構成要素 | 判定できる時点 | EPSS |", "|---|---|---|---|"]
+        for e in shown:
+            epss = EPSS_MISSING if e.epss is None else f"{e.epss[0]}（取得日 {e.epss[1].isoformat()}）"
+            comps = ", ".join(f"{p}@{v}" for p, v in e.components)
+            lines.append(f"| {_cell(e.vuln_id)} | {_cell(comps)} | {_iso(e.since)} | {_cell(epss)} |")
+        tail = f"\n\n{omitted} 件は本文の長さの上限のため省略しました。" if omitted else ""
+        intro = (
+            f"CVSS 重大度が付いておらず、KEV にも掲載されていない {len(ordered)} 件の一覧です。"
+            f"判定できる時点から {review_days} 日を過ぎたものだけを載せています。"
+            "この一覧は起票の条件を変えません（Finding ごとの Issue は、重大度が付くか KEV に載った時点で開きます）。"
+            "EPSS は並び順の表示にだけ使います。\n\n"
+        )
+        head = f"{render_marker('unscored', repo)}\n{_state_block(state)}\n\n"
+        return head + intro + "\n".join(lines) + tail + "\n"
+
+    return _clip(render(_largest_fit(len(ordered), render, max_chars)), max_chars)

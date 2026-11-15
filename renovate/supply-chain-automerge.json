@@ -10,8 +10,9 @@
       "automerge": true
     },
     {
-      "description": "Automerge GitHub Actions patch updates",
+      "description": "Automerge first-party GitHub Actions patch updates only. A github-tags update is aged by the commit date, which a force-pushed tag does not reset, so third-party Actions stop at a pull request",
       "matchManagers": ["github-actions"],
+      "matchPackageNames": ["actions/**"],
       "matchUpdateTypes": ["patch"],
       "automerge": true
     },

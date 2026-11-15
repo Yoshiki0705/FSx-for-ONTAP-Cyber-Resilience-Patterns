@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from supply_chain.models import UNKNOWN, Component, Finding, Layer, Repo, Severity
+from supply_chain.canonical import canonical_id
+from supply_chain.models import UNKNOWN, AdvisoryType, Component, Finding, Layer, Repo, Severity
 
 SCHEMA_VERSION = 1
 MALICIOUS_PREFIX = "MAL-"
@@ -47,11 +48,14 @@ def normalize_severity(raw: object) -> Severity | None:
         raw: Value of ``cvss_severity``.
 
     Returns:
-        The upper-cased level for CRITICAL/HIGH/MEDIUM/LOW. ``UNKNOWN``,
-        ``null`` and any other value give ``None``.
+        The upper-cased level for CRITICAL/HIGH/MEDIUM/LOW. GitHub's name for
+        the middle level, ``moderate``, is MEDIUM. ``UNKNOWN``, ``null`` and any
+        other value give ``None``.
     """
     if isinstance(raw, str):
         level = raw.strip().upper()
+        if level == "MODERATE":
+            level = "MEDIUM"
         for known in _SEVERITIES:
             if level == known:
                 return known
@@ -125,7 +129,20 @@ def _parse_repo(raw: str) -> Repo:
 def _aliases(raw: object) -> tuple[str, ...]:
     if not isinstance(raw, list):
         return ()
-    return tuple(a.strip() for a in raw if isinstance(a, str) and a.strip())
+    return tuple(canonical_id(a) for a in raw if isinstance(a, str) and a.strip())
+
+
+def _advisory_type(raw: object) -> AdvisoryType | None:
+    """Reads the GitHub advisory ``type`` (``reviewed``, ``unreviewed`` or ``malware``).
+
+    ``malware`` stays ``malware``; ``reviewed``, ``unreviewed`` and ``vulnerability`` are ``vulnerability``;
+    anything else is unknown (``None``). The REST enum was read in "REST API endpoints for global security
+    advisories" (GitHub Docs).
+    """
+    text = raw.strip().lower() if isinstance(raw, str) else ""
+    if text == "malware":
+        return "malware"
+    return "vulnerability" if text in ("reviewed", "unreviewed", "vulnerability") else None
 
 
 def _merge(first: Finding, other: Finding) -> Finding:
@@ -141,6 +158,8 @@ def _merge(first: Finding, other: Finding) -> Finding:
         aliases=aliases,
         component=first.component,
         cvss_severity=None if first.vuln_id.startswith(MALICIOUS_PREFIX) else severity,
+        cvss_source=first.cvss_source if severity == first.cvss_severity else other.cvss_source,
+        advisory_type="malware" if "malware" in (first.advisory_type, other.advisory_type) else first.advisory_type,
         fixed_version=first.fixed_version or other.fixed_version,
         advisory_published_at=min(published) if published else None,
         layer=first.layer,
@@ -176,7 +195,7 @@ def _finding(
     observed_at: datetime,
 ) -> Finding:
     where = f"findings[{index}]."
-    vuln_id = _required_text(entry, "vuln_id", where)
+    vuln_id = canonical_id(_required_text(entry, "vuln_id", where))
     purl = _required_text(entry, "purl", where)
     aliases = _aliases(entry.get("aliases"))
     # A GHSA/CVE record that names a MAL- alias is the same malicious package:
@@ -186,7 +205,10 @@ def _finding(
         aliases = tuple(dict.fromkeys((vuln_id, *(a for a in aliases if a != mal_alias))))
         vuln_id = mal_alias
     aliases = tuple(a for a in dict.fromkeys(aliases) if a != vuln_id)
-    severity = None if vuln_id.startswith(MALICIOUS_PREFIX) else normalize_severity(entry.get("cvss_severity"))
+    advisory_type = _advisory_type(entry.get("advisory_type"))
+    no_severity = vuln_id.startswith(MALICIOUS_PREFIX) or advisory_type == "malware"
+    severity = None if no_severity else normalize_severity(entry.get("cvss_severity"))
+    source = entry.get("cvss_source")
     fixed = entry.get("fixed_version")
     return Finding(
         repo=repo,
@@ -198,6 +220,8 @@ def _finding(
         advisory_published_at=_parse_time(entry.get("advisory_published_at")),
         layer=layer,
         first_observed_component_at=observed_at,
+        advisory_type=advisory_type,
+        cvss_source=source.strip() if isinstance(source, str) and source.strip() and severity else None,
     )
 
 

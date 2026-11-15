@@ -8,7 +8,8 @@
       "major",
       "digest_only",
       "unknown_dep_type",
-      "hub_reusable_workflow"
+      "hub_reusable_workflow",
+      "third_party_action"
     ],
     "include": [
       {
@@ -54,10 +55,6 @@
     "open_if_kev_listed": true,
     "open_if_malicious": true
   },
-  "package_manager_wait": {
-    "default_days": 3,
-    "major_days": 7
-  },
   "response_target": {
     "detect_hours": 24,
     "fix_days_high": 14,
@@ -78,6 +75,7 @@
     "Yoshiki0705/BLEA-FSx-for-ONTAP-Usecase",
     "Yoshiki0705/FSx-for-ONTAP-Agentic-Access-Aware-RAG"
   ],
+  "unscored_review_days": 7,
   "vex": {
     "approver_role": "VEX_Reviewer",
     "directory": ".vex",
@@ -86,6 +84,10 @@
       "fixed"
     ],
     "malicious_never_suppressed": true,
+    "max_age_days": 180,
     "one_statement_per_document": true
+  },
+  "watchdog": {
+    "limit_hours": 8
   }
 }

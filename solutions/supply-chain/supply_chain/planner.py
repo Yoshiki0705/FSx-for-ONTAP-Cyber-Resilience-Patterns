@@ -12,26 +12,33 @@ record of one package version become one group, the ``MAL-`` identifier is
 the representative) and groups of one repository that end up with the same
 representative are merged again, so one repository never holds two Issues
 with the same marker.
+
+Before anything else the findings of one repository are joined by identifier (``canonicalize``): a GHSA and a
+CVE record that name each other are one vulnerability, so one Issue (Requirement 8.1).
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from supply_chain.canonical import canonical_id, canonicalize, multi_cve_records, purl_key
 from supply_chain.issue_body import (
     FindingIssue,
     HistoryEntry,
     SummaryEntry,
+    UnscoredEntry,
     comparison_state,
     parse_state,
     render_finding,
     render_summary,
+    render_unscored,
 )
 from supply_chain.models import (
+    DEFAULT_UNSCORED_REVIEW_DAYS,
     CloseReason,
     Component,
     Finding,
@@ -43,10 +50,9 @@ from supply_chain.models import (
     Severity,
 )
 from supply_chain.threshold import MALICIOUS_PREFIX, SEVERITY_RANK, is_malicious, meets_opening_threshold
-from supply_chain.vex import REASON_MALICIOUS, VexRef, effective_exclusions
+from supply_chain.vex import REASON_ALIAS_ONLY, REASON_MALICIOUS, REASON_PREDATES_KEV, VexRef, effective_exclusions
 
 _TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-_GHSA_PREFIX = "GHSA-"
 _HIGH = SEVERITY_RANK["HIGH"]
 
 RepoKey = tuple[str, str]
@@ -108,11 +114,24 @@ class _Run:
 
     inputs: PlanInputs
     kev: Mapping[str, tuple[date, bool | None]] | None
+    # (repo, primary id) -> path of a VEX statement that names only an alias of the Finding (T12-R5-02); set after
+    # the classification, read when the Issue bodies are built.
+    vex_alias_only: Mapping[tuple[RepoKey, str], str] = field(default_factory=dict)
 
     def kev_of(self, ids: Iterable[str]) -> tuple[date, bool | None] | None:
         if self.kev is None:
             return None
         return next((self.kev[i] for i in ids if i in self.kev), None)
+
+    def kev_latest_listing(self, ids: Iterable[str]) -> date | None:
+        """Returns the latest ``dateAdded`` among the KEV entries of ``ids``, or ``None`` when none is listed.
+
+        A VEX judgment made before any of the Finding's identifiers was listed has to be reviewed again
+        (Requirement 11.15 d), so the latest listing counts, not the first identifier found (F16-N1).
+        """
+        if self.kev is None:
+            return None
+        return max((self.kev[i][0] for i in ids if i in self.kev), default=None)
 
     def epss_of(self, ids: Iterable[str]) -> tuple[str, date, str] | None:
         table = self.inputs.feeds.epss
@@ -158,6 +177,10 @@ def _state_components(state: Mapping[str, Any] | None) -> frozenset[tuple[str, s
     )
 
 
+def _ids_of(finding: Finding) -> tuple[str, ...]:
+    return (finding.vuln_id, *finding.aliases)
+
+
 def _issue_is_malicious(issue: ManagedIssue) -> bool:
     flag = issue.body_state.get("malicious") if issue.body_state else None
     return bool((issue.vuln_id or "").startswith(MALICIOUS_PREFIX) or flag is True)
@@ -173,6 +196,8 @@ class _Classified:
     exclusions: tuple[tuple[Finding, str], ...]
     vex_ids: Mapping[tuple[RepoKey, str], VexRef]  # (repo, id) of an excluded finding -> VEX reference
     rejected: frozenset[tuple[str, str]]
+    # (repo, Finding's primary id) -> path of a statement that names only an alias of the Finding (T12-R5-02)
+    alias_only: Mapping[tuple[RepoKey, str], str] = field(default_factory=dict)
 
 
 def _classify(run: _Run) -> _Classified:
@@ -181,37 +206,87 @@ def _classify(run: _Run) -> _Classified:
     tables: dict[RepoKey, dict[tuple[str, str], VexRef]] = {}
     rejected: set[tuple[str, str]] = set()
     for repo in sorted(inputs.vex, key=_repo_key):
-        table, rej = effective_exclusions(list(inputs.vex[repo]), inputs.policy)
+        table, rej = effective_exclusions(
+            list(inputs.vex[repo]),
+            inputs.policy,
+            now=inputs.now,
+            merged_at=(inputs.vex_merged_at or {}).get(repo),
+        )
         tables[_repo_key(repo)] = table
         rejected.update(rej)
     included: list[Finding] = []
     rest: list[Finding] = []
     exclusions: list[tuple[Finding, str]] = []
+    alias_only: dict[tuple[RepoKey, str], str] = {}
     vex_ids: dict[tuple[RepoKey, str], VexRef] = {}
+    # A name that two different vulnerabilities of one repository both carry (a GHSA shared by two CVEs after
+    # the split of Requirement 8.25) names neither of them: a statement or an Issue under it would otherwise
+    # cover a CVE nobody judged (T2-R3-02, T2-R3-03).
+    owners: dict[tuple[RepoKey, str], set[str]] = {}
+    for f in inputs.findings:
+        for i in f.aliases:
+            owners.setdefault((_repo_key(f.repo), canonical_id(i)), set()).add(canonical_id(f.vuln_id))
+    shared = {k for k, who in owners.items() if len(who) > 1}
     for finding in sorted(inputs.findings, key=_finding_key):
         table = tables.get(_repo_key(finding.repo), {})
-        ref = next(
-            (r for i in (finding.vuln_id, *finding.aliases) if (r := table.get((i, finding.component.purl)))), None
+        key_purl = purl_key(finding.component.purl)
+        names = (
+            finding.vuln_id,
+            *(i for i in finding.aliases if (_repo_key(finding.repo), canonical_id(i)) not in shared),
         )
-        if ref is not None and is_malicious(finding):
+        # A statement covers a Finding only if the statement itself names the Finding's identifier (its name or
+        # its aliases). The Finding's own aliases are not looked up, so a name two CVEs share excludes neither
+        # of them, with or without the sibling (T12-R4-05). A malicious package is also looked up by its aliases,
+        # only so that a statement on one of them is reported as rejected.
+        malicious = is_malicious(finding)
+        lookup = names if malicious else (finding.vuln_id,)
+        ref = next((r for i in lookup if (r := table.get((canonical_id(i), key_purl or "")))), None)
+        named_primary = ref is not None
+        listed = run.kev_latest_listing((finding.vuln_id, *finding.aliases))
+        if (
+            ref is not None
+            and not malicious
+            and ref.at is not None
+            and listed is not None
+            and listed >= ref.at.date()  # dateAdded has no time of day: the same day cannot be ordered
+        ):
+            rejected.add((ref.path, REASON_PREDATES_KEV))  # listed after the judgment: it has to be reviewed again
+            ref = None
+        if ref is not None and malicious:
             rejected.add((ref.path, REASON_MALICIOUS))  # a malicious package is never suppressed
         elif ref is not None:
             exclusions.append((finding, ref.path))
-            for i in (finding.vuln_id, *finding.aliases):
+            for i in names:
                 vex_ids.setdefault((_repo_key(finding.repo), i), ref)
             continue
+        if not named_primary and not malicious:
+            # No statement names the Finding's own identifier. A statement that names one of its aliases (a GHSA
+            # without the CVE in its ``aliases``) is kept out of the exclusion, and the miss is recorded so that
+            # the number of statements that had to be rewritten can be counted (T12-R5-02).
+            # Only a Finding that opens an Issue is recorded: one below the threshold would stay unopened even if
+            # the statement were rewritten, so counting it overstates the rewrites needed (T12-R6-04).
+            hint = next(
+                (h for i in finding.aliases if (h := table.get((canonical_id(i), key_purl or ""))) is not None), None
+            )
+            if hint is not None and meets_opening_threshold(finding, kev_ids, inputs.policy.opening_threshold):
+                rejected.add((hint.path, REASON_ALIAS_ONLY))
+                alias_only[(_repo_key(finding.repo), finding.vuln_id)] = hint.path
         if meets_opening_threshold(finding, kev_ids, inputs.policy.opening_threshold):
             included.append(finding)
         else:
             rest.append(finding)
-    return _Classified(tuple(included), tuple(rest), tuple(exclusions), vex_ids, frozenset(rejected))
+    return _Classified(tuple(included), tuple(rest), tuple(exclusions), vex_ids, frozenset(rejected), alias_only)
 
 
 # --- step 3: grouping --------------------------------------------------------------------------
 
 
-def _build_groups(included: Sequence[Finding], rest: Sequence[Finding]) -> tuple[list[_Group], frozenset[Finding]]:
-    """Builds the groups of Issues and returns them with the findings absorbed into a ``MAL-`` group."""
+def _build_groups(included: Sequence[Finding]) -> list[_Group]:
+    """Builds the groups of Issues.
+
+    A malicious package version (``MAL-`` identifier, or an advisory typed ``malware``) is one group however
+    many records name it. The representative is the ``MAL-`` identifier when there is one.
+    """
     plain: dict[tuple[RepoKey, str], list[Finding]] = {}
     units: dict[tuple[RepoKey, str, str], list[Finding]] = {}
     for f in included:
@@ -219,26 +294,6 @@ def _build_groups(included: Sequence[Finding], rest: Sequence[Finding]) -> tuple
             units.setdefault((_repo_key(f.repo), f.component.purl, f.component.version), []).append(f)
         else:
             plain.setdefault((_repo_key(f.repo), f.vuln_id), []).append(f)
-    for key in sorted(plain):  # a GHSA that met the threshold (e.g. on the KEV list) joins the MAL- group too
-        if not key[1].startswith(_GHSA_PREFIX):
-            continue
-        keep: list[Finding] = []
-        for f in plain[key]:
-            unit = (key[0], f.component.purl, f.component.version)
-            if unit in units and f.cvss_severity is None:
-                units[unit].append(f)
-            else:
-                keep.append(f)
-        if keep:
-            plain[key] = keep
-        else:
-            del plain[key]
-    absorbed: set[Finding] = set()
-    for f in rest:
-        unit = (_repo_key(f.repo), f.component.purl, f.component.version)
-        if unit in units and f.vuln_id.startswith(_GHSA_PREFIX) and f.cvss_severity is None and not is_malicious(f):
-            units[unit].append(f)  # a GHSA malware advisory of the same package version (Q-11)
-            absorbed.add(f)
     groups = [
         _Group(
             members[0].repo,
@@ -253,7 +308,8 @@ def _build_groups(included: Sequence[Finding], rest: Sequence[Finding]) -> tuple
     for unit_key in sorted(units):
         members = units[unit_key]
         ids = {i for m in members for i in (m.vuln_id, *m.aliases)}
-        rep = min(i for i in ids if i.startswith(MALICIOUS_PREFIX))
+        mal_ids = [i for i in ids if i.startswith(MALICIOUS_PREFIX)]
+        rep = min(mal_ids) if mal_ids else min(ids)  # a GHSA malware advisory that no MAL- record names
         key = (unit_key[0], rep)
         old = merged.get(key)
         all_members = (*old.findings, *members) if old else tuple(members)
@@ -261,7 +317,7 @@ def _build_groups(included: Sequence[Finding], rest: Sequence[Finding]) -> tuple
         merged[key] = _Group(members[0].repo, rep, tuple(sorted(all_ids - {rep})), all_members, True)
     groups.extend(merged.values())
     groups.sort(key=lambda g: (_repo_key(g.repo), g.vuln_id))
-    return groups, frozenset(absorbed)
+    return groups
 
 
 # --- step 4: matching existing Issues ------------------------------------------------------------
@@ -272,22 +328,19 @@ def _pick(candidates: Iterable[ManagedIssue]) -> ManagedIssue | None:
     return ordered[0] if ordered else None
 
 
-def _is_malware_ghsa_group(group: _Group) -> bool:
-    """True for a group of GHSA advisories without severity (the approximation of a GHSA malware advisory)."""
-    return (
-        not group.malicious
-        and group.vuln_id.startswith(_GHSA_PREFIX)
-        and all(f.cvss_severity is None for f in group.findings)
-    )
-
-
 def _continue_as_malicious(group: _Group, issue: ManagedIssue | None) -> _Group:
-    """Re-homes a malware GHSA group under the ``MAL-`` identifier of the open Issue it continues.
+    """Re-homes a GHSA malware group under the ``MAL-`` identifier of the Issue it continues.
 
     The Issue keeps its identifier and the GHSA identifier becomes an alias, as when ``MAL-`` and GHSA of one
     package version are grouped (Q-11), so the Issue is updated instead of closed and created anew.
     """
-    if issue is None or issue.vuln_id is None or group.malicious or not issue.vuln_id.startswith(MALICIOUS_PREFIX):
+    if (
+        issue is None
+        or issue.vuln_id is None
+        or not group.malicious
+        or group.vuln_id.startswith(MALICIOUS_PREFIX)
+        or not issue.vuln_id.startswith(MALICIOUS_PREFIX)
+    ):
         return group
     if issue.vuln_id == group.vuln_id:
         return group
@@ -316,7 +369,6 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
             continue
         ids = set(group.ids)
         comps = {(c.purl, c.version) for c in group.components}
-        malware_like = group.malicious or _is_malware_ghsa_group(group)  # Q-11: continue an open MAL- Issue
         near = [
             i
             for i in pool
@@ -324,12 +376,7 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
             and _issue_id(i) not in claimed
             and (
                 i.vuln_id in ids
-                or (
-                    malware_like
-                    and (group.malicious or i.state == "open")  # a GHSA only continues an Issue that is open
-                    and _issue_is_malicious(i)
-                    and comps & _state_components(i.body_state)
-                )
+                or (group.malicious and _issue_is_malicious(i) and comps & _state_components(i.body_state))
             )
         ]
         picked = _pick(near)
@@ -342,11 +389,12 @@ def _assign(groups: Sequence[_Group], issues: Sequence[ManagedIssue]) -> tuple[d
 # --- bodies --------------------------------------------------------------------------------------
 
 
-def _origin(group: _Group, run: _Run, kev: tuple[date, bool | None] | None) -> tuple[datetime, bool]:
+def _origin(group: _Group, run: _Run, kev: tuple[date, bool | None] | None) -> tuple[datetime | None, bool]:
     """Origin = the later of "threshold first met" and "component version first observed" (Requirement 18.3).
 
-    When the time of the threshold is unknown the observation time is used; the Issue cannot say "unknown"
-    yet (``FindingIssue.origin_at`` is required).
+    When the time that met the threshold is unknown the origin is ``None`` (shown as unknown and left out of
+    the detection actual, Requirement 18.4). The observation time is never a stand-in: it is about the time
+    the Aggregator opens the Issue, so it would make the detection actual look like zero.
     """
     observed = min(f.first_observed_component_at for f in group.findings)
     met: datetime | None
@@ -366,26 +414,40 @@ def _origin(group: _Group, run: _Run, kev: tuple[date, bool | None] | None) -> t
     else:
         met = None
     if met is None:
-        return observed, False
+        return None, False
     return (met, date_only) if met >= observed else (observed, False)
 
 
-def _finding_issue(group: _Group, repo: Repo, run: _Run, op: str, prior: Mapping[str, Any] | None) -> FindingIssue:
+def _finding_issue(
+    group: _Group, repo: Repo, run: _Run, op: str, prior: Mapping[str, Any] | None, closed_at: datetime | None = None
+) -> FindingIssue:
     inputs = run.inputs
     now, target = inputs.now, inputs.policy.response_target
     kev = run.kev_of(group.ids)
     severity = group.severity
     opened = _state_time(prior, "opened_at") or now
+    days = target.fix_days_kev_or_malicious if (kev is not None or group.malicious) else target.fix_days_high
+    # An Issue closed for longer than its Response_Target starts a new response, not the old one (T2-R2-05).
+    stale_reopen = op == "reopen" and closed_at is not None and now - closed_at > timedelta(days=days)
+    if stale_reopen:
+        prior = {k: v for k, v in (prior or {}).items() if k not in ("opened_at", "due_at")}
+        opened = now
     detected = _state_time(prior, "detected_at") or now
     origin, date_only = _origin(group, run, kev)
     if _state_time(prior, "origin_at") is not None and isinstance(prior, Mapping):
         origin = _state_time(prior, "origin_at") or origin
         date_only = prior.get("origin_is_date_only") is True
-    days = target.fix_days_kev_or_malicious if (kev is not None or group.malicious) else target.fix_days_high
+    prior_due = _state_time(prior, "due_at")
+    # The catalogue's release time bounds the origin only when KEV is what met the threshold (T2-R2-06).
+    released = (
+        _state_time(prior, "kev_first_release_at") or (inputs.feeds.kev_released_at if kev is not None else None)
+        if date_only
+        else None
+    )
     if op == "create":
         due = now + timedelta(days=days)
     elif op == "reopen":
-        due = now + timedelta(days=days)
+        due = min(prior_due, now + timedelta(days=days)) if prior_due is not None else now + timedelta(days=days)
     else:
         due = _state_time(prior, "due_at") or opened + timedelta(days=days)
     if kev is not None and severity is not None and SEVERITY_RANK[severity] >= _HIGH:
@@ -408,6 +470,13 @@ def _finding_issue(group: _Group, repo: Repo, run: _Run, op: str, prior: Mapping
         due_at=due,
         last_run_id=inputs.run_id,
         history=history,
+        malicious=group.malicious,
+        kev_first_release_at=released,
+        cvss_sources=tuple(sorted({f.cvss_source for f in group.findings if f.cvss_source and f.cvss_severity})),
+        vex_names_alias_only=min(
+            (p for f in group.findings if (p := run.vex_alias_only.get((_repo_key(f.repo), f.vuln_id))) is not None),
+            default=None,
+        ),
     )
 
 
@@ -438,7 +507,7 @@ def _finding_actions(
             fresh.setdefault(_repo_key(group.repo), []).append(group)
             continue
         op = "reopen" if issue.state == "closed" else "update"
-        body = render_finding(_finding_issue(group, issue.repo, run, op, issue.body_state))
+        body = render_finding(_finding_issue(group, issue.repo, run, op, issue.body_state, issue.closed_at))
         if op == "reopen" or _changed(body, issue.body_state):
             actions.append(IssueAction(op, issue.repo, "finding", group.vuln_id, issue.number, body, None))  # type: ignore[arg-type]
     limit = run.inputs.policy.max_new_issues_per_repo_per_run
@@ -481,6 +550,74 @@ def _summary_actions(overflow: Mapping[Repo, list[_Group]], run: _Run) -> tuple[
     return actions, {r: len(g) for r, g in sorted(overflow.items(), key=lambda kv: _repo_key(kv[0]))}
 
 
+# --- step 5b: the per-repository list of Findings that have no severity (T2-07) -------------------------
+
+
+def _unscored_since(finding: Finding) -> datetime:
+    """When the Finding could first have been judged: the later of the advisory's publication and the first
+    observation of the component version. Derived from the Finding, so no run has to remember it."""
+    published = finding.advisory_published_at
+    observed = finding.first_observed_component_at
+    return max(observed, published) if published is not None else observed
+
+
+def _unscored_actions(
+    unscored: Sequence[Finding], held: Sequence[tuple[Repo, int, str]], run: _Run
+) -> list[IssueAction]:
+    """Lists, in one Issue per repository, the Findings that stayed without a severity for ``unscored_review_days``.
+
+    Nothing here changes whether a Finding opens an Issue (the Opening_Threshold is unchanged). The Issue is a
+    way for a person to see the Findings that no rule opens. It is created or updated when the list is not
+    empty (and reopened when it was closed), and closed as ``resolved`` when the list is empty in a repository
+    that was fetched. A run without the KEV feed does nothing: "not listed" is unknown, so a Finding may be
+    about to qualify and the list cannot be called complete (the same rule as for closing a finding Issue).
+    A Finding that already has an open Issue (``held``) is not listed again.
+    """
+    inputs = run.inputs
+    if run.kev is None:
+        return []
+    days = inputs.policy.unscored_review_days or DEFAULT_UNSCORED_REVIEW_DAYS
+    due = timedelta(days=days)
+    held_ids = {(_repo_key(repo), vuln_id) for repo, _number, vuln_id in held}
+    by_id: dict[tuple[RepoKey, str], list[Finding]] = {}
+    for finding in unscored:
+        if any((_repo_key(finding.repo), i) in held_ids for i in _ids_of(finding)):
+            continue
+        by_id.setdefault((_repo_key(finding.repo), finding.vuln_id), []).append(finding)
+    entries: dict[RepoKey, list[UnscoredEntry]] = {}
+    repos: dict[RepoKey, Repo] = {}
+    for (key, vuln_id), members in sorted(by_id.items()):
+        since = min(_unscored_since(f) for f in members)
+        if inputs.now - since < due:
+            continue
+        aliases = tuple(sorted({a for m in members for a in m.aliases} - {vuln_id}))
+        components = tuple(sorted({(m.component.purl, m.component.version) for m in members}))
+        entries.setdefault(key, []).append(
+            UnscoredEntry(vuln_id, aliases, components, since, run.epss_of((vuln_id, *aliases)))
+        )
+        repos[key] = members[0].repo
+    existing: dict[RepoKey, list[ManagedIssue]] = {}
+    for issue in inputs.issues:
+        if issue.kind == "unscored":
+            existing.setdefault(_repo_key(issue.repo), []).append(issue)
+    ok = {_repo_key(r) for r in inputs.fetch_ok}
+    actions: list[IssueAction] = []
+    for key in sorted(set(entries) | {k for k in existing if k in ok}):
+        found = _pick(existing.get(key, ()))
+        if key in entries:
+            repo = found.repo if found else repos[key]
+            body = render_unscored(repo, entries[key], days, inputs.run_id)
+            if found is None:
+                actions.append(IssueAction("create", repo, "unscored", None, None, body, None))
+            elif found.state == "closed":
+                actions.append(IssueAction("reopen", found.repo, "unscored", None, found.number, body, None))
+            elif _changed(body, found.body_state):
+                actions.append(IssueAction("update", found.repo, "unscored", None, found.number, body, None))
+        elif found is not None and found.state == "open":
+            actions.append(IssueAction("close", found.repo, "unscored", None, found.number, None, "resolved"))
+    return actions
+
+
 # --- step 6: closing -----------------------------------------------------------------------------
 
 
@@ -498,11 +635,34 @@ def _depends_on_kev(issue: ManagedIssue, run: _Run) -> bool:
 
 
 def _close_actions(
-    issues: Sequence[ManagedIssue], claimed: set[IssueId], cls: _Classified, run: _Run
-) -> tuple[list[IssueAction], list[tuple[Repo, int, str]]]:
+    issues: Sequence[ManagedIssue], claimed: set[IssueId], cls: _Classified, groups: Sequence[_Group], run: _Run
+) -> tuple[
+    list[IssueAction], list[tuple[Repo, int, str]], list[tuple[Repo, int, str]], list[tuple[Repo, int, str, str]]
+]:
+    """Step 6. An Issue closes as ``resolved`` only when its finding is gone.
+
+    A finding that is still reported but has no severity keeps the Issue open (``held``); one that is still
+    reported below the threshold closes as ``below_threshold``, which is not a fix and not counted as one
+    (Requirement 8.4). An open Issue whose identifier is still reported, as an alias of another Issue's
+    vulnerability, is a duplicate that the identifier rules no longer join: it stays open for a person to merge,
+    because closing it as ``resolved`` would count as a fix that did not happen.
+    Returns ``(actions, unconfirmed MAL- withdrawals, held, duplicates)``; a duplicate is
+    ``(repo, number, its identifier, the representative identifier of the group that now owns it)``.
+    """
     feeds = run.inputs.feeds
     actions: list[IssueAction] = []
     unconfirmed: list[tuple[Repo, int, str]] = []
+    held: list[tuple[Repo, int, str]] = []
+    duplicates: list[tuple[Repo, int, str, str]] = []
+    representative: dict[tuple[RepoKey, str], str] = {}
+    for g in sorted(groups, key=lambda g: (_repo_key(g.repo), g.vuln_id)):
+        for i in g.ids:
+            representative.setdefault((_repo_key(g.repo), i), g.vuln_id)
+    grouped = set(representative)
+    present: dict[tuple[RepoKey, str], list[Finding]] = {}
+    for f in cls.rest:
+        for i in (f.vuln_id, *f.aliases):
+            present.setdefault((_repo_key(f.repo), i), []).append(f)
 
     def close(issue: ManagedIssue, reason: CloseReason) -> None:
         actions.append(IssueAction("close", issue.repo, "finding", issue.vuln_id, issue.number, None, reason))
@@ -523,14 +683,28 @@ def _close_actions(
             else:
                 close(issue, "resolved")
             continue
+        if (_repo_key(issue.repo), issue.vuln_id) in grouped:
+            duplicates.append(
+                (issue.repo, issue.number, issue.vuln_id, representative[(_repo_key(issue.repo), issue.vuln_id)])
+            )
+            continue
+
         ref = cls.vex_ids.get((_repo_key(issue.repo), issue.vuln_id))
-        if ref is not None:
+        still = present.get((_repo_key(issue.repo), issue.vuln_id))
+        if ref is not None and run.kev is None:
+            continue  # Requirement 9.8: without KEV the VEX cannot be re-checked against a later listing
+        if ref is not None and still is None:
             close(issue, "vex_fixed" if ref.status == "fixed" else "vex_not_affected")
         elif run.kev is None and _depends_on_kev(issue, run):
             continue  # Requirement 9.8: the KEV feed is missing, so the reason for opening cannot be re-checked
+        elif still is not None:  # also reached when a VEX judgment covers only some of the findings under the name
+            if all(f.cvss_severity is None for f in still):
+                held.append((issue.repo, issue.number, issue.vuln_id))  # severity missing, not lowered
+            else:
+                close(issue, "below_threshold")
         else:
             close(issue, "resolved")
-    return actions, unconfirmed
+    return actions, unconfirmed, held, duplicates
 
 
 # --- entry point -----------------------------------------------------------------------------------
@@ -554,22 +728,32 @@ def plan(inputs: PlanInputs) -> Plan:
         the threshold or unscored, the per-repository overflow count, and the ``MAL-`` Issues whose
         withdrawal could not be confirmed.
     """
+    multi_cve = multi_cve_records(inputs.findings)
+    inputs = replace(inputs, findings=frozenset(canonicalize(inputs.findings)))
     run = _Run(inputs, inputs.feeds.kev)
     cls = _classify(run)
-    groups, absorbed = _build_groups(cls.included, cls.rest)
+    run = replace(run, vex_alias_only=cls.alias_only)
+    groups = _build_groups(cls.included)
     chosen, claimed = _assign(groups, inputs.issues)
     groups = [_continue_as_malicious(g, chosen.get(n)) for n, g in enumerate(groups)]
     actions, overflow = _finding_actions(groups, chosen, run)
     summary_actions, overflow_counts = _summary_actions(overflow, run)
-    close_actions, unconfirmed = _close_actions(inputs.issues, claimed, cls, run)
+    close_actions, unconfirmed, held, duplicates = _close_actions(inputs.issues, claimed, cls, groups, run)
     kev_ids = frozenset(run.kev or ())
-    leftovers = [f for f in cls.rest if f not in absorbed]
-    unscored = tuple(
-        f for f in leftovers if f.cvss_severity is None and not any(i in kev_ids for i in (f.vuln_id, *f.aliases))
+    leftovers = list(cls.rest)
+    no_severity = [f for f in leftovers if f.cvss_severity is None and not any(i in kev_ids for i in _ids_of(f))]
+    # With the KEV feed missing, "not listed" is unknown: KEV may be the reason this finding qualifies.
+    # The finding may qualify through KEV whatever its severity, so every finding below the threshold is unknown.
+    kev_unknown = (
+        tuple(f for f in leftovers if not is_malicious(f))
+        if run.kev is None and inputs.policy.opening_threshold.open_if_kev_listed
+        else ()
     )
-    scored = set(unscored)
+    unscored = () if run.kev is None else tuple(no_severity)
+    scored = set(no_severity)
     below = tuple(f for f in leftovers if f not in scored)
-    ordered = sorted([*actions, *summary_actions, *close_actions], key=_action_key)
+    unscored_actions = _unscored_actions(unscored, held, run)
+    ordered = sorted([*actions, *summary_actions, *close_actions, *unscored_actions], key=_action_key)
     return Plan(
         actions=tuple(ordered),
         vex_exclusions=cls.exclusions,
@@ -578,4 +762,17 @@ def plan(inputs: PlanInputs) -> Plan:
         unscored=unscored,
         overflow_counts=overflow_counts,
         malicious_withdrawn_unconfirmed=tuple(sorted(unconfirmed, key=lambda t: (_repo_key(t[0]), t[1]))),
+        kev_unknown=kev_unknown,
+        held_unscored=tuple(sorted(held, key=lambda t: (_repo_key(t[0]), t[1]))),
+        duplicate_issues=tuple(
+            sorted(((r, n, v) for r, n, v, _rep in duplicates), key=lambda t: (_repo_key(t[0]), t[1]))
+        ),
+        duplicate_of=tuple(
+            sorted(((r, n, rep) for r, n, _v, rep in duplicates), key=lambda t: (_repo_key(t[0]), t[1]))
+        ),
+        vex_unchecked_against_kev=tuple(f for f, _ in cls.exclusions) if run.kev is None else (),
+        alias_multi_cve=multi_cve,
+        vex_name_only_ghsa=tuple(
+            sorted((f"{owner}/{name}", vuln_id, path) for ((owner, name), vuln_id), path in cls.alias_only.items())
+        ),
     )

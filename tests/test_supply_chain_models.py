@@ -49,7 +49,7 @@ def _all_classes() -> list[type]:
 
 def test_every_model_is_frozen_with_slots() -> None:
     classes = _all_classes()
-    assert len(classes) == 16
+    assert len(classes) == 17
     for cls in classes:
         params = cls.__dataclass_params__  # type: ignore[attr-defined]
         assert params.frozen, cls.__name__
@@ -166,16 +166,17 @@ def test_enumerations_match_the_design() -> None:
         "fixed",
         "under_investigation",
     }
-    assert _literal_values(models.FeedName) == {"kev", "epss", "malicious"}
+    assert _literal_values(models.FeedName) == {"kev", "epss", "malicious", "advisories"}
     assert _literal_values(models.CloseReason) == {
         "resolved",
         "withdrawn",
         "feed_version_delisted",
         "vex_not_affected",
         "vex_fixed",
+        "below_threshold",
     }
     assert _literal_values(models.Layer) == {"A", "B"}
-    assert _literal_values(models.IssueKind) == {"finding", "summary", "failure"}
+    assert _literal_values(models.IssueKind) == {"finding", "summary", "failure", "unscored"}
     assert _literal_values(models.IssueState) == {"open", "closed"}
     assert _literal_values(models.IssueOp) == {"create", "update", "close", "reopen"}
 
@@ -191,6 +192,7 @@ def test_field_names_match_the_design() -> None:
         "malicious_withdrawn",
         "malicious_delisted",
         "malicious_unconfirmed",
+        "kev_released_at",
     ]
     assert names(models.PlanInputs) == [
         "policy",
@@ -202,6 +204,7 @@ def test_field_names_match_the_design() -> None:
         "feeds",
         "vex",
         "issues",
+        "vex_merged_at",
     ]
     assert names(models.Plan) == [
         "actions",
@@ -211,6 +214,13 @@ def test_field_names_match_the_design() -> None:
         "unscored",
         "overflow_counts",
         "malicious_withdrawn_unconfirmed",
+        "kev_unknown",
+        "held_unscored",
+        "duplicate_issues",
+        "duplicate_of",
+        "vex_unchecked_against_kev",
+        "alias_multi_cve",
+        "vex_name_only_ghsa",
     ]
     assert names(models.Component) == [
         "purl",

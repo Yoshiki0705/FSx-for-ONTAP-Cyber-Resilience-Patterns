@@ -15,6 +15,7 @@ import pytest
 from hypothesis import event, given, settings
 from hypothesis import strategies as st
 from supply_chain import issue_body, models, planner
+from supply_chain.canonical import canonicalize
 
 from tests.fakes import issue_store as fake
 from tests.strategies import supply_chain as sc
@@ -127,7 +128,9 @@ def _ops(plan: models.Plan) -> list[tuple[str, str, str | None]]:
 
 
 def _vex(status: models.VexStatus, vuln_id: str, purl: str = PURL, aliases: tuple[str, ...] = ()) -> models.VexDocument:
-    statement = models.VexStatement(vuln_id, aliases, (purl,), status, "component_not_present", None, NOW)
+    statement = models.VexStatement(
+        vuln_id, aliases, (purl,), status, "component_not_present", "reviewed: component is not shipped", NOW
+    )
     return models.VexDocument(
         "urn:example:1", "https://openvex.dev/ns/v0.2.0", "example", None, NOW, 1, None, (statement,), ".vex/a.json"
     )
@@ -236,7 +239,7 @@ def test_one_issue_lists_every_component_of_a_vulnerability() -> None:
 
 def test_ghsa_malware_and_mal_record_of_one_package_version_become_one_issue() -> None:
     mal = _finding("MAL-2026-0007", None)
-    ghsa = _finding("GHSA-mmmm-aaaa-llll", None)
+    ghsa = replace(_finding("GHSA-mmmm-aaaa-llll", None), advisory_type="malware")
     plan = planner.plan(_inputs((mal, ghsa)))
     assert _ops(plan) == [("create", "finding", "MAL-2026-0007")]
     assert plan.unscored == ()
@@ -244,6 +247,26 @@ def test_ghsa_malware_and_mal_record_of_one_package_version_become_one_issue() -
     assert marker is not None
     assert marker.aliases == ("GHSA-mmmm-aaaa-llll",)
     assert _state(plan)["malicious"] is True
+
+
+def test_a_ghsa_with_no_severity_is_not_taken_for_malware_without_the_advisory_type() -> None:
+    """T2-08: a missing severity says nothing about malware; the old approximation merged it into the MAL- Issue."""
+    mal = _finding("MAL-2026-0007", None)
+    ghsa = _finding("GHSA-mmmm-aaaa-llll", None)
+    plan = planner.plan(_inputs((mal, ghsa)))
+    assert _ops(plan) == [("create", "finding", "MAL-2026-0007")]
+    assert plan.unscored == (ghsa,)
+    assert issue_body.parse_marker(plan.actions[0].body).aliases == ()  # type: ignore[union-attr]
+
+
+def test_a_ghsa_malware_advisory_that_no_mal_record_names_opens_a_malicious_issue() -> None:
+    ghsa = replace(_finding("GHSA-mmmm-aaaa-llll", None), advisory_type="malware")
+    plan = planner.plan(_inputs((ghsa,)))
+    assert _ops(plan) == [("create", "finding", "GHSA-mmmm-aaaa-llll")]
+    state = _state(plan)
+    assert state["malicious"] is True
+    assert state["due_at"] == "2026-11-17T06:00:00Z"  # the malicious deadline (7 days)
+    assert state["fixed_version"] is None
 
 
 def test_ghsa_without_a_mal_record_stays_unscored_and_other_versions_do_not_merge() -> None:
@@ -294,7 +317,7 @@ def test_closed_issue_is_reopened_when_the_finding_returns() -> None:
     plan = planner.plan(back)
     assert [(a.op, a.number) for a in plan.actions] == [("reopen", 1)]
     assert [h["op"] for h in _state(plan)["history"]] == ["open", "reopen"]  # type: ignore[union-attr]
-    assert _state(plan)["due_at"] == "2026-11-25T06:00:00Z"  # the fix window restarts
+    assert _state(plan)["due_at"] == "2026-11-24T06:00:00Z"  # a reopen never pushes the deadline out (T2-03)
 
 
 def test_changed_representative_continues_the_same_issue() -> None:
@@ -314,7 +337,7 @@ def test_a_new_mal_id_for_the_same_package_version_continues_the_issue() -> None
 
 def test_a_kev_listed_malware_ghsa_continues_the_open_mal_issue_instead_of_replacing_it() -> None:
     first = _inputs((_finding("MAL-2026-0000", None),))
-    ghsa = _finding("GHSA-mmmm-aaaa-llll", None)
+    ghsa = replace(_finding("GHSA-mmmm-aaaa-llll", None), advisory_type="malware")
     kev = _feeds(kev={"GHSA-mmmm-aaaa-llll": (date(2026, 11, 1), None)})
     second = _next(first, planner.plan(first), findings=frozenset({ghsa}), feeds=kev)
     plan = planner.plan(second)
@@ -589,6 +612,7 @@ def test_settled_inputs_with_new_feed_values_update_and_vex_closes() -> None:
     @settings(max_examples=100, deadline=None, derandomize=True)
     @given(st.integers(1, 3).flatmap(_sized))
     def run(inputs: models.PlanInputs) -> None:
+        inputs = replace(inputs, findings=frozenset(canonicalize(inputs.findings)))  # what plan itself works on
         first = planner.plan(inputs)
         created = [a for a in first.actions if a.op == "create" and a.kind == "finding"]
         epss = {

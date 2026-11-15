@@ -27,6 +27,13 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": "pinDigest is not delayed",
+      "matchUpdateTypes": [
+        "pinDigest"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
       "description": "Default: no automerge",
       "matchPackageNames": [
         "*"

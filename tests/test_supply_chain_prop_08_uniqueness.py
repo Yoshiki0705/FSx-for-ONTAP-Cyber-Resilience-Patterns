@@ -68,15 +68,14 @@ def _components(state: object) -> set[tuple[str, str]]:
 
 
 def _malicious(vuln_id: str | None, state: object) -> bool:
-    """A ``MAL-`` Issue, or a GHSA malware advisory recorded without a severity (one Q-11 key per component).
+    """A ``MAL-`` Issue, or a GHSA malware advisory (the Issue's state says so; one Q-11 key per component).
 
-    The planner has no field for the advisory type, so it treats a GHSA without a severity as the
-    malware advisory of a Q-11 pair. A malware GHSA recorded with a severity is outside that
-    approximation (9.6 interpretation 4, open until after 4.13) and counts as an ordinary finding.
+    The planner reads the advisory type (T2-08), not a missing severity, so a GHSA malware advisory is
+    malicious whatever severity it was recorded with.
     """
     if (vuln_id or "").startswith("MAL-"):
         return True
-    return vuln_id in sc.MALWARE_GHSA_IDS and isinstance(state, dict) and state.get("cvss_severity") is None
+    return vuln_id in sc.MALWARE_GHSA_IDS and isinstance(state, dict) and state.get("malicious") is True
 
 
 def _open_findings(issues: Iterable[models.ManagedIssue]) -> list[models.ManagedIssue]:
@@ -200,6 +199,7 @@ def _finding(vuln_id: str, aliases: tuple[str, ...] = (), severity: str | None =
         advisory_published_at=when,
         layer="A",
         first_observed_component_at=when,
+        advisory_type="malware" if vuln_id in sc.MALWARE_GHSA_IDS else None,
     )
 
 

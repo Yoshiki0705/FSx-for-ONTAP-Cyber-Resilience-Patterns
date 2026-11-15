@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from hypothesis import event, given, settings
+from hypothesis import strategies as st
 from supply_chain.models import Policy
 from supply_chain.policy import parse_policy, render_policy
 
@@ -30,3 +33,14 @@ def test_policy_file_round_trip(policy: Policy) -> None:
     assert isinstance(text, str)
     assert render_policy(parsed) == text
     assert render_policy(parsed).encode("utf-8") == text.encode("utf-8")
+
+
+@settings(max_examples=100, deadline=None)
+@given(policy=sc.policies(), hours=st.one_of(st.none(), st.integers(1, 10_000)))
+def test_policy_file_round_trip_with_the_watchdog_limit(policy: Policy, hours: int | None) -> None:
+    """The optional ``watchdog.limit_hours`` survives the round trip, and an absent one stays absent (task 8.12)."""
+    policy = replace(policy, watchdog_limit_hours=hours)
+    text = render_policy(policy)
+    assert parse_policy(text) == policy
+    assert render_policy(parse_policy(text)) == text
+    assert ("watchdog" in text) == (hours is not None)

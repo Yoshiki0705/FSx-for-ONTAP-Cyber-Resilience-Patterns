@@ -189,6 +189,7 @@ def change_item(item_id: str = "b-example", mode: str = "change") -> manifest.It
         "knowledge_kinds": ["records under .private/"] if query else [],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
     return manifest.parse_manifest({"schema_version": 1, "items": [raw]}, config=parse(RAW)).by_id[item_id]
 
@@ -222,7 +223,7 @@ def test_the_branch_is_deleted_with_update_ref_at_the_recorded_sha() -> None:
     """``update-ref -d <ref> <old>`` refuses a branch that moved; neither ``branch -d`` nor ``-D`` is built."""
     plan = command.build_git_plan(parse(RAW), change_item())
     step = plan.delete_branch_at(SHA)
-    assert step.argv == ("git", "-C", plan.main_tree, "update-ref", "-d", "refs/heads/handoff/b-example", SHA)
+    assert step.argv == ("git", "-C", plan.main_tree, "update-ref", "--no-deref", "-d", "refs/heads/handoff/b-example", SHA)
     assert not set(step.argv) & command.FORBIDDEN_GIT_WORDS
     assert "-D" not in step.argv and "branch" not in step.argv
 

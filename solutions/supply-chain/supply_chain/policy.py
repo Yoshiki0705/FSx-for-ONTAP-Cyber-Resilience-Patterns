@@ -38,11 +38,18 @@ from supply_chain.models import (
     CooldownDays,
     OpeningThreshold,
     Policy,
+    RenovatePreset,
     Repo,
     ResponseTarget,
 )
 
 IssueKindName = Literal["invalid_json", "missing", "type", "range", "unknown_key", "duplicate", "overlap", "format"]
+
+# ``$.renovate_preset`` patterns (same expressions as the schema).
+PRESET_TAG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+PRESET_COMMIT_PATTERN = r"^[0-9a-fA-F]{40}$"
+_PRESET_TAG_RE = re.compile(PRESET_TAG_PATTERN[1:-1])
+_PRESET_COMMIT_RE = re.compile(PRESET_COMMIT_PATTERN[1:-1])
 
 # Same expression as ``$defs.repo.pattern`` in the schema (anchors included).
 REPO_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$"
@@ -69,7 +76,12 @@ OBJECT_KEYS: Mapping[str, tuple[str, ...]] = {
         "vex",
         "response_target",
         "issue_limits",
+        "renovate_preset",
+        "unscored_review_days",
+        "watchdog",
     ),
+    "$.watchdog": ("limit_hours",),
+    "$.renovate_preset": ("tag", "commit"),
     "$.opening_threshold": (
         "min_cvss_severity",
         "open_if_kev_listed",
@@ -87,13 +99,21 @@ OBJECT_KEYS: Mapping[str, tuple[str, ...]] = {
         "approver_role",
         "one_statement_per_document",
         "malicious_never_suppressed",
+        "max_age_days",
     ),
     "$.response_target": ("detect_hours", "fix_days_kev_or_malicious", "fix_days_high"),
     "$.issue_limits": ("max_new_issues_per_repo_per_run",),
 }
 
 # Every key is required except the ones listed here.
-OPTIONAL_KEYS: Mapping[str, frozenset[str]] = {"$.automerge.include[]": frozenset({"dep_types"})}
+OPTIONAL_KEYS: Mapping[str, frozenset[str]] = {
+    # ``package_manager_wait`` is derived from ``cooldown_days`` when absent (T1-15); a file that still
+    # writes it must write the same values.
+    "$": frozenset({"package_manager_wait", "renovate_preset", "unscored_review_days", "watchdog"}),
+    "$.watchdog": frozenset({"limit_hours"}),  # absent means DEFAULT_WATCHDOG_LIMIT_HOURS
+    "$.automerge.include[]": frozenset({"dep_types"}),
+    "$.vex": frozenset({"max_age_days"}),  # absent means DEFAULT_VEX_MAX_AGE_DAYS
+}
 REQUIRED_KEYS: Mapping[str, frozenset[str]] = {
     path: frozenset(keys) - OPTIONAL_KEYS.get(path, frozenset()) for path, keys in OBJECT_KEYS.items()
 }
@@ -110,6 +130,7 @@ ENUMS: Mapping[str, tuple[str, ...]] = {
         "digest_only",
         "unknown_dep_type",
         "hub_reusable_workflow",
+        "third_party_action",
     ),
     "$.vex.exclude_statuses[]": ("not_affected", "fixed"),
 }
@@ -131,6 +152,9 @@ INT_RANGES: Mapping[str, tuple[int, int | None]] = {
     "$.cooldown_days.major": (1, None),
     "$.package_manager_wait.default_days": (1, None),
     "$.package_manager_wait.major_days": (1, None),
+    "$.vex.max_age_days": (1, None),
+    "$.unscored_review_days": (1, None),
+    "$.watchdog.limit_hours": (1, None),
     "$.response_target.detect_hours": (1, None),
     "$.response_target.fix_days_kev_or_malicious": (1, None),
     "$.response_target.fix_days_high": (1, None),
@@ -425,13 +449,21 @@ def parse_policy(text: str) -> Policy:
     threshold = _parse_threshold(chk, root)
     cooldown = _parse_pair(chk, root, "cooldown_days", ("default", "major"))
     wait = _parse_pair(chk, root, "package_manager_wait", ("default_days", "major_days"))
+    preset_given = "renovate_preset" in root
+    preset = _parse_preset(chk, root)
     paths = _parse_scope(chk, root)
     automerge = _parse_automerge(chk, root)
     vex = _parse_vex(chk, root)
     target = _parse_response(chk, root)
     limit = _parse_limits(chk, root)
+    unscored_days = chk.integer(root, "unscored_review_days", "$", "$")
+    watchdog_sec = _section(chk, root, "watchdog")
+    watchdog_hours = chk.integer(watchdog_sec, "limit_hours", "$.watchdog", "$.watchdog") if watchdog_sec else None
 
+    wait_given = "package_manager_wait" in root
     _cross_checks(chk, targets, excluded, cooldown, wait, automerge, target)
+    if not wait_given:
+        wait = cooldown  # derived (T1-15): one source of truth for the waiting period
 
     if (
         chk.issues
@@ -446,11 +478,12 @@ def parse_policy(text: str) -> Policy:
         or vex is None
         or target is None
         or limit is None
+        or (preset_given and preset is None)
     ):
         raise PolicyError(chk.issues)
 
     include, exclude, enabled = automerge
-    directory, statuses, role, one_statement, never_suppressed = vex
+    directory, statuses, role, one_statement, never_suppressed, max_age = vex
     return Policy(
         schema_version=version,
         target_repositories=targets,
@@ -469,6 +502,10 @@ def parse_policy(text: str) -> Policy:
         vex_malicious_never_suppressed=never_suppressed,
         response_target=target,
         max_new_issues_per_repo_per_run=limit,
+        vex_max_age_days=max_age,
+        renovate_preset=preset,
+        unscored_review_days=unscored_days,
+        watchdog_limit_hours=watchdog_hours,
     )
 
 
@@ -542,7 +579,7 @@ def _parse_automerge(
     return include, exclude, enabled
 
 
-def _parse_vex(chk: _Checker, root: dict[str, Any]) -> tuple[str, tuple[str, ...], str, bool, bool] | None:
+def _parse_vex(chk: _Checker, root: dict[str, Any]) -> tuple[str, tuple[str, ...], str, bool, bool, int | None] | None:
     sec = _section(chk, root, "vex")
     if sec is None:
         return None
@@ -558,7 +595,30 @@ def _parse_vex(chk: _Checker, root: dict[str, Any]) -> tuple[str, tuple[str, ...
     never = chk.const_field(sec, "malicious_never_suppressed", path, path)
     if None in (directory, statuses, role, one, never):
         return None
-    return directory, statuses, role, one, never  # type: ignore[return-value]
+    max_age = chk.integer(sec, "max_age_days", path, path)
+    return directory, statuses, role, one, never, max_age  # type: ignore[return-value]
+
+
+def _parse_preset(chk: _Checker, root: dict[str, Any]) -> RenovatePreset | None:
+    """Parses the optional ``renovate_preset`` (``tag`` and the 40-digit ``commit`` it pointed at)."""
+    sec = _section(chk, root, "renovate_preset")
+    if sec is None:
+        return None
+    path = "$.renovate_preset"
+    values: dict[str, str] = {}
+    for key, pattern in (("tag", _PRESET_TAG_RE), ("commit", _PRESET_COMMIT_RE)):
+        if key not in sec:
+            continue
+        value = sec[key]
+        if not isinstance(value, str):
+            chk.add(f"{path}.{key}", "type", f"expected a string, got {type(value).__name__}")
+        elif not pattern.fullmatch(value):
+            chk.add(f"{path}.{key}", "format", f"{value!r} does not match the {key} format")
+        else:
+            values[key] = value
+    if len(values) != 2:
+        return None
+    return RenovatePreset(tag=values["tag"], commit=values["commit"])
 
 
 def _parse_response(chk: _Checker, root: dict[str, Any]) -> ResponseTarget | None:
@@ -651,6 +711,7 @@ def render_policy(policy: Policy) -> str:
     with one newline and non-ASCII characters are written as they are. The same
     Policy always yields the same bytes. ``epss_used_for_opening`` is not part of
     the Policy (the schema fixes it to false) and is always written as false.
+    ``package_manager_wait`` is derived from ``cooldown_days`` and is not written.
 
     Args:
         policy: A Policy that already satisfies the parser's rules.
@@ -669,10 +730,6 @@ def render_policy(policy: Policy) -> str:
             "epss_used_for_opening": False,
         },
         "cooldown_days": {"default": policy.cooldown_days.default, "major": policy.cooldown_days.major},
-        "package_manager_wait": {
-            "default_days": policy.package_manager_wait.default,
-            "major_days": policy.package_manager_wait.major,
-        },
         "dependency_scope": {"non_production_paths": list(policy.non_production_paths)},
         "automerge": {
             "enabled_repositories": [_repo_text(r) for r in policy.automerge_enabled_repositories],
@@ -700,4 +757,12 @@ def render_policy(policy: Policy) -> str:
         },
         "issue_limits": {"max_new_issues_per_repo_per_run": policy.max_new_issues_per_repo_per_run},
     }
+    if policy.vex_max_age_days is not None:
+        doc["vex"]["max_age_days"] = policy.vex_max_age_days
+    if policy.unscored_review_days is not None:
+        doc["unscored_review_days"] = policy.unscored_review_days
+    if policy.watchdog_limit_hours is not None:
+        doc["watchdog"] = {"limit_hours": policy.watchdog_limit_hours}
+    if policy.renovate_preset is not None:
+        doc["renovate_preset"] = {"tag": policy.renovate_preset.tag, "commit": policy.renovate_preset.commit}
     return json.dumps(doc, sort_keys=True, indent=2, ensure_ascii=False, separators=(",", ": ")) + "\n"

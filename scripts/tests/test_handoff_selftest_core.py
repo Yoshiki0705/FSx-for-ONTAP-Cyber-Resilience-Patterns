@@ -188,7 +188,7 @@ def test_run_dir_must_be_the_selftest_directory_of_worktrees_root() -> None:
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        ("token", "handoff-selftest-t5-" + NONCE, "token"),
+        ("token", "handoff-selftest-t9-" + NONCE, "token"),
         ("token", "handoff-selftest-t0-" + NONCE.upper(), "token"),
         ("run_dir", f"{HOME}/Projects/.handoff-worktrees/selftest/2026-11-12", "run ID"),
         ("run_dir", f"{HOME}/Projects/.handoff-worktrees/other/{RUN_ID}", "selftest/<run ID>"),
@@ -215,7 +215,7 @@ def test_malformed_values_of_the_runner_raise_value_error(field: str, value: str
 def test_tokens_and_paths_have_their_forms() -> None:
     """``selftest_token`` takes 16 lowercase hexadecimal digits; ``selftest_paths`` lays out one trial."""
     assert token("t3") == "handoff-selftest-t3-0123456789abcdef"
-    for trial, nonce in (("t5", NONCE), ("T0", NONCE), ("t0", NONCE[:-1]), ("t0", NONCE.upper()), ("t0", NONCE + "0")):
+    for trial, nonce in (("t9", NONCE), ("T0", NONCE), ("t0", NONCE[:-1]), ("t0", NONCE.upper()), ("t0", NONCE + "0")):
         with pytest.raises(ValueError):
             command.selftest_token(trial, nonce)
     paths = command.selftest_paths(f"/w/selftest/{RUN_ID}", "t2")
@@ -615,3 +615,18 @@ def test_remote_branch_absent_is_the_order_of_a_listing_independent() -> None:
     effect_map, listings = every_trial(effect_t0=effects(remote_refs_before=(BRANCH_B, MAIN_A)))
     listings["t0"] = [MAIN_A, BRANCH_B]
     assert evaluate.remote_branch_absent(effect_map, listings) is True
+
+
+def test_t0_asks_for_the_write_tool_and_one_allowed_command_per_call() -> None:
+    """T0 is the control, so each step it asks for must be one that the change configuration allows.
+
+    With ``denyByDefault`` enforced, ``kiro-cli`` 2.32.0 refused the line that the model built for the old
+    wording (``echo ... >> README.md && git add ... && git commit ...``, selftest of 2026-11-15): no allow
+    rule names ``echo`` or a chained line.
+    """
+    from handoff import command
+
+    operation = command._SELFTEST_OPERATIONS["t0"]
+    assert "file-writing tool" in operation
+    assert "separate shell call" in operation
+    assert "&&" not in operation and ";" not in operation

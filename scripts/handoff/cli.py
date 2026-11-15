@@ -87,7 +87,15 @@ Subcommands:
   is started in a worker thread with :meth:`handoff.runner.Harness.run_change_item` (task 5.3),
   as a query item is with :meth:`handoff.runner.Harness.run_query_item`, and ends in the state
   that ``evaluate.final_state`` gives its observations, the conflict check and the re-run of its
-  verification commands included (task 5.3b).
+  verification commands included (task 5.3b). A change item is also held, before ``kiro-cli``, when
+  ``external_text`` of the manifest item is not ``false`` (``external_text_in_change_mode``,
+  ``external_text_undeclared``; T4-R2-02), when the machine has no boundary of the operating system
+  (``os_boundary_missing``; layer 0, :mod:`handoff.os_boundary`), when the probes of that boundary show that it does
+  not bind (``os_boundary_not_enforced``), when the selftest's ``kiro-cli`` version matches none of
+  ``kiro_cli_supported_versions`` (``kiro_cli_version_unsupported``), and, for any item, when the git directory
+  that the worktrees of its repository share is not what the last run left (``common_dir_changed_between_runs``;
+  ``status accept-common-dir REPO`` records the state after the maintainer has read it). A change run's
+  ``kiro-cli`` runs under ``sandbox-exec -f <profile>``.
   ``command.build_kiro_argv`` still refuses a change item without ``guards_active`` behind this
   check. Without a ``guards_active`` selftest, then, the only ``kiro-cli`` runs are those of query
   items, which trust ``fs_read`` alone (Requirement 28.17). A query item is not checked. The
@@ -137,7 +145,7 @@ Subcommands:
   with modified or untracked files. The removal is recorded in ``events`` and the record's
   ``worktree`` becomes ``null``. A branch is never deleted here: after the pull request is merged,
   the maintainer runs the ``git branch -d`` that the listing shows. Reports are kept.
-- ``publish --approval FILE`` (task 5.4): publishes the ``succeeded`` change items that the approval
+- ``publish --approval FILE`` (task 5.4; T4-07): publishes the ``succeeded`` change items that the approval
   lists, with :meth:`handoff.runner.Harness.publish_batch`. This is the one explicit publishing run
   that Requirement 23.4 leaves out of its ban on pushes and pull requests from this repository's
   work (the exception: "the publishing run that Requirement 28.15 approves"): the maintainer
@@ -166,15 +174,23 @@ Subcommands:
   why, and the exit code is 1 (2 for a malformed request, 3 when another harness holds the lock).
   The same ref again changes nothing; a tag that now points to another commit is refused. It starts no
   ``kiro-cli``. ``status`` lists the recorded refs.
-- ``selftest``: runs :meth:`handoff.runner.Harness.run_selftest`, the trials T0 to T4 of design
+- ``selftest``: runs :meth:`handoff.runner.Harness.run_selftest`, the trials T0 to T8 of design
   section 20 in throwaway repositories below ``<worktrees_root>/selftest/``, with the approval of
   ``agents.change`` when it passes its checks now (above). It takes the lock, because it writes
   ``selftest`` of ``status.json``. Standard output shows the result, each trial's outcome and
   whether its ``kiro-cli`` started, the record ``.private/handoff/selftest/<run ID>.json``, and
   whether ``selftest`` of ``status.json`` changed, as the harness last wrote it; standard error
   shows why a result is ``unconfirmed``. The result is ``guards_active`` only when T0 completed, a
-  guard stopped T1 and T2, ``gh auth status`` failed in T3 and ``git ls-remote`` after the trials
-  showed no branch on any trial's remote (task 5.8; Requirements 28.16, 28.17). A selftest that stops before its trials writes neither
+  guard stopped T1, T2 and T3 did not take effect (a guard stopped them, or ``kiro-cli`` refused them
+  before the guard: 2.32.0 applies ``deniedCommands`` first), ``gh auth status`` failed in T3 or T7
+  showed the default deny, and ``git ls-remote`` after the trials
+  showed no branch on any trial's remote (task 5.8; Requirements 28.16, 28.17), and the probes T5 and T6 (T4-01) did not
+  leak: the agent did not read a decoy file below ``~/.ssh`` and did not connect to a loopback listener of the harness.
+  A refusal by the model cannot be told from a refusal by ``toolsSettings``, so a pass of T5 and T6 shows no leak
+  and does not show that the configuration is what stopped it. T7 and T8 (T4-R2-03) are the controls that a model has
+  no reason to decline: a harmless command that no allow rule names (``uname -s > <token>.txt``), and a file above the
+  working directory (``../outside-<token>.txt``). Either one that took effect gives ``unconfirmed``. The selftest runs
+  under layer 0 (:mod:`handoff.os_boundary`) and is refused without it. A selftest that stops before its trials writes neither
   the record nor ``status.json``, and standard error says that ``status.json`` kept its
   ``selftest``. When ``kiro-cli`` is not found, or ``kiro-cli --version`` gives no version,
   standard error says which, and the manual display of each change item of the manifest that is
@@ -247,7 +263,15 @@ from dataclasses import dataclass  # noqa: E402
 from datetime import datetime, timezone  # noqa: E402
 from typing import Any, Final  # noqa: E402
 
-from handoff import command, dag, evaluate, runner, state  # noqa: E402
+from handoff import (  # noqa: E402
+    agent_policy,
+    command,
+    dag,
+    evaluate,
+    os_boundary,  # noqa: E402
+    runner,
+    state,
+)
 from handoff.config import MODES, ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
 from handoff.executor import Executor, ExecutorChoice, choose  # noqa: E402
 from handoff.manifest import (  # noqa: E402
@@ -473,7 +497,12 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, metavar="<subcommand>")
     for name, text in (
         ("plan", "show what run would start, hold or leave queued, and start nothing"),
-        ("run", "start the named items (query mode only; change items are held)"),
+        (
+            (
+                "run",
+                "start the named items (a change item needs a guards_active selftest that matches the current agent configuration and kiro-cli version, and the boundary of the operating system; otherwise it is held)",
+            )
+        ),
     ):
         sub = commands.add_parser(name, help=text, description=text)
         which = sub.add_mutually_exclusive_group(required=True)
@@ -497,6 +526,14 @@ def _parser() -> argparse.ArgumentParser:
     setter.add_argument("item_id", metavar="ID")
     setter.add_argument("target", choices=(state.QUEUED,), metavar=state.QUEUED)
     setter.add_argument("--reason", required=True, help="why it may run again, one line")
+    accept = actions.add_parser(
+        "accept-common-dir",
+        help="record the git directory that the worktrees of a repository share as it is now, after reading it",
+    )
+    accept.add_argument("repo", metavar="REPO")
+    status_parser.add_argument(
+        "--verify-log", action="store_true", help="check the chain of status.log.jsonl and its end against status.json"
+    )
     cleanup = commands.add_parser(
         "cleanup", help="list an item's worktree and branch; remove the worktree with --approved"
     )
@@ -513,7 +550,10 @@ def _parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="the approval record below .private/handoff/approvals/ (approved_at, item_ids, approved_in)",
     )
-    text = "run trials T0 to T4 in throwaway repositories and record whether the guards stopped kiro-cli"
+    text = "print an agent configuration that meets the toolsSettings the approval requires (T4-01); it writes no file"
+    agent_config = commands.add_parser("agent-config", help=text, description=text)
+    agent_config.add_argument("mode", choices=("change", "query"))
+    text = "run trials T0 to T8 in throwaway repositories and record whether the guards stopped kiro-cli"
     commands.add_parser("selftest", help=text, description=text)
     text = "check a tag or a commit on its repository's default branch, and record it as confirmed (IN-2)"
     confirm = commands.add_parser("confirm-ref", help=text, description=text)
@@ -842,7 +882,13 @@ def _run_context(
         deny=deny,
         confirmed_refs=confirmed,
         approved_agents=approved,
+        os_boundary=_discover_boundary(),
     )
+
+
+def _discover_boundary() -> os_boundary.OsBoundary | None:
+    """Layer 0 of this machine (:func:`handoff.os_boundary.discover`), or ``None``."""
+    return os_boundary.discover(os.environ, sys.platform, os.access(os_boundary.SANDBOX_EXEC, os.X_OK))
 
 
 def _verified_agents(inputs: _Inputs, approvals: Sequence[_Approval]) -> frozenset[tuple[str, str]]:
@@ -885,7 +931,9 @@ def _agent_file_problems(approval: _Approval, ceiling: Sequence[str], home: str)
     (``lstat``); it is read without following a link, and its SHA-256 must be ``sha256``. Then
     its content, also when the SHA-256 differs, so that every difference is shown: JSON by the
     rules of ``config.json``, ``name`` equal to the approval's, ``tools`` and ``allowedTools``
-    lists of names in ``ceiling``, ``mcpServers`` ``{}`` and ``includeMcpJson`` ``false``.
+    lists of names in ``ceiling``, ``mcpServers`` ``{}`` and ``includeMcpJson`` ``false``, and
+    ``toolsSettings`` that restrict each listed tool (:func:`handoff.agent_policy.settings_problems`:
+    ``write.deniedPaths``, ``read.deniedPaths``, ``shell.denyByDefault`` and the command lists; T4-01).
 
     Args:
         approval: An approval that has its form.
@@ -941,6 +989,14 @@ def _agent_file_problems(approval: _Approval, ceiling: Sequence[str], home: str)
         problems.append(("mcpServers", f"must be {{}}, got {got('mcpServers')}"))
     if document.get("includeMcpJson") is not False:
         problems.append(("includeMcpJson", f"must be false, got {got('includeMcpJson')}"))
+    listed = [
+        tool
+        for key in ("tools", "allowedTools")
+        if type(document.get(key)) is list
+        for tool in document[key]
+        if type(tool) is str and tool in ceiling  # a tool above the ceiling already fails its own check
+    ]
+    problems.extend(agent_policy.settings_problems(document, listed, home=home))
     return problems
 
 
@@ -1175,8 +1231,51 @@ def _forecast_text(item: Item, forecast: _Forecast) -> str:
 # --------------------------------------------------------------------------------------------
 
 
+def _control_file_problems(inputs: _Inputs) -> list[str]:
+    """The files that decide what a run may do and that are not private to their owner (T4-03).
+
+    ``config.json``, ``manifest.json`` and ``agents/approved.json`` hold the tool ceiling, the
+    per-item ``trust_all`` approvals and the agent approvals. The agent runs as the same user and
+    can write wherever that user can, so a file that the group or others can read or write, or one
+    that another user owns, is refused: the mode is 0600 (or 0400), the owner is the user of this
+    command. A file that does not exist is not a problem here (the parse reports that).
+
+    Returns:
+        One line for each file that is not private, empty when all are.
+    """
+    problems: list[str] = []
+    for name in runner.CONTROL_RECORDS:
+        path = posixpath.join(inputs.handoff_dir, name)
+        try:
+            seen = os.lstat(path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            problems.append(f"{path}: {exc.strerror or exc}")
+            continue
+        if stat.S_ISLNK(seen.st_mode) or not stat.S_ISREG(seen.st_mode):
+            problems.append(f"{path} is not a regular file")
+        elif seen.st_mode & 0o177:
+            problems.append(f"{path} has mode {stat.S_IMODE(seen.st_mode):04o}; run chmod 600 on it")
+        elif seen.st_uid != os.getuid():
+            problems.append(f"{path} is owned by another user")
+    return problems
+
+
+def _require_private_control_files(inputs: _Inputs) -> None:
+    """Stop with exit code 2 when :func:`_control_file_problems` finds a file (T4-03)."""
+    problems = _control_file_problems(inputs)
+    if problems:
+        raise _Exit(
+            EXIT_USAGE,
+            "制御ファイルが所有者だけのものになっていない。変更モードの実行はこれらの内容を前提にするので、起動しない:\n"
+            + "\n".join(f"  {line}" for line in problems),
+        )
+
+
 def _run(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``run``: start the named items (the module docstring)."""
+    _require_private_control_files(inputs)
     selector, named = _named_items(inputs, args)
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
@@ -1697,6 +1796,10 @@ def _status(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``status`` and ``status set``."""
     if args.status_action == "set":
         return _status_set(args, inputs)
+    if args.status_action == "accept-common-dir":
+        return _accept_common_dir(args, inputs)
+    if args.verify_log:
+        return _verify_log(inputs)
     status = runner.read_status(inputs.handoff_dir)
     now = datetime.now(timezone.utc)
     manifest_ids = [item.id for item in inputs.manifest.items]
@@ -1718,6 +1821,11 @@ def _status(args: argparse.Namespace, inputs: _Inputs) -> int:
             _out(f"  {entry['repo']} {entry['kind']} {entry['name']}（commit {entry['sha']}、{entry['at']}）")
     else:
         _out("確定済みの参照（IN-2）: なし")
+    recorded = runner.common_dir_records(inputs.handoff_dir)
+    if recorded:
+        _out("共有 git ディレクトリ（最後の run の終了時の記録。次の run はこれと比べる）:")
+        for repo, entry in sorted(recorded.items()):
+            _out(f"  {repo}: {entry['sha256'][:16]}…（{entry['at']}）")
     unrecorded = [item_id for item_id in manifest_ids if item_id not in status["items"]]
     if unrecorded:
         _out(f"記録のない項目（run か plan が queued として扱う）: {', '.join(unrecorded)}")
@@ -1847,6 +1955,30 @@ def _write_worktree_comparison(inputs: _Inputs, status: state.StatusDoc) -> int:
     if not found and not unreadable:
         _out("  食い違いなし")
     return EXIT_ITEMS if unreadable else EXIT_OK
+
+
+def _accept_common_dir(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``status accept-common-dir REPO``: record the shared git directory as it is (the maintainer has read it)."""
+    if args.repo not in inputs.config.repos:
+        raise _Exit(EXIT_USAGE, f"{args.repo} is not a repository of config.json")
+    context = _run_context(inputs, runner.DenyTerms((), ()), frozenset())
+    with runner.Harness.open(inputs.handoff_dir) as harness:
+        try:
+            digest, before = harness.accept_common_dir(context, args.repo)
+        except runner.RunnerError as error:
+            raise _Exit(EXIT_ITEMS, str(error)) from None
+    _out(f"{args.repo}: 共有 git ディレクトリの記録 {before or 'なし'} → {digest}")
+    _out("  次の run は、この状態を前回の終了時の状態として比べる")
+    return EXIT_OK
+
+
+def _verify_log(inputs: _Inputs) -> int:
+    """``status --verify-log``: check the chain of ``status.log.jsonl``; 1 when it breaks."""
+    problems = runner.verify_status_log(inputs.handoff_dir)
+    for problem in problems:
+        _err(f"status.log.jsonl: {problem}")
+    _out("status.log.jsonl の連鎖: " + ("一致" if not problems else f"{len(problems)} 件の破れ"))
+    return EXIT_ITEMS if problems else EXIT_OK
 
 
 def _status_set(args: argparse.Namespace, inputs: _Inputs) -> int:
@@ -1983,6 +2115,7 @@ def _selftest(args: argparse.Namespace, inputs: _Inputs) -> int:
     error that its table does not name gets 5, since 1 means a recorded result, and, once the
     harness is open, with a line on whether ``selftest`` of ``status.json`` changed.
     """
+    _require_private_control_files(inputs)
     approvals = _agent_approvals(inputs)
     try:
         with runner.Harness.open(inputs.handoff_dir) as harness:
@@ -2014,6 +2147,7 @@ def _selftest_in(
         harness_tree=inputs.harness_tree,
         session_worktrees_dir=inputs.session_worktrees_dir,
         approved_agents=approved,
+        os_boundary=_discover_boundary(),
     )
     try:
         outcome = harness.run_selftest(context)
@@ -2112,7 +2246,12 @@ def _read_publish_approval(given: str, inputs: _Inputs) -> command.PublishApprov
     raw = _read_json(path)
     if not isinstance(raw, dict):
         raise _Exit(EXIT_USAGE, f"{path} must hold a JSON object")
-    issues = _key_issues("approval", raw, _PUBLISH_APPROVAL_KEYS)
+    acknowledged = raw.get("execution_surface_ack", [])
+    issues = _key_issues(
+        "approval", {key: value for key, value in raw.items() if key != "execution_surface_ack"}, _PUBLISH_APPROVAL_KEYS
+    )
+    if type(acknowledged) is not list or not all(type(entry) is str for entry in acknowledged):
+        issues.append("approval.execution_surface_ack: must be a list of item IDs")
     if not issues:
         if not _is_timestamp(raw["approved_at"]):
             issues.append(f"approval.approved_at: must be a moment written as {state.TIMESTAMP_FORMAT}")
@@ -2123,9 +2262,29 @@ def _read_publish_approval(given: str, inputs: _Inputs) -> command.PublishApprov
     if issues:
         raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", issues))
     try:
-        return command.PublishApproval(raw["approved_at"], tuple(raw["item_ids"]), raw["approved_in"])
+        return command.PublishApproval(
+            raw["approved_at"], tuple(raw["item_ids"]), raw["approved_in"], tuple(acknowledged)
+        )
     except command.CommandError as error:
         raise _Exit(EXIT_USAGE, _issue_lines(f"{path} was rejected", error.issues)) from None
+
+
+def _agent_config(args: argparse.Namespace, inputs: _Inputs) -> int:
+    """``agent-config <mode>``: print the configuration of ``agent_policy.build_agent_config`` as JSON.
+
+    The maintainer saves it as ``~/.kiro/agents/handoff-<mode>.json`` and records the approval in
+    ``agents/approved.json`` with its SHA-256. Nothing is written here, and the output is not an approval.
+    The guard command is the one that ``agents/guard-wrapper.py`` and the user's ``pre_tool_dispatch.py``
+    make; a configuration without them is the maintainer's to build with ``agent_policy`` directly.
+    """
+    name = inputs.config.agents.get(args.mode) or f"handoff-{args.mode}"
+    guard = None
+    if args.mode == "change":
+        wrapper = posixpath.join(inputs.handoff_dir, "agents", "guard-wrapper.py")
+        dispatcher = posixpath.join(inputs.home, ".kiro", "hooks", "scripts", "pre_tool_dispatch.py")
+        guard = f"python3 {shlex.quote(wrapper)} {shlex.quote(dispatcher)}"
+    _out(json.dumps(agent_policy.build_agent_config(args.mode, name=name, guard_command=guard), indent=2))
+    return EXIT_OK
 
 
 def _confirm_ref(args: argparse.Namespace, inputs: _Inputs) -> int:
@@ -2163,6 +2322,7 @@ _SUBCOMMANDS: Final[Mapping[str, Callable[[argparse.Namespace, _Inputs], int]]] 
     "cleanup": _cleanup,
     "selftest": _selftest,
     "publish": _publish,
+    "agent-config": _agent_config,
     "confirm-ref": _confirm_ref,
 }
 

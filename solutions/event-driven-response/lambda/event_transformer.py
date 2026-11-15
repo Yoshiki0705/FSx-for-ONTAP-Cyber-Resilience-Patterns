@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,6 +29,8 @@ events_client = boto3.client("events")
 
 EVENT_BUS_NAME = os.environ.get("EVENT_BUS_NAME", "")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+# Namespace of the Embedded Metric Format metrics; templates/event-driven.yaml alarms use it.
+METRIC_NAMESPACE = "FsxnCyberResilience/EventTransformer"
 
 # Source mapping for event classification
 SOURCE_MAP = {
@@ -50,6 +54,17 @@ SEVERITY_MAP = {
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Process SQS messages and forward to EventBridge.
 
+    The event source mappings that invoke this function set
+    ``FunctionResponseTypes: [ReportBatchItemFailures]``, so ``batchItemFailures``
+    is honored: only the listed messages return to the queue (and reach the
+    dead-letter queue after ``maxReceiveCount``). A record is listed when its
+    body does not transform or when EventBridge did not accept its entry.
+    Partial failures do not raise, so they never appear in the ``Errors``
+    metric; ``FailedRecords`` (Embedded Metric Format) carries them instead.
+
+    When ``event["dry_run"]`` is true (the canary PreTraffic hook sets it), the
+    records are transformed but nothing is published.
+
     Args:
         event: SQS event containing batch of records.
         context: Lambda context.
@@ -58,9 +73,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         Processing result with counts.
     """
     records = event.get("Records", [])
+    dry_run = event.get("dry_run") is True
     logger.info(f"Processing {len(records)} SQS records")
 
     entries: list[dict[str, Any]] = []
+    entry_ids: list[str] = []
     failed_ids: list[str] = []
 
     for record in records:
@@ -69,33 +86,47 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             body = json.loads(record["body"])
             entry = _transform_event(body)
             entries.append(entry)
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            entry_ids.append(message_id)
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError, AttributeError) as e:
             logger.error(f"Failed to process record {message_id}: {e}")
             failed_ids.append(message_id)
 
-    # Publish to EventBridge in batches of 10 (API limit)
+    parse_errors = len(failed_ids)
     published = 0
     failures = 0
 
-    for i in range(0, len(entries), 10):
-        batch = entries[i : i + 10]
-        try:
-            response = events_client.put_events(Entries=batch)
-            published += len(batch) - response.get("FailedEntryCount", 0)
-            failures += response.get("FailedEntryCount", 0)
+    if dry_run:
+        validated = len(entries)
+    else:
+        # Publish to EventBridge in batches of 10 (API limit)
+        for i in range(0, len(entries), 10):
+            batch = entries[i : i + 10]
+            batch_ids = entry_ids[i : i + 10]
+            try:
+                response = events_client.put_events(Entries=batch)
+                failed_count = response.get("FailedEntryCount", 0)
+                published += len(batch) - failed_count
+                failures += failed_count
+                # PutEvents returns one result per entry, in request order.
+                for idx, entry_response in enumerate(response.get("Entries", [])):
+                    if entry_response.get("ErrorCode"):
+                        logger.error(
+                            f"EventBridge publish failed: {entry_response['ErrorCode']} "
+                            f"- {entry_response.get('ErrorMessage', '')}"
+                        )
+                        if idx < len(batch_ids):
+                            failed_ids.append(batch_ids[idx])
+            except Exception as e:
+                logger.error(f"EventBridge batch publish failed: {e}")
+                failures += len(batch)
+                failed_ids.extend(batch_ids)
+        validated = 0
 
-            # Log any individual failures
-            for idx, entry_response in enumerate(response.get("Entries", [])):
-                if entry_response.get("ErrorCode"):
-                    logger.error(
-                        f"EventBridge publish failed: {entry_response['ErrorCode']} "
-                        f"- {entry_response.get('ErrorMessage', '')}"
-                    )
-        except Exception as e:
-            logger.error(f"EventBridge batch publish failed: {e}")
-            failures += len(batch)
-
-    logger.info(f"Published: {published}, Failed: {failures}, Parse errors: {len(failed_ids)}")
+    logger.info(f"Published: {published}, Failed: {failures}, Parse errors: {parse_errors}")
+    failed_ids = list(dict.fromkeys(failed_ids))
+    if not dry_run:
+        # A dry run is not traffic, so it stays out of the metric.
+        _emit_metrics(context, failed=len(failed_ids), processed=len(records))
 
     # Return batch item failures for SQS partial batch response
     result: dict[str, Any] = {
@@ -103,11 +134,53 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "published": published,
         "failures": failures,
     }
-
+    if dry_run:
+        result["dry_run"] = True
+        result["validated"] = validated
     if failed_ids:
         result["batchItemFailures"] = [{"itemIdentifier": mid} for mid in failed_ids]
-
     return result
+
+
+def _emit_metrics(context: Any, failed: int, processed: int) -> None:
+    """Writes one Embedded Metric Format object to stdout.
+
+    CloudWatch Logs turns the object into ``FailedRecords`` and
+    ``ProcessedRecords`` under ``METRIC_NAMESPACE``, once per dimension set:
+    ``FunctionName`` alone and ``FunctionName`` with ``ExecutedVersion``. The
+    canary alarms read the second set. The line goes to stdout, not through
+    ``logging``, because the Lambda log formatter would prefix it and the
+    object would no longer be a bare JSON line.
+
+    Args:
+        context: Lambda context; ``function_name`` and ``function_version`` are
+            read when present.
+        failed: Records that are returned to the queue.
+        processed: Records the invocation received.
+    """
+    function_name = str(getattr(context, "function_name", "") or "unknown")
+    version = str(getattr(context, "function_version", "") or "unknown")
+    emf = {
+        "_aws": {
+            "Timestamp": int(time.time() * 1000),
+            "CloudWatchMetrics": [
+                {
+                    "Namespace": METRIC_NAMESPACE,
+                    "Dimensions": [["FunctionName"], ["FunctionName", "ExecutedVersion"]],
+                    "Metrics": [
+                        {"Name": "FailedRecords", "Unit": "Count"},
+                        {"Name": "ProcessedRecords", "Unit": "Count"},
+                    ],
+                }
+            ],
+        },
+        "FunctionName": function_name,
+        "ExecutedVersion": version,
+        "FailedRecords": failed,
+        "ProcessedRecords": processed,
+    }
+    sys.stdout.write(json.dumps(emf) + "\n")
+    sys.stdout.flush()
 
 
 def _transform_event(raw_event: dict[str, Any]) -> dict[str, Any]:

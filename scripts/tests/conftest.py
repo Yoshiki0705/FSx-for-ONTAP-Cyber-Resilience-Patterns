@@ -66,6 +66,11 @@ if _SCRIPTS_DIR not in sys.path:
 #: The fake ``kiro-cli`` (tracked with its executable bit).
 FAKE_KIRO_CLI = Path(__file__).resolve().parent / "fixtures" / "handoff" / "fake-kiro-cli"
 
+#: The stand-in for ``sandbox-exec`` (layer 0): it runs the command and enforces nothing. ``HandoffSandbox.environ``
+#: names it in ``HANDOFF_OS_BOUNDARY_TEST_DOUBLE``, so that a change-mode run of the harness works where
+#: ``sandbox-exec`` does not exist. The tests of the profile itself run the real one (macOS only).
+FAKE_SANDBOX_EXEC = Path(__file__).resolve().parent / "fixtures" / "handoff" / "fake-sandbox-exec"
+
 #: Name of the sandbox's target repository, as ``repos`` of ``config.json`` and the manifest
 #: would name it.
 SANDBOX_REPO = "example-hub"
@@ -218,7 +223,12 @@ class HandoffSandbox:
         Returns:
             A new dictionary.
         """
-        return {**self.git_env, "FAKE_KIRO_RECORD": str(self.record), **extra}
+        return {
+            **self.git_env,
+            "FAKE_KIRO_RECORD": str(self.record),
+            "HANDOFF_OS_BOUNDARY_TEST_DOUBLE": str(FAKE_SANDBOX_EXEC),
+            **extra,
+        }
 
     def apply_environ(self, monkeypatch: pytest.MonkeyPatch, **extra: str) -> None:
         """Make ``os.environ`` equal to :meth:`environ` for the rest of the test.
@@ -453,11 +463,18 @@ def handoff_sandbox_seed() -> Iterator[SandboxSeed]:
 
 @pytest.fixture
 def handoff_sandbox(handoff_sandbox_seed: SandboxSeed) -> Iterator[HandoffSandbox]:
-    """A new :class:`HandoffSandbox` for each test, removed after it."""
+    """A new :class:`HandoffSandbox` for each test, removed after it.
+
+    The process umask is 077 for the test, as on a machine where ``.private/`` is private: the harness
+    refuses to run when ``config.json``, ``manifest.json`` or ``agents/approved.json`` can be read by
+    the group or others (T4-03), and a test writes them with plain ``write_text``.
+    """
     sandbox = build_handoff_sandbox(handoff_sandbox_seed)
+    previous = os.umask(0o077)
     try:
         yield sandbox
     finally:
+        os.umask(previous)
         shutil.rmtree(sandbox.root)
 
 

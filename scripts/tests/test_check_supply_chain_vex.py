@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import check_supply_chain as gate
@@ -26,6 +27,7 @@ _DOC = {
             "products": [{"@id": "pkg:npm/example-lib@1.2.3"}],
             "status": "not_affected",
             "justification": "component_not_present",
+            "impact_statement": "Not in the lockfile or in the built image.",
         }
     ],
 }
@@ -124,9 +126,14 @@ def test_other_lines_are_not_violations(tmp_path: Path, line: str) -> None:
     assert code == 0
 
 
-def test_evidence_is_not_required_for_other_justifications(tmp_path: Path) -> None:
+def test_evidence_is_required_whatever_the_justification(tmp_path: Path) -> None:
     _write(tmp_path, ".vex/a.openvex.json", json.dumps(_DOC))
     assert _run(tmp_path)[0] == 0
+    bare = json.loads(json.dumps(_DOC))
+    del bare["statements"][0]["impact_statement"]
+    _write(tmp_path, ".vex/a.openvex.json", json.dumps(bare))
+    code, text = _run(tmp_path)
+    assert code == 1 and ": evidence:" in text
 
 
 def test_schema_violation_names_the_statement_location(tmp_path: Path) -> None:
@@ -136,3 +143,72 @@ def test_schema_violation_names_the_statement_location(tmp_path: Path) -> None:
     code, text = _run(tmp_path)
     assert code == 1
     assert "statements[0].status" in text
+
+
+def _write_doc(root: Path, timestamp: str, **statement: str) -> None:
+    doc = json.loads(json.dumps(_DOC))
+    doc["timestamp"] = timestamp
+    doc["statements"][0].update(statement)
+    _write(root, ".vex/CVE-2026-0001__example-lib.openvex.json", json.dumps(doc))
+
+
+def test_an_expired_statement_only_warns(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    _write_doc(tmp_path, "2020-01-01T00:00:00Z", impact_statement="Not in the lockfile.")
+    with caplog.at_level(logging.WARNING):
+        code, text = _run(tmp_path)
+    assert code == 0, text
+    assert any("vex_expired" in r.getMessage() for r in caplog.records)
+
+
+def test_max_age_days_of_the_policy_file_decides_expiry(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    import supply_chain_checks.vex as vex_check  # noqa: PLC0415
+
+    _write_doc(tmp_path, "2026-01-01T00:00:00Z", impact_statement="Not in the lockfile.")
+    _write(tmp_path, "docs/agent/supply-chain-policy.json", json.dumps({"vex": {"max_age_days": 30}}))
+    with caplog.at_level(logging.WARNING):
+        assert vex_check.check(tmp_path, now=datetime(2026, 1, 20, tzinfo=UTC)).violations == []
+    assert not any("vex_expired" in r.getMessage() for r in caplog.records)
+    with caplog.at_level(logging.WARNING):
+        vex_check.check(tmp_path, now=datetime(2026, 3, 1, tzinfo=UTC))
+    assert any("vex_expired" in r.getMessage() for r in caplog.records)
+
+
+def test_a_fixed_statement_without_evidence_fails(tmp_path: Path) -> None:
+    _write_doc(tmp_path, "2026-01-01T00:00:00Z", status="fixed")
+    doc = json.loads((tmp_path / ".vex/CVE-2026-0001__example-lib.openvex.json").read_text(encoding="utf-8"))
+    doc["statements"][0].pop("justification")
+    doc["statements"][0].pop("impact_statement")
+    (tmp_path / ".vex/CVE-2026-0001__example-lib.openvex.json").write_text(json.dumps(doc), encoding="utf-8")
+    code, text = _run(tmp_path)
+    assert code == 1 and ": evidence:" in text
+
+
+def test_one_cve_with_a_ghsa_or_pysec_alias_is_not_multi_cve(tmp_path: Path) -> None:
+    _write_doc(tmp_path, "2026-01-01T00:00:00Z")
+    path = tmp_path / ".vex/CVE-2026-0001__example-lib.openvex.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["statements"][0]["vulnerability"]["aliases"] = ["cve-2026-0001", "GHSA-aaaa-bbbb-cccc", "PYSEC-2026-1"]
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    code, text = _run(tmp_path)
+    assert code == 0, text
+
+
+def test_a_cve_with_surrounding_space_counts_as_a_different_cve(tmp_path: Path) -> None:
+    """T12-R6-03: the Aggregator strips and upper-cases an identifier, so the gate has to read it the same way."""
+    _write_doc(tmp_path, "2026-01-01T00:00:00Z")
+    path = tmp_path / ".vex/CVE-2026-0001__example-lib.openvex.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["statements"][0]["vulnerability"]["aliases"] = [" cve-2026-0002 "]
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    code, text = _run(tmp_path)
+    assert code == 1 and ": multi-cve:" in text
+
+
+def test_the_same_cve_written_with_and_without_space_is_one_cve(tmp_path: Path) -> None:
+    _write_doc(tmp_path, "2026-01-01T00:00:00Z")
+    path = tmp_path / ".vex/CVE-2026-0001__example-lib.openvex.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["statements"][0]["vulnerability"]["aliases"] = [" cve-2026-0001 "]
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    code, text = _run(tmp_path)
+    assert code == 0, text

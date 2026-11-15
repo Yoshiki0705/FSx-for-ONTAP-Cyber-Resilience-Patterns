@@ -124,3 +124,20 @@ def test_apply_subset_equals_applying_the_chosen_actions(data: st.DataObject) ->
     assert fake.apply_subset(store, actions, set(range(len(actions)))) == fake.apply(store, actions)
     assert fake.apply_subset(store, actions, set()) == store
     assert fake.apply_subset(store, actions, {len(actions) + 5}) == store  # out-of-range positions are ignored
+
+
+def test_an_update_or_a_reopen_writes_the_marker_identifier_of_the_action() -> None:
+    """The marker is line 1 of the written body, so the next run reads the action's identifier (T12-R4-06)."""
+    from supply_chain.models import IssueAction, ManagedIssue, Repo  # noqa: PLC0415
+
+    repo = Repo("example-org", "svc-api")
+    store = fake.IssueStore.from_managed(
+        [ManagedIssue(repo, 1, "finding", "GHSA-aaaa-bbbb-cccc", "closed", None),
+         ManagedIssue(repo, 2, "finding", "GHSA-dddd-eeee-ffff", "open", None)]
+    )  # fmt: skip
+    store = store.apply_action(IssueAction("update", repo, "finding", "CVE-2026-0001", 2, "body", None))
+    store = store.apply_action(IssueAction("reopen", repo, "finding", "CVE-2026-0002", 1, "body", None))
+    assert [(i.number, i.vuln_id, i.state) for i in store.issues] == [
+        (1, "CVE-2026-0002", "open"),
+        (2, "CVE-2026-0001", "open"),
+    ]

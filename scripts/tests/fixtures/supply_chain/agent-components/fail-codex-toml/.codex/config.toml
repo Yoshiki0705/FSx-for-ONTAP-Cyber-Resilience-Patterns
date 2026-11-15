@@ -1,0 +1,5 @@
+model = "x"
+
+[mcp_servers.docs]
+command = "npx"
+args = ["-y", "example-mcp"]

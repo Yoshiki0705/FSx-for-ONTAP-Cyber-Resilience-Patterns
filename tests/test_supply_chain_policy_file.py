@@ -95,3 +95,30 @@ def test_vex_and_scope_initial_values(policy: Policy) -> None:
     assert policy.vex_approver_role == "VEX_Reviewer"
     assert policy.vex_one_statement_per_document is True
     assert policy.non_production_paths == ("tests/", "docs/")
+
+
+def test_max_age_days_is_optional_in_the_file_and_defaults_to_180(policy: Policy) -> None:
+    """T2-01: the key may be absent (``None``); the default applies in ``effective_exclusions``."""
+    from supply_chain.models import DEFAULT_VEX_MAX_AGE_DAYS
+
+    assert policy.vex_max_age_days in (None, DEFAULT_VEX_MAX_AGE_DAYS)
+    assert DEFAULT_VEX_MAX_AGE_DAYS == 180
+
+
+def test_max_age_days_round_trips_and_is_range_checked(text: str) -> None:
+    import json
+
+    from supply_chain.policy import PolicyError
+
+    data = json.loads(text)
+    data["vex"]["max_age_days"] = 90
+    parsed = parse_policy(json.dumps(data))
+    assert parsed.vex_max_age_days == 90
+    assert json.loads(render_policy(parsed))["vex"]["max_age_days"] == 90
+    for bad in (0, -1, True, "90", 1.5):
+        data["vex"]["max_age_days"] = bad
+        with pytest.raises(PolicyError):
+            parse_policy(json.dumps(data))
+    del data["vex"]["max_age_days"]
+    assert parse_policy(json.dumps(data)).vex_max_age_days is None
+    assert "max_age_days" not in json.loads(render_policy(parse_policy(json.dumps(data))))["vex"]

@@ -318,9 +318,12 @@ class TestAsyncLambdaDeadLetterQueue:
 
 
 class TestSqsSourcedLambdaDlqSkip:
-    """CKV_AWS_116 is skipped only for the two Lambdas that no asynchronous invocation reaches.
+    """CKV_AWS_116 is skipped only for the Lambdas whose failures are not lost to a missing DLQ.
 
-    EventTransformerLambda also skips CKV_AWS_117: it calls only the EventBridge public API.
+    EventTransformerLambda and QuarantineLambda are invoked by SQS and Step Functions. The
+    canary PreTraffic hook is invoked by CodeDeploy, which fails the deployment when the hook
+    reports nothing. EventTransformerLambda and the hook also skip CKV_AWS_117: they call only
+    public AWS APIs.
     """
 
     def test_skip_only_on_event_transformer_and_quarantine(self) -> None:
@@ -332,6 +335,7 @@ class TestSqsSourcedLambdaDlqSkip:
         }
         assert skipped == {
             "EventTransformerLambda": ["CKV_AWS_116", "CKV_AWS_117"],
+            "EventTransformerPreTrafficFunction": ["CKV_AWS_116", "CKV_AWS_117"],
             "QuarantineLambda": ["CKV_AWS_116"],
             # Encrypted with SSE-SQS, which CKV_AWS_27 does not recognize.
             "ApprovalWebhookDlq": ["CKV_AWS_27"],
@@ -364,6 +368,7 @@ OPTIONAL_KMS_BINDINGS = [
     ("event-driven.yaml", "StepFunctionsLogGroup", "KmsKeyId", "LogGroupKmsKeyArn"),
     ("event-driven.yaml", "QuarantineLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("event-driven.yaml", "EventTransformerLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
+    ("event-driven.yaml", "EventTransformerPreTrafficFunction", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
     ("event-driven.yaml", "ApprovalWebhookConnection", "KmsKeyIdentifier", "ApprovalWebhookKmsKeyArn"),
     ("siem-integration.yaml", "SecurityHubPublisherLambda", "KmsKeyArn", "LambdaEnvKmsKeyArn"),
 ]

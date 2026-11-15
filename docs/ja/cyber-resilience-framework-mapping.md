@@ -164,7 +164,7 @@ FSx for ONTAP の制御が作用するのは、ファイル・オブジェクト
 
 AWS Well-Architected Framework の v13（2024-11-06 版）のベストプラクティス ID に、このプロジェクトの構成要素を対応づける。参照日は 2026-11-13。`latest` のページの Publication date と Document revisions の最新行は、どちらも 2024-11-06 だった。各行の ID には 2 つのリンクを付けた。1 つ目は `latest` のページ、2 つ目は版つきのパス `2025-02-25` の同じページである。`2025-02-25` が何の版かは文書から読み取れなかった（open）。10 ページとも、2 つのパスの本文はタグを除いた比較で一致した（2026-11-13）。`latest` の公開日か改訂履歴が変わったときは、すべての ID を確かめ直す。
 
-「柱」は、サイバーレジリエンスのプログラムが分ける 3 本の柱を指す。第 1 はソフトウェアサプライチェーンの可視化と対応、第 2 は RTO/RPO と SLA/SLO/SLI、第 3 はフォレンジックである。「PDCA の段階」は、Plan、Do、Check、Act の繰り返しのうち、その ID を主な根拠にする段階を指す。
+「柱」は、[3 本の柱の全体方針](cyber-resilience-programme.md)が分ける 3 本の柱を指す。第 1 はソフトウェアサプライチェーンの可視化と対応、第 2 は RTO/RPO と SLA/SLO/SLI、第 3 はフォレンジックである。「PDCA の段階」は、Plan、Do、Check、Act の繰り返しのうち、その ID を主な根拠にする段階を指す。
 
 | 柱または PDCA の段階 | ベストプラクティス ID（ページへのリンク） | このプロジェクトでの対応 | 根拠の種別 |
 |---|---|---|---|
@@ -173,17 +173,32 @@ AWS Well-Architected Framework の v13（2024-11-06 版）のベストプラク�
 | 第 1 の柱 | [SEC11-BP06 Deploy software programmatically](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_deploy_software_programmatically.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html)） | ビルドの来歴証明と、Lambda のカナリアデプロイとロールバックの参照構成（実装予定）。ページの期待する成果は、テストした版とデプロイする版が同じであることと、パッケージの暗号署名である | documented |
 | 第 1 の柱 | [SEC11-BP07 Regularly assess security properties of the pipelines](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)） | 再利用可能ワークフローの参照を SHA で固定し、権限を最小にする（実装予定）。ページはパイプラインの権限の分離、一時的な認証情報、テストを使う側が編集できないことを挙げる | documented |
 | 第 2 の柱 | [REL13-BP01 Define recovery objectives for downtime and data loss](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_objective_defined_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html)） | 方針だけを書く。RTO と RPO はワークロードごとに利用者が定める値で、このプロジェクトが示す値は置き換えるための参照値にとどまる。対応する仕様は未作成で、範囲は第 2 の柱の仕様が決める | documented |
-| 第 2 の柱 | [REL13-BP02 Use defined recovery strategies to meet the recovery objectives](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_disaster_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)） | 方針だけを書く。ページは、レプリケーションだけではデータの破損や破壊から守れず、ポイントインタイムの復旧手段が要ると書く。FSx for ONTAP では Snapshot、SnapMirror、AWS Backup の論理エアギャップボールトを選択肢として並べ、制約を同じ粒度で比べる。対応する仕様は未作成 | documented |
+| 第 2 の柱 | [REL13-BP02 Use defined recovery strategies to meet the recovery objectives](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_disaster_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)） | 方針だけを書く。ページは、レプリケーションだけではデータの破損や破壊から守れず、ポイントインタイムの復旧手段が要ると書く。FSx for ONTAP では Snapshot、SnapMirror、AWS Backup の論理エアギャップボールトを選択肢として並べ、制約を同じ列（前提、制約、費用の扱い）で比べる。対応する仕様は未作成 | documented |
 | 第 3 の柱 | [SEC10-BP03 Prepare forensic capabilities](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_incident_response_prepare_forensic.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html)） | 方針だけを書く。ページは収集、検査、分析、報告の 4 段階と、セキュリティ OU とフォレンジック OU のアカウント構成、スナップショットとバックアップの取得を挙げる。資源を別のアカウントやリージョンへコピーするときはデータ主権の要件を確かめる。対応する仕様は未作成 | documented |
 | PDCA の Check | [OPS09-BP01 Measure operations goals and KPIs with metrics](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_measure_ops_goals_kpis.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html)） | 脆弱性への対応目標の実績（期限を超えた件数、検出から起票、修正までの時間）を Check の指標にする。ページは運用の目標と KPI を指標で測り、基準値を置いて見直すよう求める | documented |
 | PDCA の Check と Act | [OPS09-BP03 Review operations metrics and prioritize improvement](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)） | Check の指標を定期的に見直し、目標を再確認するか変更して、改善に優先順位を付ける。Check から Act に移る場面に当たる | documented |
 | PDCA の Act | [OPS11-BP02 Perform post-incident analysis](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)） | インシデント後の分析で寄与要因と予防策を特定し、検知、診断、緩和までの時間を短くできたかを問う。対応目標と待ち時間の見直しの根拠にする | documented |
 
-根拠の種別 `documented` は、ID、表題、「このプロジェクトでの対応」の列が引くページの記述を、上の参照日にページで確かめたことを指す。同じ列の「このプロジェクトでの対応」は、このプロジェクトの読みであり、AWS が示した対応ではない。「実装予定」と書いた項目は、この文書の時点で実装が済んでいない。REL11-BP07、REL09-BP04、REL13-BP03 のように第 2 の柱が追加で扱う ID は、その柱の仕様が範囲を決めたときに足す。
+根拠の種別 `documented` は、ID、表題、「このプロジェクトでの対応」の列が引くページの記述を、上の参照日にページで確かめたことを指す。同じ列の「このプロジェクトでの対応」は、このプロジェクトの読みであり、AWS が示した対応ではない。「実装予定」と書いた項目は、2026-11-14 時点で実装が済んでいない。REL11-BP07、REL09-BP04、REL13-BP03 のように第 2 の柱が追加で扱う ID は、その柱の計画が範囲を決めたときに足す。
 
 ### この対応の位置づけ
 
 ベストプラクティス ID との対応は、AWS Well-Architected のレビューの結果ではなく、AWS による承認でもない。ベストプラクティスのページを読み、このプロジェクトの構成要素が同じ話題を扱うと読んだものである。ワークロードの持ち主は、自分のワークロードを [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) でレビューできる（[フレームワークの Introduction](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)）。フレームワークはこのレビューを、監査の仕組みではなく、設計判断についての対話だと書く。[CSF 2.0 への対応](#pdca-と説明責任の-csf-20-への対応)も、NIST による認定ではない。どちらの対応も、法務、コンプライアンス、規制上の判断ではなく、ガバナンス上の指針である。
+
+### SSDF との対応
+
+NIST SP 800-218「Secure Software Development Framework (SSDF) Version 1.1」（2022 年 2 月、確定版）と、NIST SP 800-218 Rev. 1（Draft、SSDF Version 1.2、2025-12-17 公開）を参照する。Rev. 1 は 2026-11-14 時点で草案で、確定版は NIST のページに見当たらない（参照日 2026-11-14）。草案の内容に依拠する文は、この文書に書かない。
+
+どちらの文書も、2026-11-14 時点で本文を読んでいない（open）。読んだのは NIST のページに表示された題名、公開日、概要だけである。そのため、次の表の右の列は、第 1 の柱のどの部品が左の群と同じ話題を扱うかについての、このプロジェクトの想定（hypothesis）であり、各 ID の文言は書かない。本文を読んだ後で、群の過不足（来歴の署名検証を載せる群が PS.3 か別の群かを含む）を直す。
+
+| SSDF の群 | 第 1 の柱で想定する部品 | 根拠の種別 |
+|---|---|---|
+| RV.1 | 集約ジョブによる脆弱性の継続的な検出 | hypothesis |
+| RV.2 | 起票の条件、VEX、対応時間の目標による優先順位付けと修正 | hypothesis |
+| PS.3 | SBOM と来歴証明の保管 | hypothesis |
+| PW.4 | 依存の固定と Cooldown | hypothesis |
+
+この対応は、NIST による認定でも、調達要件を満たすことの判断でもない。調達要件などで SSDF に沿った説明を求められる場合は、自分で本文を読んで対応を確かめる。
 
 ## CIS Controls v8 マッピング
 
@@ -256,6 +271,8 @@ AWS Well-Architected Framework の v13（2024-11-06 版）のベストプラク�
 - [Elastio — Mapping Ransomware Recovery to NIST CSF 2.0](https://elastio.com/blog/mapping-ransomware-recovery-to-nist-csf-20)
 - [NetApp — Fortify your cybersecurity defenses with NIST framework](https://www.netapp.com/it/blog/fortify-cybersecurity-nist-framework/)
 - [NIST CSWP 29: The NIST Cybersecurity Framework (CSF) 2.0](https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf)
+- [NIST SP 800-218: Secure Software Development Framework (SSDF) Version 1.1（確定版）](https://csrc.nist.gov/pubs/sp/800/218/final)
+- [NIST SP 800-218 Rev. 1（Draft）: SSDF Version 1.2（草案。2025-12-17 公開）](https://csrc.nist.gov/pubs/sp/800/218/r1/ipd)
 - [IPA: 情報セキュリティ10大脅威 2026](https://www.ipa.go.jp/security/10threats/10threats2026.html)
 - [MITRE ATT&CK: Enterprise Techniques](https://attack.mitre.org/techniques/enterprise/)
 - [AWS What's New: AWS Backup の論理エアギャップボールトが FSx for ONTAP に対応](https://aws.amazon.com/jp/about-aws/whats-new/2026/09/aws-backup-air-gapped-vault-fsx-ontap/)

@@ -12,14 +12,16 @@ from an empty store and from a store of closed Issues derived by planning and se
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from hypothesis import event, given, settings
 from hypothesis import strategies as st
-from supply_chain import issue_body, models, planner
+from supply_chain import issue_body, models, planner, threshold
+from supply_chain.canonical import canonicalize
 
 from tests.fakes import issue_store as fake
 from tests.strategies import supply_chain as sc
@@ -43,9 +45,21 @@ def _ordered(found: Sequence[models.Finding]) -> list[models.Finding]:
     return sorted(found, key=lambda f: (_rk(f.repo), f.vuln_id, f.component.purl))
 
 
-def _doc(path: str, vuln_id: str, aliases: tuple[str, ...], purl: str, status: models.VexStatus) -> models.VexDocument:
-    statement = models.VexStatement(vuln_id, aliases, (purl,), status, "component_not_present", None, STAMP)
-    return models.VexDocument("urn:example:9", CONTEXT, "example", None, STAMP, 1, None, (statement,), path)
+OLDER = STAMP - timedelta(days=1)  # noise is older than the statements that matter, so it can never override them
+
+
+def _doc(
+    path: str,
+    vuln_id: str,
+    aliases: tuple[str, ...],
+    purl: str,
+    status: models.VexStatus,
+    stamp: datetime = STAMP,
+) -> models.VexDocument:
+    statement = models.VexStatement(
+        vuln_id, aliases, (purl,), status, "component_not_present", "reviewed: component is not shipped", stamp
+    )
+    return models.VexDocument("urn:example:9", CONTEXT, "example", None, stamp, 1, None, (statement,), path)
 
 
 def _other_version(purl: str) -> str:
@@ -66,6 +80,7 @@ def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, list[tuple[models.Findin
     """Inputs plus, for some findings, the status and shape of a statement that names them."""
     policy = draw(sc.policies())
     inputs = draw(sc.plan_inputs(12, 0, policy=policy))
+    inputs = replace(inputs, findings=frozenset(canonicalize(inputs.findings)))  # plan joins aliases first (T2-02)
     ok = sorted(inputs.fetch_ok, key=_rk)
     originals = [f for f in _ordered(inputs.findings) if not f.vuln_id.startswith("MAL-")]
     copy_flags = draw(st.lists(st.booleans(), min_size=len(originals), max_size=len(originals)))
@@ -74,7 +89,8 @@ def _cases(draw: st.DrawFn) -> tuple[models.PlanInputs, list[tuple[models.Findin
         for f, flag in zip(originals, copy_flags, strict=True)
         if flag and len(ok) > 1
     }
-    inputs = replace(inputs, findings=inputs.findings | copies)
+    # a copy can land on an equal finding of that repository (other first-observed time): plan merges those, so merge first
+    inputs = replace(inputs, findings=frozenset(canonicalize(inputs.findings | copies)))
     found = _ordered(inputs.findings)
     picks = draw(
         st.lists(
@@ -100,14 +116,47 @@ def _statements(picks: Sequence[tuple[models.Finding, models.VexStatus, int]]) -
             head, rest = aliases_only[0], ()
         elif shape & 16:  # a malicious-package statement that lists the finding only as an alias
             head, rest = "MAL-2098-0001", ids
-        elif shape & 8:  # a statement about another vulnerability that lists the finding's ids as aliases
+        elif (
+            shape & 8
+        ):  # a statement about another vulnerability that lists the finding's ids as aliases (it covers them, 11.37)
             head, rest = "CVE-2098-0001", ids
         entries.append((f.repo, _doc(f".vex/{n:03d}.json", head, rest, f.component.purl, status)))
     return _vex_map(entries)
 
 
 def _excluded(inputs: models.PlanInputs, vex: dict[models.Repo, tuple]) -> tuple[models.Finding, ...]:
-    """The findings the written rule suppresses: excluding status, a listed id, the exact purl, not malicious."""
+    """The findings the written rule suppresses: excluding status, the Finding's own id named by the statement, the exact purl, not malicious.
+
+    A finding that KEV listed after the statement's date is not suppressed (Requirement 11.15 d).
+    """
+    kev = inputs.feeds.kev or {}
+    allowed = set(inputs.policy.vex_exclude_statuses) & EXCLUDING
+    keys: set[tuple[tuple[str, str], str, str]] = set()
+    for repo, docs in vex.items():
+        for doc in docs:
+            for s in doc.statements:
+                names = (s.vuln_id, *s.aliases)
+                if s.status in allowed and not any(n.startswith("MAL-") for n in names):
+                    # a statement covers the identifiers it names itself: its name and its aliases (11.37)
+                    keys.update((_rk(repo), n, p) for n in names for p in s.products)
+    return tuple(
+        f
+        for f in _ordered(inputs.findings)
+        if not planner.is_malicious(f)
+        and (_rk(f.repo), f.vuln_id, f.component.purl) in keys  # the Finding's own aliases are never looked up
+        and not any(i in kev and kev[i][0] > STAMP.date() for i in _ids(f))
+    )
+
+
+def _alias_only(
+    inputs: models.PlanInputs, vex: dict[models.Repo, tuple], excluded: tuple[models.Finding, ...]
+) -> set[tuple[tuple[str, str], str]]:
+    """(repo, id) of kept, non-malicious Findings that no statement names, while one names an alias (T12-R5-02).
+
+    Only a Finding that meets the Opening_Threshold is recorded (T12-R6-04): one below it opens no Issue whether or
+    not the statement is rewritten.
+    """
+    kev_ids = None if inputs.feeds.kev is None else frozenset(inputs.feeds.kev)
     allowed = set(inputs.policy.vex_exclude_statuses) & EXCLUDING
     keys: set[tuple[tuple[str, str], str, str]] = set()
     for repo, docs in vex.items():
@@ -116,11 +165,26 @@ def _excluded(inputs: models.PlanInputs, vex: dict[models.Repo, tuple]) -> tuple
                 names = (s.vuln_id, *s.aliases)
                 if s.status in allowed and not any(n.startswith("MAL-") for n in names):
                     keys.update((_rk(repo), n, p) for n in names for p in s.products)
-    return tuple(
-        f
-        for f in _ordered(inputs.findings)
-        if not planner.is_malicious(f) and any((_rk(f.repo), i, f.component.purl) in keys for i in _ids(f))
-    )
+    return {
+        (_rk(f.repo), f.vuln_id)
+        for f in inputs.findings
+        if f not in excluded
+        and not planner.is_malicious(f)
+        and (_rk(f.repo), f.vuln_id, f.component.purl) not in keys
+        and any((_rk(f.repo), i, f.component.purl) in keys for i in f.aliases)
+        and threshold.meets_opening_threshold(f, kev_ids, inputs.policy.opening_threshold)
+    }
+
+
+def _without_alias_note(action: models.IssueAction) -> models.IssueAction:
+    """``action`` with the ``vex_names_alias_only`` note taken out of its body (state block and table row)."""
+    if not action.body or "vex_names_alias_only" not in action.body:
+        return action
+    path = (issue_body.parse_state(action.body) or {})["vex_names_alias_only"]
+    pair = json.dumps({"vex_names_alias_only": path})[1:-1]
+    body = action.body.replace(pair + ", ", "").replace(", " + pair, "")
+    body = body.replace(f"\n| 別名だけを名指しした VEX statement（除外には使っていない） | {path} |", "")
+    return replace(action, body=body)
 
 
 def _settled(inputs: models.PlanInputs, state: str) -> models.PlanInputs:
@@ -143,7 +207,18 @@ def _check_exclusion(inputs: models.PlanInputs, vex: dict[models.Repo, tuple], s
     got = planner.plan(replace(base, vex=vex))
     want = planner.plan(replace(base, findings=kept, vex={}))
     plain = planner.plan(base)
-    assert got.actions == want.actions
+    # A statement that names only an alias of a kept Finding is noted in that Finding's Issue (T12-R5-02); the
+    # note is the only difference from the run without VEX, and it is there exactly for those Findings.
+    assert tuple(_without_alias_note(a) for a in got.actions) == want.actions
+    noted = {
+        (_rk(a.repo), a.vuln_id)
+        for a in got.actions
+        if a.body and "vex_names_alias_only" in (issue_body.parse_state(a.body) or {})
+    }
+    expected = _alias_only(inputs, vex, excluded)
+    issued = {(_rk(a.repo), a.vuln_id) for a in got.actions if a.kind == "finding" and a.body}
+    assert noted == expected & issued
+    assert {(_rk(models.Repo(*r.split("/"))), v) for r, v, _path in got.vex_name_only_ghsa} == expected
     assert got.overflow_counts == want.overflow_counts
     assert got.malicious_withdrawn_unconfirmed == want.malicious_withdrawn_unconfirmed
     assert {f for f, _ in got.vex_exclusions} == set(excluded)
@@ -191,15 +266,24 @@ def _noise(
         malicious = planner.is_malicious(f)
         path = f".vex/zz-noise-{n:03d}.json"
         if kind == 0:  # affected / under_investigation never excludes
-            out.append((f.repo, _doc(path, ids[0], ids[1:], f.component.purl, STATUSES[2 + s % 2])))
+            out.append((f.repo, _doc(path, ids[0], ids[1:], f.component.purl, STATUSES[2 + s % 2], OLDER)))
         elif kind == 1:  # another version of the same component
             status = STATUSES[2 + s % 2] if malicious else STATUSES[s % 4]
-            out.append((f.repo, _doc(path, ids[0], ids[1:], _other_version(f.component.purl), status)))
+            out.append((f.repo, _doc(path, ids[0], ids[1:], _other_version(f.component.purl), status, OLDER)))
         elif kind == 2 and disallowed and not malicious:  # an excluding status the policy does not list
-            out.append((f.repo, _doc(path, ids[0], ids[1:], f.component.purl, disallowed[s % len(disallowed)])))  # type: ignore[arg-type]
+            out.append((f.repo, _doc(path, ids[0], ids[1:], f.component.purl, disallowed[s % len(disallowed)], OLDER)))  # type: ignore[arg-type]
         elif kind == 3:  # an identifier no finding has
-            out.append((f.repo, _doc(path, "CVE-2099-0001", (), f.component.purl, STATUSES[s % 4])))
+            out.append((f.repo, _doc(path, "CVE-2099-0001", (), f.component.purl, STATUSES[s % 4], OLDER)))
     return out
+
+
+def _without_noise_reasons(plan: models.Plan) -> models.Plan:
+    """The plan without the ``rejected_vex`` lines about a noise document.
+
+    A noise statement can be reported (``vex_superseded``: an older excluding statement lost to a newer
+    ``affected`` one). The report is a record of why a statement was not used; it changes no Issue.
+    """
+    return replace(plan, rejected_vex=tuple(r for r in plan.rejected_vex if "zz-noise-" not in r[0]))
 
 
 # Feature: cyber-resilience-phase4-supply-chain, Property 9: 承認済みの VEX だけが起票を止める
@@ -228,8 +312,10 @@ def test_statements_that_do_not_apply_change_nothing(
     for repo, doc in noise:
         noisy[repo] = (*noisy.get(repo, ()), doc)
     event(f"noise={'some' if noise else 'none'}")
-    assert planner.plan(replace(base, vex=noisy)) == planner.plan(replace(base, vex=kept))
-    assert planner.plan(replace(base, vex=_vex_map(noise))) == planner.plan(replace(base, vex={}))
+    assert _without_noise_reasons(planner.plan(replace(base, vex=noisy))) == planner.plan(replace(base, vex=kept))
+    assert _without_noise_reasons(planner.plan(replace(base, vex=_vex_map(noise)))) == planner.plan(
+        replace(base, vex={})
+    )
 
 
 def test_generated_cases_exercise_suppression_and_the_statements_that_do_not_apply() -> None:
@@ -258,19 +344,30 @@ def test_generated_cases_exercise_suppression_and_the_statements_that_do_not_app
 # --- fixed examples for the cases the generators reach only occasionally -----------------------
 
 
-def test_a_statement_naming_only_an_alias_of_the_finding_suppresses_it() -> None:
+def test_a_statement_named_by_an_alias_of_the_finding_does_not_suppress_it() -> None:
+    """11.37 (T12-R4-05): the alias list of the Finding's record never widens what a statement covers."""
     finding = _finding("CVE-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
     plan = planner.plan(_inputs((finding,), vex={REPO: (_vex("not_affected", "GHSA-aaaa-bbbb-cccc"),)}))
+    assert [a.op for a in plan.actions] == ["create"]
+    assert plan.vex_exclusions == ()
+
+
+def test_a_statement_that_lists_the_finding_in_its_own_aliases_suppresses_it() -> None:
+    """11.37 (T12-R4-05): a statement covers what it names itself, in its name or in its aliases."""
+    finding = _finding("CVE-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
+    statement = _vex("not_affected", "GHSA-aaaa-bbbb-cccc", aliases=("CVE-2026-0001",))
+    plan = planner.plan(_inputs((finding,), vex={REPO: (statement,)}))
     assert plan.actions == ()
     assert [f for f, _ in plan.vex_exclusions] == [finding]
 
 
-def test_a_statement_listing_the_finding_as_an_alias_suppresses_it() -> None:
+def test_a_statement_about_another_vulnerability_that_does_not_name_the_finding_does_not_suppress_it() -> None:
     finding = _finding("CVE-2026-0001", aliases=("GHSA-aaaa-bbbb-cccc",))
     plan = planner.plan(
         _inputs((finding,), vex={REPO: (_vex("fixed", "CVE-2026-9999", aliases=("GHSA-aaaa-bbbb-cccc",)),)})
     )
-    assert plan.actions == ()
+    assert [a.op for a in plan.actions] == ["create"]
+    assert plan.vex_exclusions == ()
 
 
 def test_a_statement_in_one_repository_does_not_suppress_the_same_finding_in_another() -> None:

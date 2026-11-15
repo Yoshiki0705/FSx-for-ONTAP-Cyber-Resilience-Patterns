@@ -44,9 +44,13 @@ def valid_doc() -> dict[str, Any]:
             "approver_role": "VEX_Reviewer",
             "one_statement_per_document": True,
             "malicious_never_suppressed": True,
+            "max_age_days": 180,
         },
         "response_target": {"detect_hours": 24, "fix_days_kev_or_malicious": 7, "fix_days_high": 14},
         "issue_limits": {"max_new_issues_per_repo_per_run": 10},
+        "unscored_review_days": 7,
+        "watchdog": {"limit_hours": 8},
+        "renovate_preset": {"tag": "supply-chain-preset-v1.0.0", "commit": "0123456789abcdef0123456789abcdef01234567"},
     }
 
 
@@ -412,3 +416,84 @@ def test_every_schema_const_is_enforced(schema_facts: dict[str, dict[str, Any]])
         _set_at(doc, path, different)
         where = path.replace("[]", "[0]")
         assert has(issues_of(dump(doc)), where, "range"), path
+
+
+def test_package_manager_wait_is_derived_from_cooldown_when_absent() -> None:
+    doc = valid_doc()
+    del doc["package_manager_wait"]
+    doc["cooldown_days"] = {"default": 5, "major": 9}
+    policy = parse_policy(dump(doc))
+    assert policy.package_manager_wait == policy.cooldown_days
+    assert "package_manager_wait" not in json.loads(render_policy(policy))
+
+
+def test_a_stated_package_manager_wait_must_still_equal_cooldown() -> None:
+    doc = valid_doc()
+    doc["package_manager_wait"] = {"default_days": 4, "major_days": 7}
+    assert has(issues_of(dump(doc)), "$.package_manager_wait.default_days", "range")
+
+
+def test_renovate_preset_is_optional_and_round_trips() -> None:
+    doc = valid_doc()
+    policy = parse_policy(dump(doc))
+    assert policy.renovate_preset is not None
+    assert policy.renovate_preset.tag == "supply-chain-preset-v1.0.0"
+    assert json.loads(render_policy(policy))["renovate_preset"] == doc["renovate_preset"]
+    del doc["renovate_preset"]
+    assert parse_policy(dump(doc)).renovate_preset is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "kind"),
+    [
+        ("commit", "abc123", "format"),
+        ("commit", "g" * 40, "format"),
+        ("commit", 5, "type"),
+        ("tag", "has space", "format"),
+        ("tag", "", "format"),
+    ],
+)
+def test_renovate_preset_values_are_checked(field: str, value: Any, kind: str) -> None:
+    doc = valid_doc()
+    doc["renovate_preset"][field] = value
+    assert has(issues_of(dump(doc)), f"$.renovate_preset.{field}", kind)
+
+
+def test_renovate_preset_needs_both_keys() -> None:
+    doc = valid_doc()
+    del doc["renovate_preset"]["commit"]
+    assert has(issues_of(dump(doc)), "$.renovate_preset.commit", "missing")
+
+
+def test_third_party_action_is_an_allowed_automerge_exclusion() -> None:
+    doc = valid_doc()
+    doc["automerge"]["exclude"].append("third_party_action")
+    assert "third_party_action" in parse_policy(dump(doc)).automerge_exclude
+
+
+def test_unscored_review_days_is_optional_and_range_checked() -> None:
+    doc = valid_doc()
+    assert parse_policy(dump(doc)).unscored_review_days == 7
+    assert json.loads(render_policy(parse_policy(dump(doc))))["unscored_review_days"] == 7
+    del doc["unscored_review_days"]
+    assert parse_policy(dump(doc)).unscored_review_days is None
+    doc["unscored_review_days"] = 0
+    assert has(issues_of(dump(doc)), "$.unscored_review_days", "range")
+
+
+def test_watchdog_limit_hours_round_trips_and_is_range_checked() -> None:
+    doc = valid_doc()
+    del doc["watchdog"]
+    assert parse_policy(dump(doc)).watchdog_limit_hours is None
+    assert "watchdog" not in json.loads(render_policy(parse_policy(dump(doc))))
+    doc["watchdog"] = {"limit_hours": 8}
+    policy = parse_policy(dump(doc))
+    assert policy.watchdog_limit_hours == 8
+    assert json.loads(render_policy(policy))["watchdog"] == {"limit_hours": 8}
+    assert parse_policy(render_policy(policy)) == policy
+    doc["watchdog"] = {"limit_hours": 0}
+    assert has(issues_of(dump(doc)), "$.watchdog.limit_hours", "range")
+    doc["watchdog"] = {"limit_hours": 8.5}
+    assert has(issues_of(dump(doc)), "$.watchdog.limit_hours", "type")
+    doc["watchdog"] = {"limit_hours": 8, "unknown": 1}
+    assert has(issues_of(dump(doc)), "$.watchdog.unknown", "unknown_key")

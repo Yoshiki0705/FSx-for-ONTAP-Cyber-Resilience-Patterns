@@ -50,15 +50,32 @@ _pr = st.builds(
 _metrics = st.builds(
     rr.RepoResponseMetrics, st.integers(0, 9), st.integers(0, 9), st.integers(0, 9), _hours, _hours, _hours,
 )  # fmt: skip
+_sha64 = st.text(alphabet="0123456789abcdef", min_size=64, max_size=64)
+_scanned = st.builds(
+    rr.ScannedRepo, _opt(_sha), _opt(st.sampled_from(["A", "B"])), _opt(_sha64), _opt(st.integers(1, 99))
+)
 _repositories = st.builds(
     rr.Repositories,
     _small(_repo),
     _small(st.builds(rr.FetchFailure, _repo, st.sampled_from(["A", "B"]), _text)),
     st.dictionaries(_repo, _opt(st.integers(0, 4)), max_size=3),
+    st.dictionaries(_repo, _scanned, max_size=2),
 )
 _feeds = st.builds(
     rr.Feeds,
-    _small(st.builds(rr.FeedFetched, st.sampled_from(["kev", "epss", "malicious"]), _ts, _opt(_text))),
+    _small(
+        st.builds(
+            rr.FeedFetched,
+            st.sampled_from(["kev", "epss", "malicious", "advisories"]),
+            _ts,
+            _opt(_text),
+            _opt(_sha64),
+            _opt(st.integers(0, 9999)),
+            _opt(_text),
+            _opt(_text),
+            _opt(_ts),
+        )
+    ),
     _small(st.builds(rr.FeedFailed, st.sampled_from(["kev", "epss", "malicious"]), _ts, _text)),
 )
 
@@ -93,6 +110,9 @@ def records(draw: st.DrawFn) -> rr.RunRecord:
         pull_requests=draw(_small(_pr)),
         rate_limit=draw(st.builds(rr.RateLimitRecord, _small(_repo), _small(_repo))),
         failure_notice_error=None if ok else draw(_opt(_text)),
+        deferred_by_feed=draw(_small(st.builds(rr.UnscoredEntry, _repo, _text))),
+        held_unscored=draw(_small(st.builds(rr.WithdrawnUnconfirmed, _repo, st.integers(1, 99), _text))),
+        prev_record_sha256=draw(_opt(_sha64)),
     )
 
 
@@ -137,9 +157,9 @@ def test_text_does_not_depend_on_the_insertion_order_of_maps() -> None:
 
 
 def test_json_has_the_design_keys_and_the_added_fields() -> None:
-    """The text carries schema_version 1, the Q-13/Q-18 fields and a recorded 0-check repository."""
+    """The text carries schema_version 2, the Q-13/Q-18 fields and a recorded 0-check repository."""
     data = json.loads(rr.to_json(_record()))
-    assert data["schema_version"] == 1
+    assert data["schema_version"] == 2
     assert data["pull_requests"] == [
         {"repo": REPO, "vuln_id": "CVE-2026-1", "created_at": "2026-11-10T00:17:00Z", "merged_at": None}
     ]
@@ -152,8 +172,13 @@ def test_json_has_the_design_keys_and_the_added_fields() -> None:
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda d: d.update(schema_version=2),
+        lambda d: d.update(schema_version=3),
         lambda d: d.pop("schema_version"),
+        lambda d: d.pop("prev_record_sha256"),  # a version 2 record has every key
+        lambda d: d.update(prev_record_sha256="abc"),
+        lambda d: d["repositories"]["scanned_detail"].update(
+            {REPO: {"head_sha": "x", "sbom_source": "A", "sbom_sha256": None, "sbom_artifact_id": None}}
+        ),
         lambda d: d.update(extra=1),
         lambda d: d.pop("epss"),
         lambda d: d.update(started_at="2026-11-10 00:17:00"),
@@ -373,3 +398,207 @@ def test_schedule_is_five_waits_each_at_least_the_base_and_retry_after(hints: li
         h = hints[i] if i < len(hints) else None
         assert w == max(2.0 * 2**i, h if h is not None else 0.0)
     assert rr.retry_wait(5, hints[5] if len(hints) > 5 else None) is None
+
+
+# ------------------------------------------------------------------ schema version 2 (T4-10, T4-11)
+
+SHA64 = "ab" * 32
+
+
+def _v1_text() -> str:
+    """A record as version 1 wrote it: no key that version 2 added."""
+    data = json.loads(rr.to_json(_record()))
+    data["schema_version"] = 1
+    for key in ("deferred_by_feed", "held_unscored", "prev_record_sha256"):
+        del data[key]
+    del data["repositories"]["scanned_detail"]
+    for feed in data["feeds"]["fetched"]:
+        for key in ("payload_sha256", "entry_count", "source_url", "http_date", "released_at"):
+            del feed[key]
+    return json.dumps(data)
+
+
+def test_a_version_1_record_is_still_read_with_the_added_fields_at_their_defaults() -> None:
+    record = rr.from_json(_v1_text())
+    assert record == _record()  # the defaults are what _record() leaves out
+    assert record.prev_record_sha256 is None
+    assert record.repositories.scanned_detail == {}
+    assert json.loads(rr.to_json(record))["schema_version"] == 2  # always written as version 2
+
+
+def test_a_version_1_record_with_an_unknown_key_is_still_refused() -> None:
+    data = json.loads(_v1_text())
+    data["extra"] = 1
+    with pytest.raises(rr.RunRecordError):
+        rr.from_json(json.dumps(data))
+
+
+def test_the_scan_facts_and_feed_hashes_round_trip() -> None:
+    record = _record(
+        repositories=rr.Repositories(
+            (REPO,),
+            (),
+            {REPO: 1},
+            {REPO: rr.ScannedRepo(SHA, "B", SHA64, 7), "example-org/lib": rr.ScannedRepo(None, None, None)},
+        ),
+        feeds=rr.Feeds(
+            (
+                rr.FeedFetched(
+                    "kev",
+                    T0,
+                    "2026.11.10",
+                    SHA64,
+                    1779,
+                    "https://example.com/kev.json",
+                    "Tue, 10 Nov 2026 00:17:00 GMT",
+                    T0,
+                ),
+            ),
+            (),
+        ),
+        findings=(rr.FindingEntry(REPO, "CVE-2026-1", "pkg:npm/a@1", "HIGH", False, False, None, True, "123-1", SHA),),
+    )
+    assert rr.from_json(rr.to_json(record)) == record
+
+
+@pytest.mark.parametrize("bad", ["abc", "AB" * 32, "ab" * 31])
+def test_a_hash_of_the_wrong_form_is_refused(bad: str) -> None:
+    with pytest.raises(rr.RunRecordError):
+        rr.FeedFetched("kev", T0, None, bad)
+    with pytest.raises(rr.RunRecordError):
+        rr.ScannedRepo(None, "A", bad)
+    with pytest.raises(rr.RunRecordError):
+        _record(prev_record_sha256=bad)
+    with pytest.raises(rr.RunRecordError):
+        rr.ScannedRepo("0123", "A", None)
+
+
+def _chain(count: int, month_start: datetime = T0) -> list[tuple[str, str]]:
+    """``count`` records of one month, each naming the hash of the text before it, as a writer would."""
+    out: list[tuple[str, str]] = []
+    prev: str | None = None
+    for n in range(count):
+        record = _record(
+            run_id=f"{100 + n}-1",
+            started_at=month_start + timedelta(hours=n),
+            finished_at=month_start + timedelta(hours=n, minutes=1),
+            prev_record_sha256=prev,
+        )
+        text = rr.to_json(record)
+        out.append((rr.record_path(record), text))
+        prev = rr.sha256_text(text)
+    return out
+
+
+def test_a_whole_chain_verifies_and_a_writer_finds_its_predecessor() -> None:
+    entries = _chain(4)
+    assert rr.verify_chain(entries) == ()
+    assert rr.verify_chain(reversed(entries)) == ()  # the order of the input does not matter
+    assert rr.previous_record_sha256(text for _, text in entries) == rr.sha256_text(entries[-1][1])
+    assert rr.previous_record_sha256([]) is None
+
+
+def test_an_edited_record_breaks_the_chain_at_the_next_record() -> None:
+    entries = _chain(4)
+    path, text = entries[1]
+    data = json.loads(text)
+    data["failure_reason"] = None
+    data["policy_commit"] = None
+    entries[1] = (path, json.dumps(data, sort_keys=True, indent=2) + "\n")
+    assert rr.verify_chain(entries) == (rr.ChainBreak(entries[2][0], "prev_mismatch"),)
+
+
+def test_a_removed_record_breaks_the_chain_at_the_record_after_it() -> None:
+    entries = _chain(4)
+    gone = entries.pop(1)
+    assert rr.verify_chain(entries) == (rr.ChainBreak(entries[1][0], "prev_mismatch"),)
+    assert gone[0] not in {p for p, _ in entries}
+
+
+def test_the_first_record_of_a_month_must_not_name_a_predecessor() -> None:
+    entries = _chain(2)
+    first = json.loads(entries[0][1])
+    first["prev_record_sha256"] = SHA64
+    entries[0] = (entries[0][0], json.dumps(first))
+    assert rr.verify_chain(entries)[0] == rr.ChainBreak(entries[0][0], "first_not_null")
+
+
+def test_months_are_separate_chains_and_a_text_that_is_not_a_record_is_reported() -> None:
+    november = _chain(2)
+    december = _chain(2, T0 + timedelta(days=31))
+    assert rr.verify_chain([*november, *december]) == ()
+    assert rr.verify_chain([*november, ("runs/2026/11/999-1.json", "not json")]) == (
+        rr.ChainBreak("runs/2026/11/999-1.json", "unreadable"),
+    )
+
+
+def test_a_version_1_record_is_not_checked_but_is_the_predecessor_of_the_next() -> None:
+    v1_path = "runs/2026/11/100-1.json"
+    v1_text = _v1_text()
+    v2 = _record(
+        run_id="101-1",
+        started_at=T0 + timedelta(hours=1),
+        finished_at=T0 + timedelta(hours=2),
+        prev_record_sha256=rr.sha256_text(v1_text),
+    )
+    assert rr.verify_chain([(v1_path, v1_text), (rr.record_path(v2), rr.to_json(v2))]) == ()
+
+
+def test_the_month_seal_pins_the_last_record() -> None:
+    entries = _chain(3)
+    assert rr.month_seal("2026-11", entries) == ("supply-chain-runs-2026-11", rr.sha256_text(entries[-1][1]))
+    assert rr.month_seal("2026-11", []) is None
+    with pytest.raises(rr.RunRecordError):
+        rr.month_seal("2026/11", entries)
+
+
+# T4-R2-04: the chain is followed by hashes, not by start times
+
+
+def _two_overlapping():
+    """B (started 00:27) was stored first and names none; A (started 00:17, a run that lasted longer) was stored second and names B."""
+    b = _record(run_id="2-1", started_at=T0 + timedelta(minutes=27), finished_at=T0 + timedelta(minutes=30))
+    b_text = rr.to_json(b)
+    a = _record(
+        run_id="1-1",
+        started_at=T0 + timedelta(minutes=17),
+        finished_at=T0 + timedelta(minutes=40),
+        prev_record_sha256=rr.sha256_text(b_text),
+    )
+    return (rr.record_path(b), b_text), (rr.record_path(a), rr.to_json(a))
+
+
+def test_a_chain_is_followed_by_hashes_whatever_the_start_times_and_the_order_of_storage() -> None:
+    first, second = _two_overlapping()
+    for order in itertools.permutations([first, second]):
+        assert rr.verify_chain(order) == ()
+
+
+def test_two_records_that_name_the_same_predecessor_are_a_fork() -> None:
+    a, _ = _two_overlapping()
+    kids = []
+    for n in (2, 3):
+        record = _record(
+            run_id=f"{n}-1",
+            started_at=T0 + timedelta(minutes=10 * n),
+            finished_at=T0 + timedelta(minutes=10 * n + 1),
+            prev_record_sha256=rr.sha256_text(a[1]),
+        )
+        kids.append((rr.record_path(record), rr.to_json(record)))
+    breaks = rr.verify_chain([a, *kids])
+    assert [b.reason for b in breaks] == ["fork"]
+
+
+def test_the_writer_refuses_when_the_month_has_two_tips() -> None:
+    a, _ = _two_overlapping()
+    texts = [a[1]]
+    for n in (2, 3):
+        record = _record(
+            run_id=f"{n}-1",
+            started_at=T0 + timedelta(minutes=10 * n),
+            finished_at=T0 + timedelta(minutes=10 * n + 1),
+            prev_record_sha256=rr.sha256_text(a[1]),
+        )
+        texts.append(rr.to_json(record))
+    with pytest.raises(rr.RunRecordError):
+        rr.previous_record_sha256(texts)

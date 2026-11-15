@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from handoff import cli, runner, state
+from handoff.agent_policy import READ_DENIED_PATHS
 
 if TYPE_CHECKING:
     from conftest import HandoffSandbox
@@ -68,7 +69,13 @@ AGENT_DOCUMENT: dict[str, Any] = {
     "toolAliases": {},
     "allowedTools": ["fs_read"],
     "resources": [],
-    "toolsSettings": {},
+    "toolsSettings": {"read": {"deniedPaths": list(READ_DENIED_PATHS)}},
+    "permissions": {
+        "rules": [
+            {"capability": "fs_read", "match": ["./**"], "effect": "allow"},
+            {"capability": "fs_read", "match": list(READ_DENIED_PATHS), "effect": "deny"},
+        ]
+    },
     "includeMcpJson": False,
     "model": None,
 }
@@ -105,6 +112,7 @@ def query_item(item_id: str = QUERY) -> dict[str, Any]:
         "knowledge_kinds": ["records under .private/"],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
 
 
@@ -344,6 +352,13 @@ NOT_APPROVED: dict[str, tuple[Callable[[HandoffSandbox], None], str | None, dict
     ),
     "include-mcp-json": (_approved_as_written(includeMcpJson=True), "includeMcpJson", {}),
     "another-name": (_approved_as_written(name=OTHER_AGENT), "name", {}),
+    # T4-01: an agent whose toolsSettings restrict nothing is not approved, however its tools are listed
+    "empty-tools-settings": (_approved_as_written(toolsSettings={}), "toolsSettings.read", {}),
+    "a-read-denied-path-is-missing": (
+        _approved_as_written(toolsSettings={"read": {"deniedPaths": ["~/.ssh/**"]}}),
+        "toolsSettings.read.deniedPaths",
+        {},
+    ),
     "no-file": (_no_file, "lstat", {}),
     # the agent is named for both modes and approved for the change mode only
     "approved-for-another-mode": (_for_another_mode, None, {"agents": {"query": AGENT, "change": AGENT}}),

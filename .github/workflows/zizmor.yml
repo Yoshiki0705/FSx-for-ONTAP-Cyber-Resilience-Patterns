@@ -24,14 +24,22 @@ jobs:
           persist-credentials: false
 
       - name: Install zizmor
-        run: pip install zizmor
-
-      - name: Run zizmor
+        # Exact version: the gate that checks the workflows must not float itself (13.3).
+        run: pip install zizmor==1.32.0
+      - name: Run zizmor (SARIF for code scanning)
+        # GH_TOKEN enables the online audits, among them impostor-commit (a pinned SHA that
+        # exists only in a fork). With --format sarif zizmor exits 0 whatever it found, so the
+        # failing step is the next one.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --format sarif . > results.sarif
-        continue-on-error: true
-
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@48ab28a6f5dbc2a99bf1e0131198dd8f1df78169 # v3.28.0
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: results.sarif
           category: zizmor
+      - name: Fail on findings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: zizmor --min-severity medium .

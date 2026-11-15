@@ -22,7 +22,10 @@
       "matchUpdateTypes": [
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "matchPackageNames": [
+        "actions/**"
+      ]
     },
     {
       "description": "hub",

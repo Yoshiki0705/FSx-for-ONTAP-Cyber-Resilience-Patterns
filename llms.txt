@@ -35,6 +35,9 @@ deploy. A reader must make an explicit retention decision before enabling any su
 - [Cyber Resilience Framework Mapping (JA)](docs/ja/cyber-resilience-framework-mapping.md): Japanese counterpart with the same sections.
 - [Supply-Chain Adoption Guide](docs/en/supply-chain-adoption-guide.md): How to adopt the software supply-chain controls (SBOM, vulnerability aggregation, cooldown). Thresholds and rules live in the machine-readable [Supply-Chain Policy File](docs/agent/supply-chain-policy.json).
 - [Supply-Chain Adoption Guide (JA)](docs/ja/supply-chain-adoption-guide.md): Japanese counterpart with the same sections.
+- [Cyber Resilience Programme](docs/en/cyber-resilience-programme.md): The three pillars (supply chain, RTO/RPO with SLA/SLO/SLI, forensics), the order of work, and the PDCA and accountability views. Read this first to place the Supply-Chain Adoption Guide.
+- [Cyber Resilience Programme (JA)](docs/ja/cyber-resilience-programme.md): Japanese counterpart with the same sections.
+- [ONTAP Upgrade Procedure for Security Advisories](docs/ontap-native/ontap-upgrade-for-security-advisories.md): Self-managed ONTAP upgrade steps in five stages, each with its source and confirmation date. A reading of NetApp's documentation, not a record of running the procedure.
 - [Storage-Layer Decisions with AWS Continuum and Security Agent](docs/architecture/continuum-security-agent-and-storage.md): Three decision trees (which data a penetration test may touch, which storage detections react during a test, where to roll back as automated remediation is raised) and a platform table covering FSx for ONTAP, on-premises ONTAP, Cloud Volumes ONTAP, Google Cloud NetApp Volumes and Azure NetApp Files. Continuum itself was not tried; platform cells state what was and was not read.
 
 ## Storage-native security (ONTAP)

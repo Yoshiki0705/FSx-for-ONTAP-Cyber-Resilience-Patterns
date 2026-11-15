@@ -60,7 +60,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
       - name: Run cfn-lint
@@ -116,12 +115,12 @@ jobs:
 
       - name: Run Bandit (Python SAST)
         run: |
-          pip install bandit
+          pip install bandit==1.9.4
           bandit -r solutions/ -f json -o bandit-results.json || true
 
       - name: Run pip-audit (dependency vulnerabilities)
         run: |
-          pip install pip-audit
+          pip install pip-audit==2.10.1
           pip-audit -r requirements.txt --output json || true
 
       - name: Validate Lambda packaging

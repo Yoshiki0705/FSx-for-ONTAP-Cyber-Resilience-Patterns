@@ -115,3 +115,39 @@ def test_a_tree_without_any_guide_is_not_checked(checks: Path, tmp_path: Path) -
     shutil.copy(REPO / POLICY, tmp_path / POLICY)
     code, text = _run(checks, "--root", str(tmp_path))
     assert code == 0 and "scanned 0 files (nothing was checked)" in text
+
+
+def test_a_derived_waiting_period_is_compared_with_the_cooldown(checks: Path, tmp_path: Path) -> None:
+    """``package_manager_wait`` is not stored in the Policy_File (T1-15); its markers read ``cooldown_days``."""
+    root = _real_copy(tmp_path)
+    assert '"package_manager_wait"' not in (root / POLICY).read_text(encoding="utf-8")
+    assert _run(checks, "--root", str(root))[0] == 0
+    guide = root / GUIDES[1]
+    text = guide.read_text(encoding="utf-8")
+    assert "policy:package_manager_wait.default_days -->3" in text
+    guide.write_text(
+        text.replace("policy:package_manager_wait.default_days -->3", "policy:package_manager_wait.default_days -->4"),
+        encoding="utf-8",
+    )
+    code, out = _run(checks, "--root", str(root))
+    assert code == 1 and ": mismatch:" in out
+
+
+def test_a_watchdog_marker_is_compared_with_the_policy_file_or_its_default(checks: Path, tmp_path: Path) -> None:
+    """``watchdog.limit_hours`` may be absent from the Policy_File; the marker is then read as the default 8."""
+    root = _real_copy(tmp_path)
+    assert '"limit_hours": 8' in (root / POLICY).read_text(encoding="utf-8")
+    guide = root / GUIDES[1]
+    base = guide.read_text(encoding="utf-8")
+    guide.write_text(base + "\n<!-- policy:watchdog.limit_hours -->8 hours\n", encoding="utf-8")
+    assert _run(checks, "--root", str(root))[0] == 0
+    guide.write_text(base + "\n<!-- policy:watchdog.limit_hours -->12 hours\n", encoding="utf-8")
+    code, out = _run(checks, "--root", str(root))
+    assert code == 1 and "Policy_File wants 8" in out
+    policy = root / POLICY
+    policy.write_text(
+        policy.read_text(encoding="utf-8").replace('"watchdog": {\n    "limit_hours": 8\n  }', '"x": 1'),
+        encoding="utf-8",
+    )
+    guide.write_text(base + "\n<!-- policy:watchdog.limit_hours -->8 hours\n", encoding="utf-8")
+    assert _run(checks, "--root", str(root))[0] == 0  # absent key: the default 8 applies

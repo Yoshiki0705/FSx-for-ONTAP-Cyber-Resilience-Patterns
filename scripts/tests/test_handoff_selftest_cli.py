@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from handoff import cli, evaluate, state
+from handoff.agent_policy import READ_DENIED_PATHS, WRITE_DENIED_PATHS
 
 if TYPE_CHECKING:
     from conftest import HandoffSandbox
@@ -111,6 +112,7 @@ def item(item_id: str, sync_point: str, mode: str = "query", **over: Any) -> dic
         "knowledge_kinds": ["records under .private/"] if query else [],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
     base.update(over)
     return base
@@ -271,9 +273,12 @@ def test_exit_codes_0_and_1_follow_the_verdict_and_the_output_agrees_with_the_re
 
     # the sandbox's kiro-cli ran, and the trials ran below the sandbox's worktrees_root
     runs = sb.invocations()
-    assert [run["start"]["subcommand"] for run in runs] == ["--version", "whoami", *(["chat"] * len(started))]
+    ran = (
+        (*started, "t5", "t6", "t7", "t8") if len(started) == len(evaluate.SELFTEST_TRIALS) else started
+    )  # probes follow a T0 that completed
+    assert [run["start"]["subcommand"] for run in runs] == ["--version", "whoami", *(["chat"] * len(ran))]
     assert runs[0]["start"]["argv"] == [str(sb.kiro_cli), "--version"]
-    assert tuple(run["start"]["trial"] for run in runs[2:]) == started
+    assert tuple(run["start"]["trial"] for run in runs[2:]) == ran
     run_dir = sb.worktrees_root / "selftest" / run_id
     assert record["run_dir"] == f"~/{run_dir.relative_to(sb.home)}" and run_dir.is_dir()
     assert all(Path(run["start"]["cwd"]).is_relative_to(run_dir) for run in runs[2:])
@@ -401,6 +406,18 @@ def approve_change_agent(sb: HandoffSandbox) -> None:
         "mcpServers": {},
         "tools": ["fs_read", "fs_write"],
         "allowedTools": ["fs_read"],
+        "toolsSettings": {
+            "read": {"deniedPaths": list(READ_DENIED_PATHS)},
+            "write": {"allowedPaths": ["./**"], "deniedPaths": list(WRITE_DENIED_PATHS)},
+        },
+        "permissions": {
+            "rules": [
+                {"capability": "fs_read", "match": ["./**"], "effect": "allow"},
+                {"capability": "fs_read", "match": list(READ_DENIED_PATHS), "effect": "deny"},
+                {"capability": "fs_write", "match": ["./**"], "effect": "allow"},
+                {"capability": "fs_write", "match": list(WRITE_DENIED_PATHS), "effect": "deny"},
+            ]
+        },
         "includeMcpJson": False,
     }
     data = json.dumps(document, indent=2).encode("utf-8")

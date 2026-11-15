@@ -84,6 +84,12 @@ OBSERVATION_FIELDS: frozenset[str] = frozenset(
         "main_tree_change",
         "rerun",
         "rerun_skipped",
+        "common_dir_changed",
+        "control_plane_changed",
+        "secret_in_report",
+        "touches_execution_surface",
+        "cited_paths_missing",
+        "query_findings",
     }
 )
 
@@ -122,6 +128,13 @@ UNMET: tuple[tuple[str, Callable[[ObservationsCase], bool]], ...] = (
     ("a conflict", lambda case: bool(case.observations.conflicts)),
     ("the branch on the remote", lambda case: case.observations.remote_branch_exists),
     ("a relevant change in the main tree", lambda case: case.observations.main_tree_change == "relevant"),
+    ("a change in the git directory that worktrees share", lambda case: bool(case.observations.common_dir_changed)),
+    ("a change in the control files", lambda case: bool(case.observations.control_plane_changed)),
+    ("a credential in the output", lambda case: bool(case.observations.secret_in_report)),
+    (
+        "a cited path that does not exist",
+        lambda case: case.mode == "query" and bool(case.observations.cited_paths_missing),
+    ),
     ("a re-run that did not exit with 0", _failed_rerun),
     ("a command neither re-run nor skipped with a reason", _unaccounted_command),
 )

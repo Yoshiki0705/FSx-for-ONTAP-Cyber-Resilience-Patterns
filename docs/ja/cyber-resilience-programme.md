@@ -1,46 +1,63 @@
 # サイバーレジリエンス プログラム
 
-> **概要**: ソフトウェアサプライチェーンの可視化と対応、RTO/RPO と SLA/SLO/SLI、フォレンジックの 3 本の柱を 1 か所にまとめ、着手の順序、PDCA での役割分担、説明責任の観点を示す。第 1 の柱は着手済みで、第 2 と第 3 の柱は仕様が未作成である。
+> **概要**: ソフトウェアサプライチェーンの可視化と対応、RTO/RPO と SLA/SLO/SLI、フォレンジックの 3 本の柱を 1 か所にまとめ、着手の順序、PDCA での役割分担、説明責任の観点を示す。各柱の現在の状態は[現在の状態](#現在の状態)の節にある。
 
 ## この文書の目的
 
-3 本の柱の全体方針を 1 か所に置き、各柱の仕様の位置づけと順序を取り違えないようにする。柱ごとの手順は、それぞれの仕様と文書が持つ。第 1 の柱の導入手順は Adoption_Guide（`supply-chain-adoption-guide.md`。[ja](supply-chain-adoption-guide.md)）にある。
+3 本の柱の全体方針を 1 か所に置き、各柱の位置づけと順序を取り違えないようにする。柱ごとの手順は、各柱の公開文書が持つ。第 1 の柱の導入手順は導入ガイド（`supply-chain-adoption-guide.md`。[ja](supply-chain-adoption-guide.md)）にある。第 2 と第 3 の柱の手順は、まだ公開していない。
 
-この文書が引く指針は、すべてガバナンス上の指針である。法務、コンプライアンス、規制上の判断ではない。サービスレベルの契約上の約束は Service_Owner 自身が決めることで、このプロジェクトは法務・契約上の判断を示さない。
+この文書が引く指針は、すべてガバナンス上の指針である。法務、コンプライアンス、規制上の判断ではない。サービスレベルの契約上の約束はサービス提供者自身が決めることで、このプロジェクトは法務・契約上の判断を示さない。
 
 この文書で使う用語は次のとおり。
 
-- Service_Owner: エンドユーザーにサービスを提供し、SLA/SLO/SLI と RTO/RPO を設定する側（パートナー / SI、システム担当、アプリ担当など）
-- Vendor_SLA: AWS や NetApp が自社サービスについて公開する SLA
-- Response_Target: 脆弱性の検出と修正にかかる時間の目標値。運用で実測するまで SLO とは呼ばない
-- Policy_File: しきい値、Cooldown の値、Response_Target などを持つ機械可読の JSON ファイル（`docs/agent/supply-chain-policy.json`）
+- サービス提供者: エンドユーザーにサービスを提供し、SLA/SLO/SLI と RTO/RPO を設定する側（パートナー / SI、システム担当、アプリ担当など）
+- ベンダーの SLA: AWS や NetApp が自社サービスについて公開する SLA
+- 対応時間の目標: 脆弱性の検出と修正にかかる時間の目標値。運用で実測するまで SLO とは呼ばない
+- ポリシーファイル: しきい値、Cooldown の値、対応時間の目標などを持つ機械可読の JSON ファイル（`docs/agent/supply-chain-policy.json`）
 - Cooldown: 新しいリリースが公開されてから更新 PR を作るまでの最小経過時間
-- Aggregator: 対象リポジトリの SBOM を脆弱性情報と突き合わせ、しきい値を超えた所見を Issue にする定期ジョブ
+- 集約ジョブ: 対象リポジトリの SBOM を脆弱性情報と突き合わせ、しきい値を超えた所見を Issue にする Hub の定期ジョブ
+- Hub: 再利用可能ワークフローと Renovate の共有プリセットを置くリポジトリ [FSx-for-ONTAP-Adoption-Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook)
+- 導入ガイド: 第 1 の柱の導入手順をまとめた文書（`supply-chain-adoption-guide.md`）
+- パイロット: 最初に適用する 2 件のリポジトリ（このリポジトリと Hub）で、検出器の誤りを確かめる期間。2 件の両方で集約ジョブが初めて所見の一覧を作った実行の日時から数え、既定は 14 暦日。起票した Issue が 20 件に届かないときは、14 暦日ずつ最大 2 回延長でき、合計 42 暦日までである。その結果で、参照値としきい値を決める
+- 検出の起点: 検出の目標を測り始める日時。Issue を起票する条件を満たした日時と、集約ジョブがその構成要素の版を初めて観測した日時のうち、遅い方である。KEV だけで条件を満たす場合は、下限と上限の 2 つの日時で記録する（詳細は[導入ガイドの「対応時間の目標」](supply-chain-adoption-guide.md#対応時間の目標)）
+- クリーンな作り直し: 侵害された環境を信用せず、固定した版と来歴証明を入力にして、新しい環境を構築し直すこと
+- KEV: CISA が公開する、悪用が確認された脆弱性の一覧（Known Exploited Vulnerabilities Catalog）
+- EPSS: 脆弱性が悪用される確率の推定値（Exploit Prediction Scoring System）
+- SBOM: ソフトウェア部品表（Software Bill of Materials）
+- VEX: ある構成要素の版に脆弱性が影響するかどうかを、根拠つきで機械可読に記録する形式（Vulnerability Exploitability eXchange）
+- `MAL-`: OpenSSF Malicious Packages が悪意のあるパッケージに付ける識別子の接頭辞
+- RTO/RPO: 復旧時間の目標（Recovery Time Objective）と復旧点の目標（Recovery Point Objective）
+- DR: 災害復旧（Disaster Recovery）
+- `[E-nnn]`: [evidence-ledger.json](../agent/evidence-ledger.json) に登録した「できない」型の主張の番号
 
-根拠の種別は 4 語で示す。`documented` は出典の該当箇所を読んだもの、`verified` は 1 回以上実測したもの、`hypothesis` はこのプロジェクトの解釈、`open` は確認できていないものである。
+根拠の種別は 4 語で示す。`documented` は出典の該当箇所を読んだもの、`verified` は 1 回以上実測したもの、`hypothesis` はこのプロジェクトの解釈、`open` は確認できていないものである。「できない」型の主張の登録は [evidence-ledger.json](../agent/evidence-ledger.json) にある。ここでの `open` は根拠の種別で、Issue の状態の「open（開いている）」とは別である。
+
+## 現在の状態
+
+2026-11-15 時点で、第 1 の柱は導入ガイドと検証ゲートがあり、Hub のワークフローは公開済みだが設定が未作成のため毎回失敗している（詳細は[導入ガイドの「現在の状態」](supply-chain-adoption-guide.md#現在の状態)）。第 2 と第 3 の柱は、計画がまだない。
 
 ## 背景となる傾向
 
-次の 2 つの傾向を、読んだ資料が自ら述べている範囲で書く。どちらも [framework mapping の「想定する脅威の類型」](cyber-resilience-framework-mapping.md#想定する脅威の類型2026-10-時点)との文言の突き合わせを終えていないので、根拠の種別は `hypothesis` とする。事件名、企業名、事業者名は書かない。NIST CSF 2.0 との対応は framework mapping にあり、この文書には写さない（[NIST CSF 2.0 機能カバレッジ](cyber-resilience-framework-mapping.md#nist-csf-20-機能カバレッジ)）。
+次の 2 つの傾向を、読んだ資料が自ら述べている範囲で書く。どちらの傾向も、資料が件数や変化の速さを数値で示さず、この文書の読みなので、根拠の種別は `hypothesis` とする。脅威の類型は [framework mapping の「想定する脅威の類型」](cyber-resilience-framework-mapping.md#想定する脅威の類型2026-10-時点)にある。事件名、企業名、事業者名は書かない。NIST CSF 2.0 との対応は framework mapping にあり、この文書には写さない（[NIST CSF 2.0 機能カバレッジ](cyber-resilience-framework-mapping.md#nist-csf-20-機能カバレッジ)）。
 
 | 傾向 | 資料の書き方 | 出典 | 根拠の種別 |
 |---|---|---|---|
-| サプライチェーンや委託先を狙った攻撃 | IPA の「情報セキュリティ 10 大脅威 2026」は、組織向けの 2 位に挙げ、8 年連続の選出とする。順位は選考会の審議と投票で決まり、発生件数の統計ではない。警察庁の統計はランサムウェアの被害報告件数を令和 4〜7 年に 197〜230 件と示し、「依然として高水準」と書く。サプライチェーン経由の侵害の件数を示す統計は、読んだ範囲になかった | [19]、[28] | hypothesis |
+| サプライチェーンや委託先を狙った攻撃 | IPA の「情報セキュリティ 10 大脅威 2026」は、組織向けの 2 位に挙げ、8 年連続の選出とする。順位は選考会の審議と投票で決まり、発生件数の統計ではない。警察庁の統計は、ランサムウェアの被害報告件数が令和 4 年から令和 7 年まで、年ごとに 197〜230 件の範囲にあると示し、「依然として高水準」と書く。サプライチェーン経由の侵害の件数を示す統計は、読んだ範囲になかった | [19]、[28] | hypothesis |
 | 公開から悪用までの時間の短縮 | 関係府省庁の Project YATA-Shield は、AI の性能向上で脆弱性の発見と修正が速くなる一方、攻撃もより高速かつ大規模になりうると書く。時間の推移を数値で示す資料は、読んだ範囲になかった。実務者の議論としては、開催報告が AI による脆弱性発見の加速を挙げる | [20]、[17] | hypothesis |
 
 ## 3 本の柱
 
-| 柱 | 目的 | 範囲 | 対応する spec | 状態 |
+| 柱 | 目的 | 範囲 | 導入手順 | 状態（2026-11-14 時点） |
 |---|---|---|---|---|
-| 第 1: ソフトウェアサプライチェーンの可視化と対応 | 使っている構成要素を把握し、脆弱性と悪意のあるパッケージへの対応を、目標時間つきで回す | 対象リポジトリの SBOM、Aggregator による Issue 化、Renovate による更新、VEX、来歴証明、ONTAP の[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)。SBOM の最小要素は [1]、[2] を、保管と脆弱性管理の手順は [3] の 6.2 と第 7 章を参照する | `cyber-resilience-phase4-supply-chain` | 着手済み |
-| 第 2: RTO/RPO と SLA/SLO/SLI | Service_Owner が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | 未作成 | 未着手 |
+| 第 1: ソフトウェアサプライチェーンの可視化と対応 | 使っている構成要素を把握し、脆弱性と悪意のあるパッケージへの対応を、目標時間つきで回す | 対象リポジトリの SBOM、集約ジョブによる Issue 化、Renovate による更新、VEX、来歴証明、ONTAP の[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)。SBOM の最小要素は [1]、[2] を、保管と脆弱性管理の手順は [3] の 6.2 と第 7 章を参照する | [導入ガイド](supply-chain-adoption-guide.md) | 着手済み |
+| 第 2: RTO/RPO と SLA/SLO/SLI | サービス提供者が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | 未作成 | 未着手 |
 | 第 3: フォレンジック | 侵害のあとに、何が起きたかを再構成できる証跡を残す | 証跡の取得手順、インシデント後のレビュー | 未作成 | 未着手 |
 
 第 1 の柱が参照する資料は次のとおり。
 
 - ビルドの来歴証明は、GitHub の artifact attestations の手順 [9] と、SLSA の Build トラック [10] を参照する
 - 悪意のあるパッケージは、OpenSSF の Malicious Packages（OSV 形式、`MAL-` の識別子）を参照する [15]
-- AI エージェントのツール定義は、使用中の MCP サーバーの棚卸しと、版の固定および定義変更の検知を勧める研究ノート [11] を参照する。この文書は AI の支援で作られ、CSA の正式なレビューを経ていないと自ら書く
+- AI エージェントのツール定義は、使用中の MCP サーバーの棚卸しと、版の固定および定義変更の検知を勧める研究ノート [11] を参照する。この研究ノートは、AI の支援で作られ、CSA の正式なレビューを経ていないと自ら書いている。
 - AWS の実践として、SBOM、版の固定、悪意のあるパッケージの扱いを述べたブログ [14] を参照する。仕様ではなくガイダンスである
 
 ## 着手の順序
@@ -53,46 +70,46 @@
 
 ## サービスレベルの考え方
 
-SLA/SLO/SLI と RTO/RPO は、Service_Owner がエンドユーザーに向けて設定する値である。Vendor_SLA ではない。定義の節は Resilience lifecycle framework の Stage 1 にある [13]。
+SLA/SLO/SLI と RTO/RPO は、サービス提供者がエンドユーザーに向けて設定する値である。ベンダーの SLAではない。SLA/SLO/SLI の定義は、Resilience lifecycle framework の Stage 1 の節にある [13]。
 
-Vendor_SLA は、Service_Owner の SLO を決める入力の 1 つである。SLO は、Vendor_SLA の対象外であるアプリケーション、運用、復旧手順も含めて考える。Vendor_SLA の数値はこの文書に書かない。使うときは、ベンダーが公開する SLA のページから、参照日を添えて引く。
+ベンダーの SLA は、サービス提供者の SLO を決める入力の 1 つである。SLO は、ベンダーの SLA の対象外であるアプリケーション、運用、復旧手順も含めて考える。ベンダーの SLA の数値はこの文書に書かない。使うときは、ベンダーが公開する SLA のページから、参照日を添えて引く。
 
-金融庁と日本銀行の要請の脚注は、SLA を金融機関等とベンダーの間のサービス品質保証の契約の意味で使い、SLO を SLA を達成するための組織内部の目標と書く [24]。この SLA の用法は、この文書の Vendor_SLA に当たる。同じ脚注の SLO は、Service_Owner の SLO に近い（解釈）。
+金融庁と日本銀行の要請の脚注は、SLA を金融機関等とベンダーの間のサービス品質保証の契約の意味で使い、SLO を SLA を達成するための組織内部の目標と書く [24]。この SLA の用法は、この文書のベンダーの SLA に当たる。同じ脚注の SLO は、サービス提供者の SLO に近い（解釈）。
 
-サイバーリカバリと DR の区別は、この文書では定義しない。第 2 の柱の spec で定義する。この区別とリストア訓練を扱う実務者向けの資料として [26]、[27] がある。
+サイバーリカバリと DR の区別は、この文書では定義しない。第 2 の柱の計画で定義する。この区別とリストア訓練を扱う実務者向けの資料として [26]、[27] がある。
 
 ## PDCA サイクル
 
-3 本の柱は、Plan、Do、Check、Act の繰り返しとして合わさる。第 2 と第 3 の柱の欄は、仕様がない現時点では方針の記述にとどめる。
+3 本の柱は、Plan、Do、Check、Act の繰り返しとして合わさる。第 2 と第 3 の柱の欄は、計画がない間は、方針の記述にとどめる。
 
 | 段階 | 第 1 の柱 | 第 2 の柱 | 第 3 の柱 | 柱の間のつながり |
 |---|---|---|---|---|
-| Plan | Response_Target の参照値、Cooldown（Renovate の `minimumReleaseAge` [5]）、Issue を起票するしきい値を、Service_Owner が決める | SLO/RTO/RPO の設定方法（データ保護と復旧時間を含む可用性） | フォレンジックで残す証跡の範囲 | 第 3 の柱が決める証跡の範囲は、第 2 の柱の復旧点の判断の入力になる |
-| Do | Renovate の設定、再利用可能ワークフロー、Aggregator の導入。版の固定と来歴証明は、クリーンな作り直し（第 2 の柱）の入力になる | 参照構成（Snapshot、SnapMirror、AWS Backup などを組み合わせた構成） | 証跡の取得手順 | 第 1 の柱の版の固定と来歴証明が、第 2 の柱の作り直しの入力になる |
-| Check | Response_Target に対する実績（期限超過の件数、検出の実績）と CI/CD の記録 | SLI の測定、リストア訓練の結果（確認点と所要時間） | インシデント後のレビュー（記録の範囲） | 第 1 の柱の実行結果とリストア訓練の結果は、説明責任の記録になる（次の節） |
-| Act | Response_Target と Cooldown の見直し | SLO と構成の見直し | Act に渡すフォレンジックの証跡と再発防止 | 第 3 の柱の証跡と再発防止が、第 2 の柱の復旧点の判断と第 1 の柱の目標の見直しに渡る |
+| Plan | 対応時間の目標の参照値、Cooldown（Renovate の `minimumReleaseAge` [5]）、Issue を起票するしきい値を、サービス提供者が決める | SLO/RTO/RPO の設定方法（データ保護と復旧時間を含む可用性） | フォレンジックで残す証跡の範囲 | 第 3 の柱が決める証跡の範囲は、第 2 の柱の復旧点の判断の入力になる |
+| Do | Renovate の設定、再利用可能ワークフロー、集約ジョブの導入。版の固定と来歴証明は、クリーンな作り直し（第 2 の柱）の入力になる | 参照構成（Snapshot、SnapMirror、AWS Backup などを組み合わせた構成） | 証跡の取得手順 | 第 1 の柱の版の固定と来歴証明が、第 2 の柱の作り直しの入力になる |
+| Check | 対応時間の目標に対する実績（期限超過の件数、検出の実績）と CI/CD の記録 | SLI の測定、リストア訓練の結果（確認点と所要時間） | インシデント後のレビュー（記録の範囲） | 第 1 の柱の実行結果とリストア訓練の結果は、説明責任の記録になる（次の節） |
+| Act | 対応時間の目標と Cooldown の見直し | SLO と構成の見直し | Act に渡すフォレンジックの証跡と再発防止 | 第 3 の柱の証跡と再発防止が、第 2 の柱の復旧点の判断と第 1 の柱の目標の見直しに渡る |
 
 PDCA の 4 段階と説明責任の観点の NIST CSF 2.0 への対応は、framework mapping の[PDCA と説明責任の CSF 2.0 への対応](cyber-resilience-framework-mapping.md#pdca-と説明責任の-csf-20-への対応)にある。表はそこにだけ置き、この文書には写さない。解釈による対応で、NIST の認定ではない。
 
 ## 説明責任の観点
 
-説明責任は、3 本の柱を横断する観点である。次の 3 つを残して説明できることを指す。
+説明責任は、3 本の柱を横断する観点である。説明責任を果たすために、次の 3 つの記録を残す。
 
 - 平時の保護設定とログの取得
 - 侵害を検知したときの判断
 - 復旧までの記録
 
-「説明責任」と訳される Accountability は、RACI の A（最終責任者）の意味でも使われる。この文書では上の意味に限る。説明は、(1) 誰が責任を持つか（Service_Owner の組織が決める）、(2) 何を根拠に説明するか（記録の完全性と来歴）、(3) 誰に伝えるか（通知の要否は法務の担当が判断する。このプロジェクトは判断を示さない）に分けて考える。
+「説明責任」と訳される Accountability は、RACI の A（最終責任者）の意味でも使われる。この文書では上の意味に限る。説明の内容は、次の 3 点に分けて考える。(a) 誰が責任を持つか。サービス提供者の組織が決める。(b) 何を根拠に説明するか。記録の完全性と来歴である。(c) 誰に伝えるか。通知の要否は法務の担当が判断し、このプロジェクトは判断を示さない。
 
-説明責任は第 3 の柱だけに属さない。第 1 の柱の記録（SBOM、Issue、VEX、実行結果）と、第 2 の柱の復旧（復旧点の判断の記録）にまたがる。柱の数と順序（1→2→3）は変えない。説明責任は平時の記録から始まるので、復旧の前に置く。この並びは、防御、復旧、説明責任の 3 つの軸とそのつながりを述べた開催報告 [17] の並びに合わせた。
+説明責任は第 3 の柱だけに属さない。第 1 の柱の記録（SBOM、Issue、VEX、実行結果）と、第 2 の柱の復旧（復旧点の判断の記録）にまたがる。柱の数と順序（1→2→3）は変えない。説明責任は、柱の順序とは別の観点として、PDCA の説明の後にこの節で扱う。開催報告 [17] は、防御、復旧、説明責任の 3 つの軸で対策を整理しており、この文書はその整理を参考にして、説明責任を柱を横断する観点として足した。
 
 | 柱 | 説明責任に提供する記録 | 説明の中での使い道 |
 |---|---|---|
-| 第 1 | Aggregator の実行結果（起票、更新、クローズ、VEX による除外とその理由、Response_Target の実績）、VEX の判断と承認の記録（OpenVEX [6]）、SBOM、来歴証明 | その時点で何が入っていて、いつ気づき、いつ直したか。作り直した構成が元と同じであることの根拠 |
+| 第 1 | 集約ジョブの実行結果（起票、更新、クローズ、VEX による除外とその理由、対応時間の目標の実績）、VEX の判断と承認の記録（OpenVEX [6]）、SBOM、来歴証明 | その時点で何が入っていて、いつ気づき、いつ直したか。作り直した構成が元と同じであることの根拠 |
 | 第 2（方針） | 復旧点の選定の理由と承認、復元の試験の結果と所要時間、RTO/RPO の目標と実績、受け入れたデータの損失の範囲 | どの時点に、なぜ戻したか。目標に対する実績はどうだったか |
 | 第 3（方針） | アクセスの経路ごとと管理面ごとの証跡、時系列の再構成、監査の記録が欠けた期間の記録、事後のレビュー | 何が起きたか、入口はどこか、再発をどう防ぐか |
 
-この節の弱点は、読者が 2 つの切り口（柱と説明責任）を対応づける必要があることである。第 2 と第 3 の柱の行は、仕様ができたときに見直す。ストレージの種類ごとの記録の違いは、[ストレージの種類ごとのデータ保護](#ストレージの種類ごとのデータ保護)の Hub の文書を参照する。
+第 2 と第 3 の柱の行は、方針だけを書いている。それぞれの柱の計画ができたときに埋める。ストレージの種類ごとに残る記録の違いは、[ストレージの種類ごとのデータ保護](#ストレージの種類ごとのデータ保護)の節に挙げた Hub の文書を参照する。
 
 ## Resilience lifecycle との対応
 
@@ -109,7 +126,7 @@ PDCA の 4 段階を、AWS Prescriptive Guidance の Resilience lifecycle framew
 
 ## Well-Architected のベストプラクティス
 
-このプロジェクトの構成要素と AWS Well-Architected Framework のベストプラクティス ID の対応は、framework mapping の[ベストプラクティス ID との対応](cyber-resilience-framework-mapping.md#ベストプラクティス-id-との対応)にある。表はそこにだけ置く。この文書は、柱ごとに実装する ID を 1 行に 1 つずつ挙げる。フレームワークの版は v13（2024-11-06）、参照日は 2026-11-13 である。各 ID の 2 つ目のリンクは、版つきのパス `2025-02-25` の同じページである。`2025-02-25` が何の版かは、文書から読み取れていない（`open`）[12]。
+このプロジェクトが扱う対象と AWS Well-Architected Framework のベストプラクティス ID の対応は、framework mapping の[ベストプラクティス ID との対応](cyber-resilience-framework-mapping.md#ベストプラクティス-id-との対応)にある。表はそこにだけ置く。この文書は、柱ごとに実装する ID を 1 行に 1 つずつ挙げる。フレームワークの版は v13（2024-11-06）、参照日は 2026-11-13 である。各 ID の 2 つ目のリンクは、版つきのパス `2025-02-25` の同じページである。`2025-02-25` が何の版かは、文書から読み取れていない（`open`）[12]。
 
 - 第 1 の柱: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_automate_testing_throughout_lifecycle.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html)）
 - 第 1 の柱: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)）
@@ -122,9 +139,11 @@ PDCA の 4 段階を、AWS Prescriptive Guidance の Resilience lifecycle framew
 - PDCA の Check と Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)）
 - PDCA の Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)）
 
-第 2 の柱が追加で扱うベストプラクティスは、その柱の仕様が範囲を決めたときに足す。10 件とも、2026-11-13 に全文を読み、framework mapping の表の記述と照合した。
+第 2 の柱が追加で扱うベストプラクティスは、その柱の計画が範囲を決めたときに足す。10 件とも、2026-11-13 に全文を読み、framework mapping の表の記述と照合した。
 
-この対応は、AWS Well-Architected のレビューの結果ではなく、AWS による承認でもない。Service_Owner は、自身のワークロードのレビューを [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) で記録できる [16]。NIST CSF 2.0 への対応も、NIST による認定ではない。
+NIST SP 800-218 の SSDF との対応は、framework mapping の[SSDF との対応](cyber-resilience-framework-mapping.md#ssdf-との対応)にだけ置く。SSDF Rev. 1 は 2026-11-14 時点で草案で、本文は読んでいない（open）。
+
+上の Well-Architected の対応は、AWS Well-Architected のレビューの結果ではなく、AWS による承認でもない。サービス提供者は、自身のワークロードのレビューを [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) で記録できる [16]。NIST CSF 2.0 への対応と SSDF への対応は、どちらも NIST による認定ではない。
 
 ### 保持を固定する手段の選び方
 
@@ -142,19 +161,23 @@ Hub の[データ保護方式の比較](https://github.com/Yoshiki0705/FSx-for-O
 
 ## 参照値の扱い
 
-このプロジェクトが公開する値（Response_Target と、後続の仕様で公開する参照用の SLO/RTO/RPO）は、利用者が自身の値に置き換えるための参照値である。どのエンドユーザーへの約束でもない。
+このプロジェクトが公開する値（対応時間の目標と、第 2 の柱の計画で公開する予定の参照用の SLO/RTO/RPO）は、サービス提供者が自身の値に置き換えるための参照値である。どのエンドユーザーへの約束でもない。
 
-Response_Target は目標で、運用で実測するまで SLO と呼ばない。値は Policy_File の `response_target` にあり、この文書は同じ値を示す。検出の目標は <!-- policy:response_target.detect_hours -->24 時間（起点から Issue の起票まで）。修正の目標は、KEV 掲載 [7] の脆弱性と悪意のあるパッケージが <!-- policy:response_target.fix_days_kev_or_malicious -->7 日、それ以外で CVSS の重大度が High 以上のものが <!-- policy:response_target.fix_days_high -->14 日である（Issue の起票からクローズまで。14 日は参照値で、パイロットで維持するか 30 日に戻すかを決める）。EPSS [8] のスコアは Issue に添える参考の値で、区分には使わない。
+対応時間の目標は目標で、運用で実測するまで SLO と呼ばない。値はポリシーファイルの `response_target` にあり、この文書は同じ値を示す。検出の目標は <!-- policy:response_target.detect_hours -->24 時間（検出の起点から Issue の起票まで）である。修正の目標は、Issue の起票からクローズまでの時間に適用する。KEV 掲載 [7] の脆弱性と悪意のあるパッケージは <!-- policy:response_target.fix_days_kev_or_malicious -->7 日、それ以外で CVSS の重大度が High 以上のものは <!-- policy:response_target.fix_days_high -->14 日である。14 日は参照値で、パイロットの実績を見て、14 日のまま使うか 30 日に延ばすかを決める。EPSS [8] のスコアは Issue に添える参考の値で、区分には使わない。
 
-検出の目標の 24 時間は、当局への報告の期限ではない。EU の製品規則は、製造者が悪用中の脆弱性に気づいてから遅くとも 24 時間以内の早期警告を求める [4]、[25]。長さは同じでも、起点（気づいた時点か、アドバイザリや KEV の公開か）、行為（当局への報告か、Issue の起票か）、宛先が違う。Aggregator や Issue がその報告を満たすかは、この文書では判断しない。
+対応時間の目標は、集約ジョブが扱うリポジトリの依存関係の所見に適用する。ONTAP のセキュリティアドバイザリは対象外で、[ONTAP のバージョンアップ手順](../ontap-native/ontap-upgrade-for-security-advisories.md)の段階 1 に従う。
+
+KEV だけで起票の条件を満たす場合、検出の起点は下限と上限の 2 つの日時で記録し、月 1 回の確認は上限に対しても 24 時間を超えたものだけを確実な超過として数える。規則は採用ガイドの[対応時間の目標](supply-chain-adoption-guide.md#対応時間の目標)と[月 1 回の確認手順](supply-chain-adoption-guide.md#月-1-回の確認手順)にあり、ここには写さない。
+
+検出の目標の 24 時間は、当局への報告の期限ではない。EU の製品規則は、製造者が悪用中の脆弱性に気づいてから遅くとも 24 時間以内の早期警告を求める [4]、[25]。この報告義務は 2026-09-11 に始まっている [4]。長さは同じでも、起点（気づいた時点か、アドバイザリや KEV の公開か）、行為（当局への報告か、Issue の起票か）、宛先が違う。集約ジョブや Issue がその報告を満たすかは、この文書では判断しない。
 
 ### 公的な基準の修正期限
 
-Service_Owner が参照値を自分の値に置き換えるときの比較の材料として、公開された基準の修正期限を要約する。各基準は自分の対象（企業、政府機関、金融機関、製品の製造者）に課すもので、このプロジェクトにも Service_Owner にも適用されない。どの値が正しいかの判断ではない。起点はこのプロジェクトの起票と同じではない。
+サービス提供者が参照値を自分の値に置き換えるときの比較の材料として、公開された基準の修正期限を要約する。各基準は自分の対象（企業、政府機関、金融機関、製品の製造者）に課すもので、このプロジェクトにもサービス提供者にも適用されない。どの値が正しいかの判断ではない。起点はこのプロジェクトの起票と同じではない。
 
 | 基準の型 | 区分に使う情報 | 修正の日数 | 起点 | 出典 |
 |---|---|---|---|---|
-| このプロジェクトの Response_Target | KEV 掲載、悪意のあるパッケージ、CVSS の重大度 | 上の段落のとおり | Issue の起票 | Policy_File |
+| このプロジェクトの対応時間の目標 | KEV 掲載、悪意のあるパッケージ、CVSS の重大度 | KEV 掲載と悪意のあるパッケージは 7 日、それ以外で CVSS の重大度が High 以上のものは 14 日（ポリシーファイルの `response_target`） | Issue の起票 | ポリシーファイル |
 | 企業向けの評価制度（★3 の評価基準） | ベンダーが重大・高リスクとする脆弱性、CVSS の基本値 7.0 以上、レベルの記載がない更新 | 14 日。期限内にできない場合は、適用までのリスク低減策。制度は開始前（2026-10-28 のページは 2026 年度末頃の開始を目指すと書く） | アップデートのリリース | [21] |
 | 認証制度の技術要件（英国） | 「critical」または「high risk」とされる脆弱性（CVSS v3 の基本値 7 以上、またはベンダーの区分） | 14 日 | リリース | [30] |
 | 行政機関向けの指令（米国） | 公開の有無、KEV 掲載、攻撃者の自動化の可否、技術的な影響の 4 つの変数（CVSS は使わない） | 3 日、14 日、60 日、次のシステム更新時 | KEV への追加と、資産での特定の早い方 | [31] |
@@ -162,7 +185,7 @@ Service_Owner が参照値を自分の値に置き換えるときの比較の材
 | 金融分野のガイドライン | システムの重要度、リスク、深刻度 | 日数を定めない。対応期限の設定と対応実績の管理を求める | 定めなし | [23] |
 | EU の製品規則 | 悪用の信頼できる証拠がある脆弱性（報告の対象） | 修正は「遅滞なく」で、日数を定めない | 製造者が気づいた時点 | [25] |
 
-企業向けの評価制度の 14 日は起点がリリースで、Response_Target の 14 日は起点が Issue の起票である。Issue の起票はリリースより後なので、同じ起点で比べると、Response_Target のほうが長い。期限の見直しの手順は、Adoption_Guide の「[実績を PDCA に使う方法](supply-chain-adoption-guide.md#実績を-pdca-に使う方法)」で扱う。
+企業向けの評価制度の 14 日は起点がリリースで、対応時間の目標の 14 日は起点が Issue の起票である。Issue の起票はリリースより後なので、同じ起点で比べると、対応時間の目標のほうが長い。期限の見直しの手順は、導入ガイドの「[実績を PDCA に使う方法](supply-chain-adoption-guide.md#実績を-pdca-に使う方法)」で扱う。
 
 ## ストレージの種類ごとのデータ保護
 
@@ -176,18 +199,18 @@ Service_Owner が参照値を自分の値に置き換えるときの比較の材
 - [第三者バックアップ製品は Amazon FSx for NetApp ONTAP にどの経路で届くか？](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/notes/third-party-backup-reaches-it-by-another-route.md)
 - [EBS が安くなくなる境目は台数か？](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/block-storage/notes/when-ebs-stops-being-the-cheaper-answer.md)
 
-比較の内容が足りない場合は、この文書に書かず、Hub への依頼か、第 2 または第 3 の柱の仕様に送る。
+比較の内容が足りない場合は、この文書に書かず、Hub への依頼か、第 2 または第 3 の柱の計画に送る。
 
 ## 参考文献
 
-番号は本文の `[n]` に対応する。名称は発行主体が付けた原題で書く。参照日は、その URL の内容を確かめた日である。根拠の種別の `open` は、確認できていない部分を示す。
+番号は本文の `[n]` に対応する。導入ガイドの参考文献は `[Gn]` の別の番号体系で、この表の番号と混ざらない。日付は日本時間で、公開日は各ページに表示された日付である。名称は発行主体が付けた原題で書く。参照日は、その URL の内容を確かめた日である。根拠の種別の `open` は、確認できていない部分を示す。
 
 | 番号 | 名称 | 発行主体 | 公開日・版 | URL | 参照日 | 根拠の種別 |
 |---|---|---|---|---|---|---|
 | 1 | 2026 Minimum Elements for a Software Bill of Materials (SBOM) | CISA ほか 17 機関（METI、NCO を含む） | 2026-07-29、版 2.1 | [PDF](https://www.cisa.gov/sites/default/files/2026-07/2026_cisa_sbom_minimum_elements_508c.pdf) | 2026-11-10 | documented |
 | 2 | サイバーセキュリティのためのソフトウェア部品表（SBOM）の最小要素に関する国際ガイダンスに共同署名しました | 経済産業省 | 2026-07-30 | [meti.go.jp](https://www.meti.go.jp/press/2026/07/20260730001.html) | 2026-11-10 | documented |
 | 3 | ソフトウェア管理に向けたSBOM（Software Bill of Materials）の導入に関する手引ver2.0 | 経済産業省 | 2024-08-29、ver 2.0 | [meti.go.jp](https://www.meti.go.jp/press/2024/08/20240829001/20240829001.html) | 2026-11-12 | documented（6.2 と第 7 章）。他の節は open |
-| 4 | Cyber Resilience Act - Reporting obligations | European Commission | 日付の表示なし | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-12 | documented |
+| 4 | Cyber Resilience Act - Reporting obligations | European Commission | 日付の表示なし | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-14 | documented |
 | 5 | Minimum Release Age | Renovate | 日付の表示なし | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-10 | documented |
 | 6 | OpenVEX Specification v0.2.0 | OpenVEX | v0.2.0 | [GitHub](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 | documented |
 | 7 | Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 | verified（取得 1 回） |
