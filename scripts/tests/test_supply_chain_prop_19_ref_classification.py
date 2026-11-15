@@ -23,11 +23,11 @@ The test functions:
   fixed seed (``derandomize=True``) and fails when a shape stops appearing, so the property
   tests cannot pass vacuously.
 
-Reading of the property that the code does not follow word for word: while
-``HUB_SHA_REQUIRED`` is ``False`` (the Q-16 interim rule), a Reusable_Workflow ref is pinned
-when it is a SHA or any ref that is not empty and not a branch name, so a short SHA passes.
-The strict reading (SHA only) is checked with ``hub_sha=True``; the interim rule is checked on
-the refs both readings agree on (a SHA, a branch name, no ref).
+Reading of the property: ``HUB_SHA_REQUIRED`` is ``True`` (T1-07: GitHub documents the SHA form
+for ``jobs.<id>.uses``, so no interim tag rule is needed), and a Reusable_Workflow ref is
+pinned only when it is a SHA. The ``hub_sha=False`` mode of ``pinning._workflow`` is kept
+only for the Q-16 interim reading, and the property checks both modes on the refs they agree
+on. ``test_hub_sha_is_required_by_default`` fixes the default.
 """
 
 from __future__ import annotations
@@ -47,6 +47,11 @@ LOWER_ALNUM = "abcdefghijklmnopqrstuvwxyz0123456789"
 #: Owners of the caller's repositories (case-insensitive) in the drawn workflows.
 OWNERS = frozenset({"yoshiki0705", "example-org"})
 HUB_REPO = "yoshiki0705/fsx-for-ontap-adoption-playbook"
+#: The only owner/repository a preset reference may name (T1-05); GitHub ignores case.
+HUB_PRESET_BASES = (
+    "github>Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook//renovate/",
+    "github>yoshiki0705/fsx-for-ontap-adoption-playbook//renovate/",
+)
 BRANCH_NAMES = ("main", "master", "head", "develop", "trunk")
 OTHER_UNPINNED = ("feature/x", "release-1", "v1", "v1.2.3", "latest", "stable")
 
@@ -155,7 +160,7 @@ def test_property_19_uses_classification(data: st.DataObject) -> None:
 def _preset_case(draw: st.DrawFn) -> tuple[str, str, str]:
     """Draw ``(category, extends entry, expected)`` for a Hub preset reference."""
     name = draw(st.sampled_from(["supply-chain", "supply-chain"]))
-    base = f"github>example-org/example-hub//renovate/{name}"
+    base = draw(st.sampled_from(HUB_PRESET_BASES)) + name
     kind = draw(
         st.sampled_from(
             ["tag", "tag-suffix", "sha40", "none", "empty-hash", "branch", "short-sha", "long-sha", "non-hex-40"]
@@ -268,3 +273,11 @@ def test_property_19_inputs_reach_every_shape() -> None:
     assert all(count >= 10 for count in presets.values()), presets
     assert categories["no-ref"] >= 10 and categories["with-ref"] >= 10, categories
     assert categories["hub-strict"] >= 10 and categories["hub-interim"] >= 10, categories
+
+
+def test_hub_sha_is_required_by_default() -> None:
+    """T1-07: a tag on a Hub Reusable_Workflow fails with the shipped default."""
+    assert pinning.HUB_SHA_REQUIRED is True
+    line = f"      - uses: {HUB_REPO}/.github/workflows/reusable.yml@v1.2.3\n"
+    found = pinning._workflow(".github/workflows/ci.yml", line, OWNERS, pinning.HUB_SHA_REQUIRED)
+    assert [v.kind for v in found] == ["unpinned-reusable"]

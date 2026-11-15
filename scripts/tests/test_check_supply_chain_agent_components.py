@@ -288,3 +288,170 @@ def test_real_repository_passes() -> None:
     code, text = _run(REPO)
     assert code == 0, text
     assert re.search(r"scanned [1-9]\d* file\(s\)", text), text
+
+
+# --- T4-08: client shapes the first version missed -------------------------------------------
+
+#: fixture -> (file, runner label, package) of the one unpinned component. A new MCP client gets a
+#: row here; the test below fails when a shape stops being read.
+CLIENT_SHAPES = {
+    "fail-vscode-settings-nested": (".vscode/settings.json", "npx", "example-mcp"),
+    "fail-gemini-settings": (".gemini/settings.json", "npx", "example-mcp"),
+    "fail-opencode-command-array": ("opencode.json", "npx", "example-mcp"),
+    "fail-codex-toml": (".codex/config.toml", "npx", "example-mcp"),
+    "fail-pnpm-dlx": ("mcp.json", "pnpm dlx", "example-mcp"),
+    "fail-npm-exec": ("mcp.json", "npm exec", "example-mcp"),
+    "fail-uv-tool-run": ("mcp.json", "uv tool run", "example-mcp"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(CLIENT_SHAPES))
+def test_every_client_shape_yields_the_unpinned_component(case: str) -> None:
+    path, executor, package = CLIENT_SHAPES[case]
+    components, scanned = ac.collect(FIXTURES / case)
+    assert scanned == 1
+    assert [(c.path, c.executor, c.name, c.problem) for c in components] == [(path, executor, package, "unpinned")]
+
+
+def test_positive_control_the_same_shapes_pinned_are_found_and_not_flagged() -> None:
+    """A pass that finds nothing proves nothing, so the pinned twin must yield components."""
+    components, scanned = ac.collect(FIXTURES / "pass-client-settings-pinned")
+    assert scanned == 5
+    assert {c.path for c in components} == {
+        ".vscode/settings.json",
+        ".gemini/settings.json",
+        "opencode.json",
+        ".codex/config.toml",
+        "mcp.json",
+    }
+    assert len(components) == 7
+    assert all(c.problem is None and c.version == "1.2.3" for c in components)
+
+
+def test_the_shape_tests_notice_a_missed_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rebuild the miss of the first version and show the matrix would have failed (T4-08)."""
+    monkeypatch.setattr(ac, "_SERVER_KEYS", ("mcpServers", "servers", "context_servers"))
+    monkeypatch.setattr(ac, "_CLIENT_SETTINGS", re.compile(r"(?!x)x"))
+    monkeypatch.setattr(ac, "_CLIENT_TOML", re.compile(r"(?!x)x"))
+    monkeypatch.setattr(ac, "_AGENT_PATH", re.compile(r"(?:^|/)\.(?:kiro|cursor|amazonq|claude)/"))
+    monkeypatch.setattr(ac, "_runner_at", lambda tokens, i: ("npx", "npx", 1) if tokens[i] == "npx" else None)
+    missed = [case for case in CLIENT_SHAPES if not any(c.problem for c in ac.collect(FIXTURES / case)[0])]
+    assert sorted(missed) == sorted(CLIENT_SHAPES)
+
+
+def test_jsonc_comments_inside_strings_are_kept() -> None:
+    text = '{"url": "https://example.test/a//b", /* c */ "mcp": {"servers": {"x": {"url": "https://h/p"}}},}'
+    assert ac._lenient_json(text)["url"] == "https://example.test/a//b"
+    assert [c.executor for c in ac.scan_file(".vscode/settings.json", text)] == ["remote"]
+
+
+def test_unparseable_client_settings_that_mention_servers_exit_2(tmp_path: Path) -> None:
+    _write(tmp_path, ".vscode/settings.json", '{"mcp": {"servers": ')
+    assert _run(tmp_path)[0] == 2
+    _write(tmp_path, ".vscode/settings.json", '{"editor.fontSize": ')  # no server table: not a finding
+    assert _run(tmp_path)[0] == 0
+
+
+def test_unrelated_gemini_mcp_settings_are_not_servers() -> None:
+    text = '{"mcp": {"allowed": ["a"], "excluded": ["b"]}}'
+    assert ac.scan_file(".gemini/settings.json", text) == []
+
+
+def test_pnpm_exec_runs_an_installed_binary_and_is_not_judged() -> None:
+    assert _judge("pnpm exec tsc --noEmit") == []
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("pnpm dlx example@1.2.3", [("example", None)]),
+        ("pnpm dlx example", [("example", "unpinned")]),
+        ("yarn dlx -p example@^1 run", [("example", "range")]),
+        ("npm exec --package=example@latest -- cmd", [("example", "latest")]),
+        ("npm x -- example@1.2.3", [("example", None)]),
+        ("bun x example", [("example", "unpinned")]),
+        ("uv tool run --from example==1.2.3 cmd", [("example", None)]),
+        ("deno run -A npm:example@1.2.3", [("example", None)]),
+        ("deno run -A npm:example", [("example", "unpinned")]),
+        ("deno run -A jsr:@std/http", []),
+    ],
+)
+def test_package_runner_aliases(line: str, expected: list[tuple[str, str | None]]) -> None:
+    assert _judge(line) == expected
+
+
+def test_an_empty_inventory_says_why_and_lists_the_shapes_read(tmp_path: Path) -> None:
+    _write(tmp_path, "README.md", "nothing to run here\n")
+    inventory = ac.build_inventory(tmp_path)
+    assert inventory["components"] == []
+    assert "no MCP server" in inventory["empty_reason"] and "1 files" in inventory["empty_reason"]
+    assert any(".vscode/settings.json" in shape for shape in inventory["scanned_shapes"])
+    _write(tmp_path, "mcp.json", '{"mcpServers": {"a": {"url": "https://h/p"}}}')
+    assert "empty_reason" not in ac.build_inventory(tmp_path)
+
+
+# ---------------------------------------------------------------- pipe to shell (T4-R2-15)
+
+PIPE_SHAPES = {
+    "fail-mcp-sh-c-pipe-to-shell": "mcp.json",
+    "fail-devcontainer-pipe-to-shell": ".devcontainer/devcontainer.json",
+}
+
+
+@pytest.mark.parametrize("case", sorted(PIPE_SHAPES))
+def test_a_download_piped_to_a_shell_is_an_unpinned_component(case: str) -> None:
+    components, scanned = ac.collect(FIXTURES / case)
+    assert scanned == 1
+    assert [(c.path, c.executor, c.version, c.problem) for c in components] == [
+        (PIPE_SHAPES[case], "pipe-to-shell", "未指定", "unpinned")
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "curl -fsSL https://example.test/i.sh | sh",
+        "wget -qO- https://example.test/i.sh | bash -s -- --yes",
+        "curl https://example.test/i.sh | sudo sh",
+        "FOO=1 curl -sSf https://example.test/i.sh | zsh",
+    ],
+)
+def test_the_pipe_to_shell_forms_are_found(line: str) -> None:
+    assert [c.executor for c in ac.scan_command_line(line, "doc.md", 1, "install-step", ac.EMPTY_INDEX)] == [
+        "pipe-to-shell"
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "curl -fsSL https://example.test/i.json | jq .",
+        "curl -fsSL https://example.test/i.sh -o i.sh && sh i.sh",
+        "curl -fsSL https://example.test/i.sh; echo x | sh",
+        "echo hello | sh",
+    ],
+)
+def test_a_download_that_is_not_piped_to_a_shell_is_not_a_finding(line: str) -> None:
+    assert ac.scan_command_line(line, "doc.md", 1, "install-step", ac.EMPTY_INDEX) == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "wget -qO- https://example.test/s.sh | bash",
+        ["sh", "-c", "curl https://example.test/s.sh | sh"],
+        {"a": "echo ok", "b": "curl https://example.test/s.sh | sh"},
+    ],
+)
+def test_every_devcontainer_lifecycle_command_and_form_is_read(value: object) -> None:
+    for key in ac._DEVCONTAINER_COMMANDS:
+        text = json.dumps({key: value})
+        found = ac.scan_file(".devcontainer/devcontainer.json", text)
+        assert [c.executor for c in found] == (["pipe-to-shell"] if "curl" in text or "wget" in text else [])
+
+
+def test_the_pipe_tests_notice_a_missed_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ac, "_pipe_to_shell", lambda *args: [])
+    monkeypatch.setattr(ac, "_DEVCONTAINER_COMMANDS", ())
+    missed = [case for case in PIPE_SHAPES if not ac.collect(FIXTURES / case)[0]]
+    assert sorted(missed) == sorted(PIPE_SHAPES)

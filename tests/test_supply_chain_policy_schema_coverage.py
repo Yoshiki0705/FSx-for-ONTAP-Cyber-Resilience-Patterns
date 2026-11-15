@@ -30,6 +30,7 @@ KNOWN_KEYWORDS = frozenset(
         "$schema",
         "$id",
         "title",
+        "description",
         "$defs",
         "$ref",
         "type",
@@ -335,7 +336,7 @@ def test_every_contains_is_enforced() -> None:
 def test_every_pattern_is_enforced() -> None:
     for path, node in nodes_with("pattern").items():
         doc = valid_doc()
-        if not get_at(doc, path[:-2]):
+        if path.endswith("[]") and not get_at(doc, path[:-2]):
             set_at(doc, path[:-2], [sample_item(node)])
         set_at(doc, path, "not a repository")
         assert has(issues_for(doc), concrete(path), "format"), path

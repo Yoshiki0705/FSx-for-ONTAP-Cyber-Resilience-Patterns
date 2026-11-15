@@ -78,7 +78,7 @@ def _build(specs: Sequence[Sequence[tuple[int, int, bool, bool]]], limit: int) -
                 malicious[vuln_id] = NOW - timedelta(days=3)
                 if ghsa:
                     ghsa_id = f"GHSA-aaaa-bbbb-{n:04d}"
-                    found.append(_finding(ghsa_id, None, repo=repo, purl=purl))
+                    found.append(replace(_finding(ghsa_id, None, repo=repo, purl=purl), advisory_type="malware"))
                     kev[ghsa_id] = (KEV_DATE, None)
                 units[repo].append(Unit(repo, vuln_id, severity, False, True))
                 continue

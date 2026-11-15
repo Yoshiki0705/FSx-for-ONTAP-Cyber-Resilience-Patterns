@@ -15,6 +15,7 @@ Behavior chosen to match GitHub where the planner could trip on it:
 - ``create`` always makes a new issue, even if one with the same marker exists (GitHub does not
   deduplicate). The planner must avoid that; a test finds the duplicates with :meth:`IssueStore.find`.
 - Issue numbers are unique per store and increase (``max + 1``).
+- ``update`` and ``reopen`` set the marker's identifier to the action's (the marker is part of the written body).
 - ``update``, ``close`` and ``reopen`` of a number that does not exist raise
   :class:`IssueNotFoundError` (HTTP 404). ``close`` of a closed issue and ``reopen`` of an open one
   succeed and change nothing else.
@@ -135,11 +136,29 @@ class IssueStore:
             raise ValueError(f"{action.op} needs an issue number")
         old = self.get(action.repo, action.number)
         if action.op == "update":
-            return self._replace(old, replace(old, body=action.body, body_state=None))
+            # The marker is the first line of the body, so a written body carries the action's identifier (T12-R4-06).
+            return self._replace(
+                old,
+                replace(
+                    old,
+                    vuln_id=action.vuln_id or old.vuln_id,
+                    body=action.body,
+                    body_state=None,
+                ),
+            )
         if action.op == "close":
             return self._replace(old, replace(old, state="closed", close_reason=action.close_reason))
         if action.op == "reopen":
-            return self._replace(old, replace(old, state="open", close_reason=None))
+            # A reopen may carry a new body (GitHub applies it on PATCH); the identifier follows the action.
+            return self._replace(
+                old,
+                replace(
+                    old,
+                    state="open",
+                    close_reason=None,
+                    vuln_id=action.vuln_id or old.vuln_id,
+                ),
+            )
         raise ValueError(f"unknown op {action.op!r}")
 
 

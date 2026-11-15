@@ -98,10 +98,19 @@ def test_malicious_via_alias() -> None:
     assert threshold.meets_opening_threshold(f, None, HIGH_BAR)
 
 
-def test_is_malicious_is_prefix_and_case_sensitive() -> None:
+def test_is_malicious_is_a_prefix_not_a_substring() -> None:
     assert not threshold.is_malicious(_finding("CVE-2026-0001", aliases=("GHSA-xMAL-1",)))
-    assert not threshold.is_malicious(_finding("mal-2026-0001"))
     assert not threshold.is_malicious(_finding("MAL2026"))
+    assert not threshold.is_malicious(_finding("mal-2026-0001"))  # canonicalize upper-cases ids before this runs
+
+
+def test_a_malware_typed_advisory_is_malicious_and_a_missing_severity_is_not_evidence() -> None:
+    from dataclasses import replace
+
+    ghsa = _finding("GHSA-aaaa-bbbb-cccc", None)
+    assert not threshold.is_malicious(ghsa)  # no severity is not a sign of malware (T2-08)
+    assert threshold.is_malicious(replace(ghsa, advisory_type="malware"))
+    assert threshold.meets_opening_threshold(replace(ghsa, advisory_type="malware"), None, HIGH_BAR)
 
 
 def test_unscored_non_kev_non_malicious_is_below() -> None:

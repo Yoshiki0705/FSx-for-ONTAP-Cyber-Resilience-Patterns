@@ -113,18 +113,36 @@ def test_separately_deployed_lambdas_are_not_compared() -> None:
     assert pinning.check(FIXTURES / "pass-exact").violations == []
 
 
-def test_hub_reusable_workflow_tag_is_provisional_until_the_pilot(tmp_path: Path) -> None:
-    """Before the pilot a Hub tag passes; after it only a 40-character SHA does (Q-16)."""
+def test_hub_reusable_workflow_needs_a_sha_by_default(tmp_path: Path) -> None:
+    """T1-07: a tag on a Hub Reusable_Workflow fails from the start; only a SHA passes."""
     ref = f"uses: {HUB}/.github/workflows/gate.yml@"
+    assert pinning.HUB_SHA_REQUIRED is True
+    _workflow(tmp_path, ref + "supply-chain-v1.0.0")
+    assert [v.kind for v in pinning.check(tmp_path).violations] == ["unpinned-reusable"]
+    _workflow(tmp_path, ref + SHA)
+    assert pinning.check(tmp_path).violations == []
+    _workflow(tmp_path, ref + "main")
+    assert [v.kind for v in pinning.check(tmp_path).violations] == ["unpinned-reusable"]
+    # the interim reading stays selectable for a repository that has not moved yet
     _workflow(tmp_path, ref + "supply-chain-v1.0.0")
     assert pinning.check(tmp_path, hub_sha_required=False).violations == []
-    assert pinning.HUB_SHA_REQUIRED is False
-    after = pinning.check(tmp_path, hub_sha_required=True)
-    assert [v.kind for v in after.violations] == ["unpinned-reusable"]
-    _workflow(tmp_path, ref + SHA)
-    assert pinning.check(tmp_path, hub_sha_required=True).violations == []
-    _workflow(tmp_path, ref + "main")
-    assert [v.kind for v in pinning.check(tmp_path, hub_sha_required=False).violations] == ["unpinned-reusable"]
+
+
+def test_tools_installed_by_the_repository_workflows_are_pinned(tmp_path: Path) -> None:
+    """T1-13: bandit, zizmor, checkov and pip-audit are in TOOLS; an unpinned install fails."""
+    for tool in ("bandit", "zizmor", "checkov", "pip-audit"):
+        assert tool in pinning.TOOLS
+        _workflow(tmp_path, f"run: pip install {tool}")
+        assert [v.kind for v in pinning.check(tmp_path).violations] == ["unpinned-tool"], tool
+        _workflow(tmp_path, f"run: pip install {tool}==1.2.3")
+        assert pinning.check(tmp_path).violations == [], tool
+    _workflow(tmp_path, "run: pip install bandit zizmor==1.32.0")
+    assert [v.kind for v in pinning.check(tmp_path).violations] == ["unpinned-tool"]
+
+
+def test_the_repository_own_workflows_pass_the_pinning_gate() -> None:
+    """The gate is applied to the repository that ships it (T1-13)."""
+    assert pinning.check(REPO).violations == []
 
 
 def test_non_production_paths_come_from_the_policy(tmp_path: Path) -> None:
@@ -212,3 +230,26 @@ def test_the_repository_itself_passes() -> None:
     report = pinning.check(REPO)
     assert [v.format() for v in report.violations] == []
     assert report.scanned >= 1
+
+
+def test_an_unpinned_pip_upgrade_and_an_unpinned_pipx_tool_fail(tmp_path: Path) -> None:
+    """T1-R2-04 (Requirement 13.15): ``--upgrade pip`` and ``pipx install <tool>`` carry no version."""
+    for command in (
+        "python -m pip install --upgrade pip",
+        "pip install -U pip",
+        "pip3 install --upgrade setuptools wheel",
+        "pipx install pip-audit",
+        "pipx run zizmor",
+        "pipx install --force bandit",
+    ):
+        _workflow(tmp_path, f"run: {command}")
+        assert [v.kind for v in pinning.check(tmp_path).violations] == ["unpinned-tool"], command
+    for command in (
+        "python -m pip install --upgrade pip==24.3.1",
+        "pip install --upgrade -r requirements.txt",
+        "pipx install pip-audit==2.10.1",
+        "pipx run zizmor==1.32.0 .",
+        "pipx install black",
+    ):
+        _workflow(tmp_path, f"run: {command}")
+        assert pinning.check(tmp_path).violations == [], command

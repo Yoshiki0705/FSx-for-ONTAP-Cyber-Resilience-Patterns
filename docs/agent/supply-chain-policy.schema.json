@@ -10,7 +10,6 @@
     "excluded_repositories",
     "opening_threshold",
     "cooldown_days",
-    "package_manager_wait",
     "dependency_scope",
     "automerge",
     "vex",
@@ -52,6 +51,7 @@
       }
     },
     "package_manager_wait": {
+      "description": "Optional. The package manager's waiting period is one value for every update, derived from cooldown_days; a file that writes it must write the same values (T1-15).",
       "type": "object",
       "additionalProperties": false,
       "required": ["default_days", "major_days"],
@@ -107,7 +107,8 @@
               "major",
               "digest_only",
               "unknown_dep_type",
-              "hub_reusable_workflow"
+              "hub_reusable_workflow",
+              "third_party_action"
             ]
           },
           "contains": {"const": "vulnerability_fix"}
@@ -134,7 +135,8 @@
         },
         "approver_role": {"const": "VEX_Reviewer"},
         "one_statement_per_document": {"const": true},
-        "malicious_never_suppressed": {"const": true}
+        "malicious_never_suppressed": {"const": true},
+        "max_age_days": {"type": "integer", "minimum": 1}
       }
     },
     "response_target": {
@@ -145,6 +147,30 @@
         "detect_hours": {"type": "integer", "minimum": 1},
         "fix_days_kev_or_malicious": {"type": "integer", "minimum": 1},
         "fix_days_high": {"type": "integer", "minimum": 1}
+      }
+    },
+    "renovate_preset": {
+      "description": "Optional. The Hub preset tag a Spoke trusts and the commit that tag pointed at when it was recorded (T1-06).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "commit"],
+      "properties": {
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+        "commit": {"type": "string", "pattern": "^[0-9a-fA-F]{40}$"}
+      }
+    },
+    "unscored_review_days": {
+      "description": "Optional (default 7). Days a Finding may stay without a severity before the per-repository unscored Issue lists it (T2-07). Does not change the Opening_Threshold.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "watchdog": {
+      "description": "Optional. The watchdog fails when the newest Run_Record is older than limit_hours (default 8: the Aggregator interval of at most 6 hours plus 2 hours of scheduler delay, Requirement 7.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit_hours": {"type": "integer", "minimum": 1}
       }
     },
     "issue_limits": {

@@ -298,3 +298,165 @@ def test_input_order_does_not_change_the_result(data) -> None:
     """The result depends on the set of Issues and pull requests, not their order."""
     issues, prs = data
     assert _run(issues, prs) == _run(list(reversed(issues)), list(reversed(prs)))
+
+
+# ---- T3-06: a KEV origin is an interval --------------------------------------------------------
+
+
+def _kev_issue(*, lower: float, upper: float | None, opened: float, run: str = "run-1", repo: models.Repo = REPO):
+    return replace(
+        _issue(repo=repo, origin=lower, opened=opened, run=run), origin_upper_at=None if upper is None else _h(upper)
+    )
+
+
+def test_detection_is_also_reported_against_the_upper_bound_of_the_origin() -> None:
+    result = _run([_kev_issue(lower=0, upper=19, opened=25)])
+    assert result.detection.durations == (timedelta(hours=25),)  # against dateAdded 00:00Z
+    assert result.detection_upper.durations == (timedelta(hours=6),)  # against the catalogue release
+
+
+def test_an_issue_over_the_target_only_against_the_lower_bound_is_not_a_certain_miss() -> None:
+    row = _run([_kev_issue(lower=0, upper=19, opened=25)]).by_repo[0]
+    assert (row.detection_over_target, row.detection_over_target_certain) == (1, 0)
+
+
+def test_an_issue_over_the_target_against_both_bounds_is_a_certain_miss() -> None:
+    row = _run([_kev_issue(lower=0, upper=1, opened=30)]).by_repo[0]
+    assert (row.detection_over_target, row.detection_over_target_certain) == (1, 1)
+
+
+def test_an_issue_without_an_upper_bound_is_judged_by_its_origin_alone() -> None:
+    row = _run([_kev_issue(lower=0, upper=None, opened=30)]).by_repo[0]
+    assert (row.detection_over_target, row.detection_over_target_certain) == (1, 1)
+    assert _run([_kev_issue(lower=0, upper=None, opened=30)]).detection_upper.durations == ()
+
+
+def test_the_upper_bound_must_be_utc() -> None:
+    naive = datetime(2026, 11, 1, 0, 0)  # noqa: DTZ001
+    with pytest.raises(ValueError, match="origin_upper_at"):
+        replace(_issue(), origin_upper_at=naive)
+
+
+@settings(max_examples=100, deadline=None)
+@given(st.integers(0, 48), st.integers(0, 48), st.integers(0, 72))
+def test_property_certain_misses_are_a_subset_of_misses_and_the_upper_span_is_never_longer(
+    lower: int, gap: int, after: int
+) -> None:
+    """**Validates: Requirements 18.3**"""
+    upper = lower + gap
+    result = _run([_kev_issue(lower=lower, upper=upper, opened=upper + after)])
+    row = result.by_repo[0]
+    event(f"certain={row.detection_over_target_certain}")
+    assert row.detection_over_target_certain <= row.detection_over_target
+    assert result.detection_upper.durations[0] <= result.detection.durations[0]
+
+
+# ---- T3-09: the pilot's false-positive rate does not count correct detections that did not matter ----
+
+
+def _out(status: str | None, justification: str | None = None, **kw: bool) -> metrics.PilotIssueOutcome:
+    return metrics.PilotIssueOutcome(status, justification, **kw)
+
+
+def test_only_component_not_present_and_detector_errors_are_false_positives() -> None:
+    items = [
+        _out("not_affected", "component_not_present"),
+        _out("not_affected", "vulnerable_code_not_in_execute_path"),
+        _out("not_affected", "inline_mitigations_already_exist"),
+        _out("fixed"),
+        _out(None),
+        _out(None, detector_error=True),
+        _out("not_affected", "vulnerable_code_not_present", detector_error=True),
+    ]
+    rates = metrics.compute_pilot_rates(items, min_issues=1)
+    assert (rates.issued, rates.false_positive, rates.not_affected_other, rates.undecided) == (7, 3, 2, 1)
+    assert rates.rate_percent == pytest.approx(100 * 3 / 7)
+
+
+def test_a_correct_detection_judged_not_to_matter_does_not_raise_the_false_positive_rate() -> None:
+    items = [_out("not_affected", "vulnerable_code_not_in_execute_path") for _ in range(20)]
+    rates = metrics.compute_pilot_rates(items)
+    assert rates.rate_percent == 0.0
+    assert rates.not_affected_other == 20
+
+
+def test_below_the_minimum_sample_there_is_no_rate() -> None:
+    rates = metrics.compute_pilot_rates([_out("not_affected", "component_not_present")] * 19)
+    assert rates.rate_percent is None
+    assert rates.false_positive == 1 * 19  # the count is still reported
+    assert metrics.compute_pilot_rates([_out("not_affected", "component_not_present")] * 20).rate_percent == 100.0
+
+
+def test_no_issue_at_all_has_no_rate() -> None:
+    rates = metrics.compute_pilot_rates([], min_issues=0)
+    assert (rates.issued, rates.rate_percent) == (0, None)
+
+
+# ------------------------------------------------ undecided Issues withhold the rate (T3-R3-04)
+
+
+def test_a_rate_is_withheld_while_more_than_a_fifth_of_the_issued_issues_are_undecided() -> None:
+    """15 of 20 undecided and no error used to give 0.0 %, which proves nothing about the detector."""
+    items = [_out(None)] * 15 + [_out("fixed")] * 5
+    rates = metrics.compute_pilot_rates(items)
+    assert rates.rate_percent is None and rates.awaiting_decisions
+    review = metrics.review_low_sample(rates)
+    assert not review.applies and review.awaiting_decisions  # the 20-Issue sample is met; the decisions are not
+
+
+def test_the_rate_is_reported_when_undecided_issues_are_at_most_a_fifth() -> None:
+    at_limit = metrics.compute_pilot_rates([_out(None)] * 4 + [_out("fixed")] * 16)
+    assert at_limit.rate_percent == 0.0 and not at_limit.awaiting_decisions
+    over = metrics.compute_pilot_rates([_out(None)] * 5 + [_out("fixed")] * 15)
+    assert over.rate_percent is None and over.awaiting_decisions
+
+
+def test_the_denominator_of_the_minimum_sample_is_the_issued_issues_not_the_decided_ones() -> None:
+    rates = metrics.compute_pilot_rates([_out("fixed")] * 19 + [_out(None)])
+    assert rates.issued == 20 and rates.rate_percent == 0.0
+
+
+# ---------------------------------------------------------------- below 20 Issues (Requirement 22.6, 22.10)
+
+
+def test_below_the_sample_minimum_the_four_counts_and_the_rule_signals_are_reported() -> None:
+    items = [
+        _out("not_affected", "component_not_present"),
+        _out("not_affected", "vulnerable_code_not_in_execute_path"),
+        _out(None),
+        _out("fixed"),
+    ]
+    review = metrics.review_low_sample(metrics.compute_pilot_rates(items))
+    assert review.applies
+    assert (review.issued, review.detector_errors, review.not_affected_other, review.undecided) == (4, 1, 1, 1)
+    assert review.within_error_limit
+    assert not review.needs_cause_classification
+
+
+def test_three_detector_errors_need_a_cause_classification_and_two_do_not() -> None:
+    two = metrics.review_low_sample(metrics.compute_pilot_rates([_out(None, detector_error=True)] * 2))
+    three = metrics.review_low_sample(metrics.compute_pilot_rates([_out(None, detector_error=True)] * 3))
+    assert two.within_error_limit and not two.needs_cause_classification
+    assert not three.within_error_limit and three.needs_cause_classification
+
+
+def test_the_low_sample_rule_does_not_apply_from_the_minimum_and_no_pass_fail_is_computed() -> None:
+    review = metrics.review_low_sample(metrics.compute_pilot_rates([_out("fixed")] * 20))
+    assert not review.applies
+    assert not any(name in {"passed", "ok", "verdict"} for name in review.__slots__)
+
+
+# ---------------------------------------------------------------- SLI denominator (Requirement 18.21)
+
+
+def test_the_sli_denominator_leaves_out_vex_and_withdrawn_closes() -> None:
+    issues = [
+        _issue(vuln="CVE-2026-0001", due=100, closed=50, reason="resolved"),  # met
+        _issue(vuln="CVE-2026-0002", due=100, closed=150, reason="resolved"),  # closed late: in the denominator
+        _issue(vuln="CVE-2026-0003", due=100),  # still open: in the denominator
+        _issue(vuln="CVE-2026-0004", due=100, closed=60, reason="vex_not_affected"),
+        _issue(vuln="CVE-2026-0005", due=100, closed=60, reason="withdrawn"),
+        _issue(vuln="CVE-2026-0006", due=24 * 90),  # not yet due
+        _issue(vuln="CVE-2026-0007", due=None),  # no deadline recorded
+    ]
+    assert metrics.sli_counts(issues, NOW) == metrics.SliCounts(met=1, denominator=3)

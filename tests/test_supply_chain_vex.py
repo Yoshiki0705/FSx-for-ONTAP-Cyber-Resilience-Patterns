@@ -15,6 +15,7 @@ from supply_chain import models, vex
 PATH = ".vex/CVE-2026-0001__left-pad.openvex.json"
 PURL = "pkg:npm/left-pad@1.3.0"
 STAMP = datetime(2026, 11, 10, 1, 2, 3, tzinfo=UTC)
+NOW = STAMP + timedelta(days=1)
 
 
 def _policy(statuses: tuple[models.VexStatus, ...] = ("not_affected", "fixed")) -> models.Policy:
@@ -46,7 +47,7 @@ def _statement(**overrides: Any) -> models.VexStatement:  # noqa: ANN401
         "products": (PURL,),
         "status": "not_affected",
         "justification": "component_not_present",
-        "impact_statement": None,
+        "impact_statement": "reviewed: the vulnerable function is never called",
         "timestamp": None,
     }
     base.update(overrides)
@@ -225,7 +226,7 @@ def test_render_is_deterministic_and_shaped() -> None:
 
 
 def test_render_omits_absent_optional_fields() -> None:
-    data = json.loads(vex.render_openvex(_doc(_statement(), role=None, tooling=None)))
+    data = json.loads(vex.render_openvex(_doc(_statement(impact_statement=None), role=None, tooling=None)))
     assert "role" not in data
     assert "tooling" not in data
     assert set(data["statements"][0]) == {"vulnerability", "products", "status", "justification"}
@@ -251,23 +252,24 @@ def test_render_keeps_sub_second_precision_and_non_ascii() -> None:
 # ---- effective_exclusions -------------------------------------------------
 
 
-def test_not_affected_and_fixed_exclude_by_name_alias_and_exact_purl() -> None:
+def test_not_affected_and_fixed_exclude_by_name_and_by_the_statements_own_aliases_at_the_exact_purl() -> None:
     doc = _doc(
         _statement(aliases=("GHSA-aaaa-bbbb-cccc",)),
         _statement(vuln_id="CVE-2026-0002", status="fixed", justification=None, products=("pkg:npm/a@1.0.0",)),
     )
-    exclusions, rejected = vex.effective_exclusions([doc], _policy())
+    exclusions, rejected = vex.effective_exclusions([doc], _policy(), now=NOW)
     assert rejected == []
+    # one key for the name and one for each alias the statement lists itself (11.37, T12-R4-05)
     assert set(exclusions) == {
         ("CVE-2026-0001", PURL),
         ("GHSA-aaaa-bbbb-cccc", PURL),
         ("CVE-2026-0002", "pkg:npm/a@1.0.0"),
     }
-    assert exclusions[("CVE-2026-0001", PURL)] == vex.VexRef(PATH, "not_affected", "component_not_present")
+    assert exclusions[("CVE-2026-0001", PURL)] == vex.VexRef(PATH, "not_affected", "component_not_present", STAMP)
 
 
 def test_a_different_version_is_not_matched() -> None:
-    exclusions, _ = vex.effective_exclusions([_doc()], _policy())
+    exclusions, _ = vex.effective_exclusions([_doc()], _policy(), now=NOW)
     assert ("CVE-2026-0001", "pkg:npm/left-pad@1.3.1") not in exclusions
     assert ("CVE-2026-0001", "pkg:npm/left-pad") not in exclusions
 
@@ -275,12 +277,12 @@ def test_a_different_version_is_not_matched() -> None:
 @pytest.mark.parametrize("status", ["affected", "under_investigation"])
 def test_affected_and_under_investigation_never_exclude(status: models.VexStatus) -> None:
     doc = _doc(_statement(status=status, justification=None))
-    assert vex.effective_exclusions([doc], _policy(("not_affected", "fixed", "affected", status))) == ({}, [])
+    assert vex.effective_exclusions([doc], _policy(("not_affected", "fixed", "affected", status)), now=NOW) == ({}, [])
 
 
 def test_policy_status_list_narrows_the_exclusions() -> None:
     doc = _doc(_statement(), _statement(vuln_id="CVE-2026-0002", status="fixed", justification=None))
-    exclusions, _ = vex.effective_exclusions([doc], _policy(("not_affected",)))
+    exclusions, _ = vex.effective_exclusions([doc], _policy(("not_affected",)), now=NOW)
     assert set(exclusions) == {("CVE-2026-0001", PURL)}
 
 
@@ -290,7 +292,7 @@ def test_malicious_statements_are_rejected_not_excluded(status: models.VexStatus
     just = "component_not_present" if status == "not_affected" else None
     kwargs: dict[str, Any] = {"vuln_id": "MAL-2026-1234"} if where == "name" else {"aliases": ("mal-2026-1234",)}
     doc = _doc(_statement(status=status, justification=just, **kwargs))
-    assert vex.effective_exclusions([doc], _policy()) == ({}, [(PATH, "malicious_package_not_suppressible")])
+    assert vex.effective_exclusions([doc], _policy(), now=NOW) == ({}, [(PATH, "malicious_package_not_suppressible")])
 
 
 @pytest.mark.parametrize("status", ["affected", "under_investigation"])
@@ -298,32 +300,32 @@ def test_malicious_statement_with_a_non_excluding_status_is_neither_excluded_nor
     status: models.VexStatus,
 ) -> None:
     doc = _doc(_statement(vuln_id="MAL-2026-1234", status=status, justification=None))
-    assert vex.effective_exclusions([doc], _policy()) == ({}, [])
+    assert vex.effective_exclusions([doc], _policy(), now=NOW) == ({}, [])
 
 
 def test_malicious_statement_does_not_block_other_statements_in_the_same_document() -> None:
     doc = _doc(_statement(vuln_id="MAL-2026-1234"), _statement(vuln_id="CVE-2026-0009"))
-    exclusions, rejected = vex.effective_exclusions([doc], _policy())
+    exclusions, rejected = vex.effective_exclusions([doc], _policy(), now=NOW)
     assert set(exclusions) == {("CVE-2026-0009", PURL)}
     assert rejected == [(PATH, "malicious_package_not_suppressible")]
 
 
 def test_rejected_lists_a_path_once() -> None:
     doc = _doc(_statement(vuln_id="MAL-2026-1"), _statement(vuln_id="MAL-2026-2", status="fixed", justification=None))
-    assert vex.effective_exclusions([doc], _policy())[1] == [(PATH, "malicious_package_not_suppressible")]
+    assert vex.effective_exclusions([doc], _policy(), now=NOW)[1] == [(PATH, "malicious_package_not_suppressible")]
 
 
 def test_result_does_not_depend_on_document_order() -> None:
     first = _doc(_statement(), path=".vex/a.openvex.json")
     second = _doc(_statement(justification="vulnerable_code_not_present"), path=".vex/b.openvex.json")
-    one = vex.effective_exclusions([first, second], _policy())
-    two = vex.effective_exclusions([second, first], _policy())
+    one = vex.effective_exclusions([first, second], _policy(), now=NOW)
+    two = vex.effective_exclusions([second, first], _policy(), now=NOW)
     assert one == two
-    assert one[0][("CVE-2026-0001", PURL)].path == ".vex/a.openvex.json"
+    assert one[0][("CVE-2026-0001", PURL)].path == ".vex/b.openvex.json"  # equal times: the last path decides
 
 
 def test_no_documents_gives_empty_results() -> None:
-    assert vex.effective_exclusions([], _policy()) == ({}, [])
+    assert vex.effective_exclusions([], _policy(), now=NOW) == ({}, [])
 
 
 # ---- properties -----------------------------------------------------------
@@ -433,7 +435,7 @@ def test_property_4_one_violation_is_rejected_at_its_location(doc: models.VexDoc
 def test_property_21_malicious_ids_never_reach_the_exclusion_table(docs: list[models.VexDocument]) -> None:
     """**Validates: Requirements 7.12, 11.12**"""
     docs = [dataclasses.replace(d, path=f".vex/{i}.openvex.json") for i, d in enumerate(docs)]
-    exclusions, rejected = vex.effective_exclusions(docs, _policy())
+    exclusions, rejected = vex.effective_exclusions(docs, _policy(), now=NOW)
     assert all(not key[0].upper().startswith("MAL-") for key in exclusions)
     expected = {
         d.path
@@ -442,6 +444,141 @@ def test_property_21_malicious_ids_never_reach_the_exclusion_table(docs: list[mo
         if s.status in ("not_affected", "fixed") and any(i.startswith("MAL-") for i in (s.vuln_id, *s.aliases))
     }
     event(f"rejected={min(len(expected), 3)}")
-    assert {path for path, _ in rejected} == expected
-    assert all(reason == "malicious_package_not_suppressible" for _, reason in rejected)
-    assert vex.effective_exclusions(list(reversed(docs)), _policy()) == (exclusions, rejected)
+    malicious = {path for path, reason in rejected if reason == "malicious_package_not_suppressible"}
+    assert malicious == expected
+    assert vex.effective_exclusions(list(reversed(docs)), _policy(), now=NOW) == (exclusions, rejected)
+
+
+# ---- T2-01 / T2-04 / T2-11: newest statement decides, expiry, evidence, key forms ----
+
+LATER = STAMP + timedelta(hours=3)
+
+
+def _at(moment: datetime, **overrides: Any) -> models.VexStatement:  # noqa: ANN401
+    return _statement(timestamp=moment, **overrides)
+
+
+def test_a_later_affected_statement_overrides_an_earlier_not_affected() -> None:
+    old = _doc(_statement(), path=".vex/a.openvex.json")
+    new = _doc(_at(LATER, status="affected", justification=None), path=".vex/b.openvex.json")
+    for docs in ([old, new], [new, old]):
+        exclusions, rejected = vex.effective_exclusions(docs, _policy(), now=NOW)
+        assert exclusions == {}
+        assert rejected == [(".vex/a.openvex.json", "vex_superseded")]
+
+
+def test_a_later_not_affected_overrides_an_earlier_affected() -> None:
+    old = _doc(_at(STAMP, status="affected", justification=None), path=".vex/a.openvex.json")
+    new = _doc(_at(LATER), path=".vex/b.openvex.json")
+    exclusions, rejected = vex.effective_exclusions([old, new], _policy(), now=NOW)
+    assert exclusions[("CVE-2026-0001", PURL)].path == ".vex/b.openvex.json"
+    assert rejected == []
+
+
+def test_on_equal_times_the_statement_that_does_not_exclude_wins() -> None:
+    a = _doc(_statement(), path=".vex/z.openvex.json")
+    b = _doc(_statement(status="under_investigation", justification=None), path=".vex/a.openvex.json")
+    assert vex.effective_exclusions([a, b], _policy(), now=NOW)[0] == {}
+
+
+def test_the_statement_timestamp_overrides_the_document_timestamp() -> None:
+    doc = _doc(_at(STAMP - timedelta(days=400)), timestamp=STAMP)
+    exclusions, rejected = vex.effective_exclusions([doc], _policy(), now=NOW)
+    assert exclusions == {}
+    assert rejected == [(PATH, "vex_expired")]
+
+
+@pytest.mark.parametrize(("age_days", "kept"), [(179, True), (180, True), (181, False)])
+def test_a_judgment_expires_after_max_age_days(age_days: int, kept: bool) -> None:
+    doc = _doc(_statement(), timestamp=NOW - timedelta(days=age_days))
+    exclusions, rejected = vex.effective_exclusions([doc], _policy(), now=NOW)
+    assert bool(exclusions) is kept
+    assert rejected == ([] if kept else [(PATH, "vex_expired")])
+
+
+def test_max_age_days_comes_from_the_policy() -> None:
+    policy = dataclasses.replace(_policy(), vex_max_age_days=7)
+    doc = _doc(_statement(), timestamp=NOW - timedelta(days=8))
+    assert vex.effective_exclusions([doc], policy, now=NOW) == ({}, [(PATH, "vex_expired")])
+
+
+def test_a_time_in_the_future_is_not_trusted_but_five_minutes_of_skew_is() -> None:
+    far = _doc(_statement(), timestamp=NOW + timedelta(hours=1))
+    assert vex.effective_exclusions([far], _policy(), now=NOW) == ({}, [(PATH, "vex_timestamp_in_future")])
+    near = _doc(_statement(), timestamp=NOW + timedelta(minutes=5))
+    assert vex.effective_exclusions([near], _policy(), now=NOW)[0] != {}
+
+
+@pytest.mark.parametrize("status", ["not_affected", "fixed"])
+@pytest.mark.parametrize("impact", [None, "", "   "])
+def test_an_excluding_statement_without_an_impact_statement_is_ignored(
+    status: models.VexStatus, impact: str | None
+) -> None:
+    justification = "component_not_present" if status == "not_affected" else None
+    doc = _doc(_statement(status=status, justification=justification, impact_statement=impact))
+    assert vex.effective_exclusions([doc], _policy(), now=NOW) == ({}, [(PATH, "vex_missing_impact_statement")])
+
+
+def test_a_statement_alias_is_a_key_of_its_own_statement_only() -> None:
+    """11.37: a statement covers what it names itself; the alias list of a Finding is not looked up here."""
+    doc = _doc(_statement(vuln_id="CVE-2020-0000", aliases=("cve-2026-0001",)))
+    exclusions, _ = vex.effective_exclusions([doc], _policy(), now=NOW)
+    assert set(exclusions) == {("CVE-2020-0000", PURL), ("CVE-2026-0001", PURL)}
+
+
+def test_a_newer_statement_that_does_not_exclude_decides_for_an_alias_key_too() -> None:
+    older = _statement(vuln_id="CVE-2026-0001")
+    newer = _statement(
+        vuln_id="GHSA-aaaa-bbbb-cccc",
+        aliases=("CVE-2026-0001",),
+        status="affected",
+        justification=None,
+        timestamp=STAMP + timedelta(days=1),
+    )
+    exclusions, rejected = vex.effective_exclusions([_doc(older, newer)], _policy(), now=NOW)
+    assert exclusions == {}
+    assert rejected == [(PATH, "vex_superseded")]
+
+
+def test_keys_use_the_canonical_id_and_purl_form() -> None:
+    doc = _doc(_statement(vuln_id="cve-2026-0001", products=("pkg:npm/Left-Pad@1.3.0?arch=x86",)))
+    exclusions, _ = vex.effective_exclusions([doc], _policy(), now=NOW)
+    assert set(exclusions) == {("CVE-2026-0001", PURL)}
+
+
+def test_a_product_that_is_not_a_purl_is_reported() -> None:
+    doc = _doc(_statement(products=("https://example.com/product/1",)))
+    assert vex.effective_exclusions([doc], _policy(), now=NOW) == ({}, [(PATH, "vex_product_unparseable")])
+
+
+# Feature: cyber-resilience-phase4-supply-chain, Property 9 (T2-01): the newest statement decides, and time moves it
+@settings(max_examples=150, deadline=None)
+@given(
+    st.sampled_from(vex.STATUSES),
+    st.sampled_from(vex.STATUSES),
+    st.integers(-5, 5),
+    st.integers(0, 400),
+)
+def test_property_newest_statement_decides_and_expiry_is_monotonic(
+    first: models.VexStatus, second: models.VexStatus, gap_hours: int, extra_days: int
+) -> None:
+    """**Validates: Requirements 11.15**"""
+
+    def make(status: models.VexStatus, when: datetime, path: str) -> models.VexDocument:
+        justification = "component_not_present" if status == "not_affected" else None
+        return _doc(_at(when, status=status, justification=justification), path=path)
+
+    t1 = NOW - timedelta(days=1)
+    t2 = t1 + timedelta(hours=gap_hours)
+    docs = [make(first, t1, ".vex/a.openvex.json"), make(second, t2, ".vex/b.openvex.json")]
+    excluded = ("CVE-2026-0001", PURL) in vex.effective_exclusions(docs, _policy(), now=NOW)[0]
+    newest = second if t2 > t1 else (first if t2 < t1 else None)
+    if newest is not None:
+        assert excluded == (newest in ("not_affected", "fixed"))
+    elif first in ("not_affected", "fixed") and second in ("not_affected", "fixed"):
+        assert excluded
+    else:
+        assert not excluded
+    later = NOW + timedelta(days=extra_days)
+    if excluded and later - max(t1, t2) > timedelta(days=180):
+        assert ("CVE-2026-0001", PURL) not in vex.effective_exclusions(docs, _policy(), now=later)[0]

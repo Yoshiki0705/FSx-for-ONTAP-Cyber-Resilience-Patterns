@@ -29,9 +29,12 @@ def is_malicious(finding: Finding) -> bool:
 
     Returns:
         True iff ``vuln_id`` or any alias starts with ``MAL-`` (OpenSSF
-        Malicious Packages, published through OSV).
+        Malicious Packages, published through OSV; case-sensitive, because
+        identifiers are made canonical by ``canonicalize`` before this runs),
+        or the source advisory is typed ``malware`` (a GitHub malware advisory
+        that no ``MAL-`` record names). A missing severity is no evidence.
     """
-    return any(i.startswith(MALICIOUS_PREFIX) for i in _identifiers(finding))
+    return finding.advisory_type == "malware" or any(i.startswith(MALICIOUS_PREFIX) for i in _identifiers(finding))
 
 
 def meets_opening_threshold(

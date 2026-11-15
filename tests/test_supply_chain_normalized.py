@@ -51,7 +51,23 @@ def test_zero_component_sbom_flow_gives_no_findings() -> None:
     """An empty SBOM and an empty scan (Requirement 4.10) load as zero findings."""
     from adapters.spdx import parse_spdx
 
-    sbom = {"spdxVersion": "SPDX-2.3", "packages": [], "relationships": []}
+    sbom = {
+        "spdxVersion": "SPDX-2.3",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": "example-app",
+        "dataLicense": "CC0-1.0",
+        "documentNamespace": "https://example.com/spdxdocs/example-app-0000",
+        "creationInfo": {"created": "2026-11-10T01:02:03Z", "creators": ["Tool: syft-1.2.3"]},
+        "packages": [{"SPDXID": "SPDXRef-root", "name": "example-app"}],
+        "relationships": [
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relationshipType": "DESCRIBES",
+                "relatedSpdxElement": "SPDXRef-root",
+            },
+            {"spdxElementId": "SPDXRef-root", "relationshipType": "CONTAINS", "relatedSpdxElement": "NONE"},
+        ],
+    }
     info = parse_spdx(sbom)
     assert findings_from_normalized(doc(), components=info.components).findings == ()
 
@@ -239,3 +255,60 @@ def test_property_load_is_unique_idempotent_and_mal_has_no_severity(entries: lis
             assert f.cvss_severity is None
     # Same input twice must give the same output.
     assert findings_from_normalized(doc(*entries)).findings == result.findings
+
+
+# ---- review additions: severity names, advisory type, identifier case (T2-08, T2-10, T2-11) ----
+
+
+def test_moderate_is_medium() -> None:
+    assert normalize_severity("moderate") == "MEDIUM"
+    assert normalize_severity(" Moderate ") == "MEDIUM"
+
+
+@pytest.mark.parametrize(
+    ("raw", "want"),
+    [
+        ("malware", "malware"),
+        ("reviewed", "vulnerability"),
+        ("unreviewed", "vulnerability"),
+        ("other", None),
+        (None, None),
+    ],
+)
+def test_advisory_type_is_read_from_the_github_enum(raw: object, want: str | None) -> None:
+    result = findings_from_normalized(doc(entry("GHSA-aaaa-bbbb-cccc", advisory_type=raw)))
+    assert result.findings[0].advisory_type == want
+
+
+def test_a_malware_advisory_keeps_no_severity_even_if_the_scanner_gave_one() -> None:
+    finding = findings_from_normalized(
+        doc(entry("GHSA-aaaa-bbbb-cccc", advisory_type="malware", cvss_severity="HIGH", cvss_source="GHSA:CVSS_V3"))
+    ).findings[0]
+    assert finding.cvss_severity is None
+    assert finding.cvss_source is None
+
+
+def test_the_severity_source_is_kept_only_with_a_severity() -> None:
+    kept = findings_from_normalized(doc(entry(cvss_severity="HIGH", cvss_source="NVD:3.1"))).findings[0]
+    assert kept.cvss_source == "NVD:3.1"
+    assert (
+        findings_from_normalized(doc(entry(cvss_severity=None, cvss_source="NVD:3.1"))).findings[0].cvss_source is None
+    )
+
+
+def test_identifier_case_is_made_canonical() -> None:
+    finding = findings_from_normalized(doc(entry("cve-2026-0001", aliases=["GHSA-AAAA-BBBB-CCCC"]))).findings[0]
+    assert finding.vuln_id == "CVE-2026-0001"
+    assert finding.aliases == ("GHSA-aaaa-bbbb-cccc",)
+
+
+def test_a_lower_case_mal_alias_is_still_the_representative() -> None:
+    finding = findings_from_normalized(doc(entry("GHSA-aaaa-bbbb-cccc", aliases=["mal-2026-1"]))).findings[0]
+    assert finding.vuln_id == "MAL-2026-1"
+
+
+def test_merging_duplicates_keeps_the_source_of_the_stronger_severity() -> None:
+    first = entry(cvss_severity="LOW", cvss_source="NVD:3.1")
+    second = entry(cvss_severity="CRITICAL", cvss_source="GHSA:CVSS_V4")
+    merged = findings_from_normalized(doc(first, second)).findings[0]
+    assert (merged.cvss_severity, merged.cvss_source) == ("CRITICAL", "GHSA:CVSS_V4")

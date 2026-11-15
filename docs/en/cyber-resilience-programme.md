@@ -1,27 +1,44 @@
 # Cyber Resilience Programme
 
-> **Summary**: This document puts three pillars in one place: software supply chain visibility and response, RTO/RPO with SLA/SLO/SLI, and forensics. It sets the order of work, the role of each pillar in a PDCA cycle, and the accountability view. The first pillar is under way. The second and third pillars have no spec yet.
+> **Summary**: This document puts three pillars in one place: software supply chain visibility and response, RTO/RPO with SLA/SLO/SLI, and forensics. It sets the order of work, the role of each pillar in a PDCA cycle, and the accountability view. The current state of each pillar is in the section [Status](#status).
 
 ## Purpose
 
-This document holds the overall policy for the three pillars in one place, so that the position and order of each pillar's spec are not mixed up. Procedures for each pillar live in that pillar's spec and documents. The setup steps for the first pillar are in the Adoption_Guide (`supply-chain-adoption-guide.md`; [en](supply-chain-adoption-guide.md)).
+This document holds the overall policy for the three pillars in one place, so that the position and order of each pillar are not mixed up. Procedures for each pillar live in that pillar's published documents. The setup steps for the first pillar are in the adoption guide (`supply-chain-adoption-guide.md`; [en](supply-chain-adoption-guide.md)). The procedures for the second and third pillars are not yet published.
 
-Every guideline cited here is governance guidance. None of it is a legal, compliance, or regulatory judgment. The contractual commitment for a service level is the Service_Owner's own decision, and this project gives no legal or contractual judgment.
+Every guideline cited here is governance guidance. None of it is a legal, compliance, or regulatory judgment. The contractual commitment for a service level is the service owner's own decision, and this project gives no legal or contractual judgment.
 
 Terms used in this document:
 
-- Service_Owner: the party that provides a service to end users and sets its SLA/SLO/SLI and RTO/RPO (a partner or SI, a system team, an application team)
-- Vendor_SLA: the SLA that AWS or NetApp publishes for its own service
-- Response_Target: the target time for detecting and fixing vulnerabilities. It is not called an SLO until it has been measured in operation
-- Policy_File: a machine-readable JSON file that holds thresholds, Cooldown values, the Response_Target, and similar settings (`docs/agent/supply-chain-policy.json`)
+- Service owner: the party that provides a service to end users and sets its SLA/SLO/SLI and RTO/RPO (a partner or SI, a system team, an application team)
+- Vendor SLA: the SLA that AWS or NetApp publishes for its own service
+- Response-time target: the target time for detecting and fixing vulnerabilities. It is not called an SLO until it has been measured in operation
+- Policy file: a machine-readable JSON file that holds thresholds, Cooldown values, the response-time target, and similar settings (`docs/agent/supply-chain-policy.json`)
 - Cooldown: the minimum time between a new release being published and an update PR being created
-- Aggregator: a scheduled job that matches the SBOMs of the target repositories against vulnerability data and opens an Issue for each finding over the threshold
+- Aggregation job: a scheduled job on the Hub that matches the SBOMs of the target repositories against vulnerability data and opens an Issue for each finding over the threshold
+- Hub: the repository that holds the reusable workflows and the Renovate shared preset: [FSx-for-ONTAP-Adoption-Playbook](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook)
+- Adoption guide: the document that gathers the setup steps for the first pillar (`supply-chain-adoption-guide.md`)
+- Pilot: the period in which the detector's errors are checked on the first two repositories (this repository and the Hub). It is counted from the run in which the aggregation job first produced the findings list for both, and the default is 14 calendar days. When fewer than 20 Issues have been opened, it can be extended by 14 calendar days, up to 2 times (42 calendar days in total). The result decides the reference values and thresholds
+- Detection starting point: the time from which the detection target is measured. It is the later of the time a finding first met the condition for opening an Issue and the time the aggregation job first observed that component version. When KEV alone meets the condition, it is recorded as a lower and an upper bound (see ["Response targets" in the adoption guide](supply-chain-adoption-guide.md#response-targets))
+- Clean rebuild: building a new environment again from pinned versions and provenance attestations, without trusting the compromised environment
+- KEV: the list of vulnerabilities known to be exploited that CISA publishes (Known Exploited Vulnerabilities Catalog)
+- EPSS: an estimate of the probability that a vulnerability will be exploited (Exploit Prediction Scoring System)
+- SBOM: software bill of materials
+- VEX: a format that records, with a basis and in a machine-readable form, whether a vulnerability affects a given version of a component (Vulnerability Exploitability eXchange)
+- `MAL-`: the identifier prefix that OpenSSF Malicious Packages gives to malicious packages
+- RTO/RPO: recovery time objective and recovery point objective
+- DR: disaster recovery
+- `[E-nnn]`: the number of a "cannot"-type claim registered in [evidence-ledger.json](../agent/evidence-ledger.json)
 
-Evidence is labeled with four words. `documented` means the relevant part of the source was read. `verified` means it was measured at least once. `hypothesis` means it is this project's interpretation. `open` means it could not be confirmed.
+Evidence is labeled with four words. `documented` means the relevant part of the source was read. `verified` means it was measured at least once. `hypothesis` means it is this project's interpretation. `open` means it could not be confirmed. The registrations of "cannot"-type claims are in [evidence-ledger.json](../agent/evidence-ledger.json). `open` here is an evidence label, and is separate from the "open" state of an Issue.
 
-## Trends behind this programme
+## Status
 
-The two trends below are written only as far as the sources themselves go. The wording has not yet been compared with [Threat Types Considered in the framework mapping](cyber-resilience-framework-mapping.md#threat-types-considered-as-of-2026-10), so both are labeled `hypothesis`. No incident, company, or provider is named. The correspondence to NIST CSF 2.0 is in the framework mapping and is not copied here ([NIST CSF 2.0 Function Coverage](cyber-resilience-framework-mapping.md#nist-csf-20-function-coverage)).
+As of 2026-11-15, the first pillar has an adoption guide and verification gates, and the Hub workflows are published but fail on every run because their settings are not created (see [Status in the adoption guide](supply-chain-adoption-guide.md#status)). The second and third pillars have no plan yet.
+
+## Background trends
+
+The two trends below are written only as far as the sources themselves go. Both trends are labeled `hypothesis`: they are this project's reading of the sources, and no source gives a count or a rate of change. The threat types are in [Threat Types Considered in the framework mapping](cyber-resilience-framework-mapping.md#threat-types-considered-as-of-2026-10). No incident, company, or provider is named. The correspondence to NIST CSF 2.0 is in the framework mapping and is not copied here ([NIST CSF 2.0 Function Coverage](cyber-resilience-framework-mapping.md#nist-csf-20-function-coverage)).
 
 | Trend | How the sources put it | Source | Evidence |
 |---|---|---|---|
@@ -30,17 +47,17 @@ The two trends below are written only as far as the sources themselves go. The w
 
 ## The three pillars
 
-| Pillar | Purpose | Scope | Spec | Status |
+| Pillar | Purpose | Scope | Setup steps | Status (as of 2026-11-14) |
 |---|---|---|---|---|
-| 1: Software supply chain visibility and response | Know which components are in use, and respond to vulnerabilities and malicious packages within a target time | SBOMs of the target repositories, Issues from the Aggregator, updates through Renovate, VEX, build provenance, and the ONTAP [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md). The SBOM minimum elements follow [1] and [2]. Section 6.2 and chapter 7 of [3] guide storage and vulnerability handling | `cyber-resilience-phase4-supply-chain` | In progress |
-| 2: RTO/RPO and SLA/SLO/SLI | The Service_Owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | Not yet written | Not started |
+| 1: Software supply chain visibility and response | Know which components are in use, and respond to vulnerabilities and malicious packages within a target time | SBOMs of the target repositories, Issues from the aggregation job, updates through Renovate, VEX, build provenance, and the ONTAP [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md). The SBOM minimum elements follow [1] and [2]. Section 6.2 and chapter 7 of [3] guide storage and vulnerability handling | [Adoption guide](supply-chain-adoption-guide.md) | In progress |
+| 2: RTO/RPO and SLA/SLO/SLI | The service owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | Not yet written | Not started |
 | 3: Forensics | After a compromise, keep the evidence needed to reconstruct what happened | How to collect evidence, post-incident review | Not yet written | Not started |
 
 The first pillar refers to these sources:
 
 - Build provenance follows the GitHub artifact attestations procedure [9] and the SLSA Build track [10]
 - Malicious packages follow OpenSSF Malicious Packages (OSV format, `MAL-` identifiers) [15]
-- AI agent tool definitions follow a research note [11] that recommends an inventory of the MCP servers in use, pinned versions, and detection of definition changes. The note says itself that it was written with AI assistance and has not been formally reviewed by CSA
+- AI agent tool definitions follow a research note [11] that recommends an inventory of the MCP servers in use, pinned versions, and detection of definition changes. This research note says itself that it was written with AI assistance and has not been formally reviewed by CSA
 - AWS practice on SBOMs, pinned versions, and malicious packages is described in a blog post [14]. It is guidance, not a specification
 
 ## Order of work
@@ -53,46 +70,46 @@ The second and third pillars share a hand-off. The third pillar passes the recor
 
 ## Service levels
 
-SLA/SLO/SLI and RTO/RPO are values that the Service_Owner sets for end users. They are not the Vendor_SLA. Definitions are in stage 1 of the Resilience lifecycle framework [13].
+SLA/SLO/SLI and RTO/RPO are values that the service owner sets for end users. They are not the vendor SLA. The definitions of SLA, SLO, and SLI are in the stage 1 section of the Resilience lifecycle framework [13].
 
-The Vendor_SLA is one input to the Service_Owner's SLO. The SLO also covers what the Vendor_SLA does not: the application, operations, and recovery procedures. This document gives no Vendor_SLA figures. When one is needed, quote it from the vendor's published SLA page with the date you read it.
+The vendor SLA is one input to the service owner's SLO. The SLO also covers what the vendor SLA does not: the application, operations, and recovery procedures. This document gives no vendor SLA figures. When one is needed, quote it from the vendor's published SLA page with the date you read it.
 
-A footnote in the request issued by the Financial Services Agency and the Bank of Japan (Japanese only) uses SLA for a contract on service quality between a financial institution and a vendor, and SLO for an internal target set to meet that SLA [24]. That use of SLA corresponds to Vendor_SLA in this document. The SLO in the same footnote is close to the Service_Owner's SLO (interpretation).
+A footnote in the request issued by the Financial Services Agency and the Bank of Japan (Japanese only) uses SLA for a contract on service quality between a financial institution and a vendor, and SLO for an internal target set to meet that SLA [24]. That use of SLA corresponds to vendor SLA in this document. The SLO in the same footnote is close to the service owner's SLO (interpretation).
 
-The distinction between cyber recovery and disaster recovery is not defined here. The second pillar's spec defines it. Practitioner material that covers this distinction and restore drills includes [26] and [27].
+The distinction between cyber recovery and disaster recovery is not defined here. The plan for the second pillar defines it. Practitioner material that covers this distinction and restore drills includes [26] and [27].
 
 ## The PDCA cycle
 
-The three pillars combine as a repeating Plan, Do, Check, Act cycle. The cells for the second and third pillars stay at the level of policy while those specs do not exist.
+The three pillars combine as a repeating Plan, Do, Check, Act cycle. The cells for the second and third pillars stay at the level of policy while those pillars have no plan.
 
 | Stage | Pillar 1 | Pillar 2 | Pillar 3 | Links between pillars |
 |---|---|---|---|---|
-| Plan | The Service_Owner sets the Response_Target reference values, the Cooldown (Renovate `minimumReleaseAge` [5]), and the threshold for opening Issues | How to set SLO/RTO/RPO (availability, including data protection and recovery time) | The scope of evidence to keep for forensics | The evidence scope set by pillar 3 is an input to the recovery-point decision in pillar 2 |
-| Do | Renovate configuration, reusable workflows, and the Aggregator. Version pinning and build provenance become inputs to a clean rebuild (pillar 2) | Reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar) | Procedures for collecting evidence | Pillar 1's version pinning and build provenance are inputs to pillar 2's rebuild |
-| Check | Results against the Response_Target (overdue count, detection results) and CI/CD records | SLI measurement and restore-drill results (check points and elapsed time) | Post-incident review (the scope of records) | Pillar 1's run results and the restore-drill results become accountability records (next section) |
-| Act | Review of the Response_Target and Cooldown | Review of SLOs and architectures | Forensic evidence and recurrence prevention handed to Act | Pillar 3's evidence and recurrence prevention feed pillar 2's recovery-point decision and the review of pillar 1's targets |
+| Plan | The service owner sets the response-time target reference values, the Cooldown (Renovate `minimumReleaseAge` [5]), and the threshold for opening Issues | How to set SLO/RTO/RPO (availability, including data protection and recovery time) | The scope of evidence to keep for forensics | The evidence scope set by pillar 3 is an input to the recovery-point decision in pillar 2 |
+| Do | Renovate configuration, reusable workflows, and the aggregation job. Version pinning and build provenance become inputs to a clean rebuild (pillar 2) | Reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar) | Procedures for collecting evidence | Pillar 1's version pinning and build provenance are inputs to pillar 2's rebuild |
+| Check | Results against the response-time target (overdue count, detection results) and CI/CD records | SLI measurement and restore-drill results (check points and elapsed time) | Post-incident review (the scope of records) | Pillar 1's run results and the restore-drill results become accountability records (next section) |
+| Act | Review of the response-time target and Cooldown | Review of SLOs and architectures | Forensic evidence and recurrence prevention handed to Act | Pillar 3's evidence and recurrence prevention feed pillar 2's recovery-point decision and the review of pillar 1's targets |
 
 The correspondence of the four PDCA stages and the accountability view to NIST CSF 2.0 is in the framework mapping, under [Mapping PDCA and accountability to CSF 2.0](cyber-resilience-framework-mapping.md#mapping-pdca-and-accountability-to-csf-20). The table lives only there and is not copied here. It is an interpretation, not a NIST certification.
 
 ## Accountability across the pillars
 
-Accountability is a view that cuts across the three pillars. It means being able to keep and explain three things:
+Accountability is a view that cuts across the three pillars. To meet it, keep three kinds of record:
 
 - Protection settings and log collection in normal operation
 - The decisions made when a compromise is detected
 - The record up to recovery
 
-Accountability is also used for the A in RACI (the accountable party). Here it carries only the meaning above. The explanation is split into (1) who is responsible (the Service_Owner's organization decides), (2) what the explanation rests on (the integrity and provenance of records), and (3) whom to tell (a legal function decides whether notification is required; this project gives no such judgment).
+Accountability is also used for the A in RACI (the accountable party). Here it carries only the meaning above. The explanation divides into three points: (a) who is responsible (the service owner's organization decides); (b) what the explanation rests on (the integrity and provenance of records); (c) whom to tell (a legal function decides whether notification is required; this project gives no such judgment).
 
-Accountability does not belong to the third pillar alone. It spans the first pillar's records (SBOM, Issues, VEX, run results) and the second pillar's recovery (the record of recovery-point decisions). The number and order of the pillars (1, 2, 3) do not change. Accountability starts from records in normal operation, so it sits before recovery. This order follows the event report [17] that describes three axes (defense, recovery, accountability) and the links between them.
+Accountability does not belong to the third pillar alone. It spans the first pillar's records (SBOM, Issues, VEX, run results) and the second pillar's recovery (the record of recovery-point decisions). The number and order of the pillars (1, 2, 3) do not change. Accountability is treated in this section, after the PDCA explanation, as a view separate from the order of the pillars. The event report [17] organizes measures along three axes (defense, recovery, accountability), and this document took that organization as a reference to add accountability as a view that cuts across the pillars.
 
 | Pillar | Records it provides for accountability | How they are used in an explanation |
 |---|---|---|
-| 1 | Aggregator run results (opened, updated, and closed Issues, exclusions by VEX with reasons, Response_Target results), VEX decisions and approvals (OpenVEX [6]), SBOMs, build provenance | What was included at that point, when it was noticed, and when it was fixed. Why a rebuilt configuration matches the original |
+| 1 | Aggregation job run results (opened, updated, and closed Issues, exclusions by VEX with reasons, response-time target results), VEX decisions and approvals (OpenVEX [6]), SBOMs, build provenance | What was included at that point, when it was noticed, and when it was fixed. Why a rebuilt configuration matches the original |
 | 2 (policy) | Why a recovery point was chosen and who approved it, restore-test results and elapsed time, RTO/RPO targets and results, the scope of data loss that was accepted | To which point and why the system was restored, and how results compared with the targets |
 | 3 (policy) | Evidence per access path and per management plane, timeline reconstruction, records for periods with missing audit data, post-incident review | What happened, where the entry point was, and how to prevent a recurrence |
 
-The weakness of this section is that readers have to map two cuts (pillars and accountability) onto each other. Revisit the rows for pillars 2 and 3 when their specs exist. For how records differ by storage type, see the Hub documents in [Data protection by storage type](#data-protection-by-storage-type).
+The rows for pillars 2 and 3 describe policy only. They will be filled in when those pillars have their own plans. For how the records that remain differ by storage type, see the Hub documents listed in the section [Data protection by storage type](#data-protection-by-storage-type).
 
 ## Resilience lifecycle stages
 
@@ -109,7 +126,7 @@ Disaster recovery testing spans both Evaluate and test and Operate, so it is not
 
 ## Well-Architected best practices
 
-The correspondence between this project's components and the AWS Well-Architected Framework best-practice IDs is in the framework mapping, under [Best-practice IDs](cyber-resilience-framework-mapping.md#best-practice-ids). The table lives only there. This document lists, one per line, the IDs each pillar implements. The framework version is v13 (2024-11-06) and the reference date is 2026-11-13. The second link for each ID is the same page under the versioned path `2025-02-25`. What `2025-02-25` stands for could not be read from the documentation (`open`) [12].
+The correspondence between the subjects this project covers and the AWS Well-Architected Framework best-practice IDs is in the framework mapping, under [Best-practice IDs](cyber-resilience-framework-mapping.md#best-practice-ids). The table lives only there. This document lists, one per line, the IDs each pillar implements. The framework version is v13 (2024-11-06) and the reference date is 2026-11-13. The second link for each ID is the same page under the versioned path `2025-02-25`. What `2025-02-25` stands for could not be read from the documentation (`open`) [12].
 
 - Pillar 1: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_automate_testing_throughout_lifecycle.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html))
 - Pillar 1: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html))
@@ -122,9 +139,11 @@ The correspondence between this project's components and the AWS Well-Architecte
 - PDCA Check and Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html))
 - PDCA Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html))
 
-Best practices that the second pillar handles beyond these are added when that pillar's spec sets its scope. All ten pages were read in full on 2026-11-13 and checked against the entries in the framework mapping table.
+Best practices that the second pillar handles beyond these are added when that pillar's plan sets its scope. All ten pages were read in full on 2026-11-13 and checked against the entries in the framework mapping table.
 
-This correspondence is not the result of a Well-Architected review and is not an approval by AWS. A Service_Owner can record a review of their own workload in the [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) [16]. The correspondence to NIST CSF 2.0 is not a NIST certification either.
+The correspondence to the NIST SP 800-218 SSDF is in the framework mapping only, under [Correspondence to NIST SSDF](cyber-resilience-framework-mapping.md#correspondence-to-nist-ssdf). SSDF Rev. 1 is a draft as of 2026-11-14, and its body has not been read (open).
+
+The Well-Architected correspondence above is not the result of a Well-Architected review and is not an approval by AWS. A service owner can record a review of their own workload in the [AWS Well-Architected Tool](https://aws.amazon.com/well-architected-tool/) [16]. Neither the NIST CSF 2.0 correspondence nor the SSDF correspondence is a NIST certification.
 
 ### How to choose among retention-locking options
 
@@ -142,19 +161,23 @@ See also the Hub's [データ保護方式の比較](https://github.com/Yoshiki07
 
 ## Reference values
 
-The values this project publishes (the Response_Target, and the reference SLO/RTO/RPO that later specs publish) are reference values for users to replace with their own. They are not a commitment to any end user.
+The values this project publishes (the response-time target, and the reference SLO/RTO/RPO that the second pillar's plan is to publish) are reference values for service owners to replace with their own. They are not a commitment to any end user.
 
-The Response_Target is a target and is not called an SLO until it has been measured in operation. The values are in `response_target` of the Policy_File, and this document shows the same values. The detection target is <!-- policy:response_target.detect_hours -->24 hours (from the starting point to the opening of an Issue). The fix target is <!-- policy:response_target.fix_days_kev_or_malicious -->7 days for vulnerabilities listed in KEV [7] and for malicious packages, and <!-- policy:response_target.fix_days_high -->14 days for other vulnerabilities rated High or above by CVSS (measured from opening the Issue to closing it; 14 days is a reference value, and the pilot decides whether to keep it or return to 30 days). The EPSS [8] score is attached to an Issue for reference and is not used to classify.
+The response-time target is a target and is not called an SLO until it has been measured in operation. The values are in `response_target` of the policy file, and this document shows the same values. The detection target is <!-- policy:response_target.detect_hours -->24 hours (from the detection starting point to the opening of an Issue). The fix target applies from the opening of the Issue to its closing. It is <!-- policy:response_target.fix_days_kev_or_malicious -->7 days for vulnerabilities listed in KEV [7] and for malicious packages, and <!-- policy:response_target.fix_days_high -->14 days for other vulnerabilities rated High or above by CVSS. 14 days is a reference value; the pilot decides, from its results, whether to keep 14 days or extend to 30 days. The EPSS [8] score is attached to an Issue for reference and is not used to classify.
 
-The 24-hour detection target is not a deadline for reporting to an authority. The EU product regulation requires a manufacturer to send an early warning within 24 hours at the latest after becoming aware of an actively exploited vulnerability [4], [25]. The lengths match, but the starting point (becoming aware, versus the publication of an advisory or a KEV entry), the act (a report to an authority, versus opening an Issue), and the recipient all differ. This document does not judge whether the Aggregator or an Issue meets that reporting duty.
+The response-time target applies to findings on the dependencies of the repositories the aggregation job handles. NetApp security advisories for ONTAP are outside it and follow stage 1 of the [ONTAP upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md).
+
+When KEV alone satisfies the trigger, the detection starting point is recorded as a lower and an upper bound, and the monthly check counts a miss of the 24-hour target as certain only when the time measured from the upper bound also exceeds 24 hours. The rules are in [Response targets](supply-chain-adoption-guide.md#response-targets) and [Monthly review steps](supply-chain-adoption-guide.md#monthly-review-steps) of the adoption guide, and are not copied here.
+
+The 24-hour detection target is not a deadline for reporting to an authority. The EU product regulation requires a manufacturer to send an early warning within 24 hours at the latest after becoming aware of an actively exploited vulnerability [4], [25]. That reporting obligation started on 2026-09-11 [4]. The lengths match, but the starting point (becoming aware, versus the publication of an advisory or a KEV entry), the act (a report to an authority, versus opening an Issue), and the recipient all differ. This document does not judge whether the aggregation job or an Issue meets that reporting duty.
 
 ### Fix deadlines in public standards
 
-The table summarizes the fix deadlines of published standards as material for a Service_Owner who replaces the reference values with their own. Each standard binds its own audience (companies, government bodies, financial institutions, product manufacturers). None applies to this project or to a Service_Owner, and the table does not say which value is right. Their starting points are not the same as this project's Issue opening.
+The table summarizes the fix deadlines of published standards as material for a service owner who replaces the reference values with their own. Each standard binds its own audience (companies, government bodies, financial institutions, product manufacturers). None applies to this project or to a service owner, and the table does not say which value is right. Their starting points are not the same as this project's Issue opening.
 
 | Type of standard | Information used to classify | Days to fix | Starting point | Source |
 |---|---|---|---|---|
-| This project's Response_Target | KEV listing, malicious package, CVSS severity | As in the paragraph above | Opening of the Issue | Policy_File |
+| This project's response-time target | KEV listing, malicious package, CVSS severity | 7 days for KEV-listed and malicious-package findings, 14 days for other findings rated High or above by CVSS (`response_target` in the policy file) | Opening of the Issue | Policy file |
 | A security evaluation scheme for companies (the star-3 criteria) | Vulnerabilities the vendor rates critical or high risk, CVSS base score of 7.0 or above, updates without a stated level | 14 days. If that is not possible, risk-reduction measures until the update is applied. The scheme has not started (the page of 2026-10-28 aims at a start around the end of fiscal 2026) | Release of the update | [21] |
 | A certification scheme's technical requirements (UK) | Vulnerabilities rated "critical" or "high risk" (CVSS v3 base score of 7 or above, or the vendor's rating) | 14 days | Release | [30] |
 | A directive for government agencies (US) | Four variables: whether exposed, KEV listing, whether an attacker can automate, and technical impact (CVSS is not used) | 3 days, 14 days, 60 days, or the next system update | The earlier of the KEV addition and identification on the asset | [31] |
@@ -162,7 +185,7 @@ The table summarizes the fix deadlines of published standards as material for a 
 | A guideline for the financial sector | System criticality, risk, severity | No number of days. It asks for deadlines to be set and results to be managed | Not stated | [23] |
 | An EU product regulation | Vulnerabilities with reliable evidence of exploitation (the subject of reporting) | Fixing is "without delay", with no number of days | The manufacturer becoming aware | [25] |
 
-The 14 days in the evaluation scheme start at release, while the Response_Target's 14 days start at the opening of the Issue. An Issue is opened after the release, so on the same starting point the Response_Target is longer. The procedure for reviewing deadlines is in the Adoption_Guide, in [Using actual results in the PDCA cycle](supply-chain-adoption-guide.md#using-actual-results-in-the-pdca-cycle).
+The 14 days in the evaluation scheme start at release, while the response-time target's 14 days start at the opening of the Issue. An Issue is opened after the release, so on the same starting point the response-time target is longer. The procedure for reviewing deadlines is in the adoption guide, in [Using actual results in the PDCA cycle](supply-chain-adoption-guide.md#using-actual-results-in-the-pdca-cycle).
 
 ## Data protection by storage type
 
@@ -176,18 +199,18 @@ On-premises storage, Amazon EBS, Amazon S3, Amazon EFS, FSx for ONTAP and the ot
 - [How Does a Third-Party Backup Product Reach Amazon FSx for NetApp ONTAP?](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/data-protection/notes/third-party-backup-reaches-it-by-another-route.md)
 - [Is the point where EBS stops being cheaper the instance count?](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/block-storage/notes/when-ebs-stops-being-the-cheaper-answer.md)
 
-If the comparison lacks something, do not write it here. Send it to the Hub as a request, or to the spec of the second or third pillar.
+If the comparison lacks something, do not write it here. Send it to the Hub as a request, or to the plan for the second or third pillar.
 
 ## References
 
-Numbers match the `[n]` marks in the text. Titles are given as the issuer wrote them. The reference date is the day the content at that URL was checked. `open` in the evidence column marks a part that could not be confirmed. A Japanese-language source is shown by its original title and marked Japanese only unless an official English translation is linked.
+Numbers match the `[n]` marks in the text. The references of the adoption guide use a separate numbering, `[Gn]`, which does not mix with the numbers in this table. Dates are in Japan time, and a publication date is the date shown on the page. Titles are given as the issuer wrote them. The reference date is the day the content at that URL was checked. `open` in the evidence column marks a part that could not be confirmed. A Japanese-language source is shown by its original title and marked Japanese only unless an official English translation is linked.
 
 | No. | Title | Issuer | Published / version | URL | Reference date | Evidence |
 |---|---|---|---|---|---|---|
 | 1 | 2026 Minimum Elements for a Software Bill of Materials (SBOM) | CISA and 17 other agencies (including METI and NCO) | 2026-07-29, version 2.1 | [PDF](https://www.cisa.gov/sites/default/files/2026-07/2026_cisa_sbom_minimum_elements_508c.pdf) | 2026-11-10 | documented |
 | 2 | サイバーセキュリティのためのソフトウェア部品表（SBOM）の最小要素に関する国際ガイダンスに共同署名しました (Japanese only) | Ministry of Economy, Trade and Industry (METI) | 2026-07-30 | [meti.go.jp](https://www.meti.go.jp/press/2026/07/20260730001.html) | 2026-11-10 | documented |
 | 3 | ソフトウェア管理に向けたSBOM（Software Bill of Materials）の導入に関する手引ver2.0 (Japanese only) | METI | 2024-08-29, ver 2.0 | [meti.go.jp](https://www.meti.go.jp/press/2024/08/20240829001/20240829001.html) | 2026-11-12 | documented (6.2 and chapter 7). Other sections: open |
-| 4 | Cyber Resilience Act - Reporting obligations | European Commission | No date shown | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-12 | documented |
+| 4 | Cyber Resilience Act - Reporting obligations | European Commission | No date shown | [digital-strategy.ec.europa.eu](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting) | 2026-11-14 | documented |
 | 5 | Minimum Release Age | Renovate | No date shown | [docs.renovatebot.com](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 2026-11-10 | documented |
 | 6 | OpenVEX Specification v0.2.0 | OpenVEX | v0.2.0 | [GitHub](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) | 2026-11-10 | documented |
 | 7 | Known Exploited Vulnerabilities Catalog | CISA | catalogVersion 2026.11.09 | [cisa.gov](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | 2026-11-10 | verified (fetched once) |

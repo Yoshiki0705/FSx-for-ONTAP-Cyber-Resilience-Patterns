@@ -222,7 +222,15 @@ def policies(draw: st.DrawFn) -> Policy:
     optional_excludes = draw(
         st.lists(
             st.sampled_from(
-                ("runtime_dependencies", "minor", "major", "digest_only", "unknown_dep_type", "hub_reusable_workflow")
+                (
+                    "runtime_dependencies",
+                    "minor",
+                    "major",
+                    "digest_only",
+                    "unknown_dep_type",
+                    "hub_reusable_workflow",
+                    "third_party_action",
+                )
             ),
             max_size=6,
             unique=True,
@@ -260,6 +268,7 @@ def policies(draw: st.DrawFn) -> Policy:
             fix_days_high=urgent + draw(st.integers(0, 60)),
         ),
         max_new_issues_per_repo_per_run=draw(st.integers(1, 100)),
+        vex_max_age_days=100_000,  # long enough that generated VEX never expires (a draw here would shift every case)
     )
 
 
@@ -309,6 +318,7 @@ def _findings_of_spec(spec: tuple[int, ...], repos_: Sequence[Repo]) -> list[Fin
             advisory_published_at=published,
             layer=layer,  # type: ignore[arg-type]
             first_observed_component_at=observed,
+            advisory_type="malware" if vuln_id in MALWARE_GHSA_IDS else None,
         )
 
     kind = SHAPES[shape]
@@ -421,7 +431,7 @@ def _vex_document(spec: tuple[int, ...], index: int, vuln_ids: Sequence[str], pu
         products=tuple(products),
         status=status,  # type: ignore[arg-type]
         justification=JUSTIFICATIONS[just_i] if status == "not_affected" or flags & 1 else None,
-        impact_statement="synthetic impact statement" if flags & 2 else None,
+        impact_statement="synthetic impact statement",
         timestamp=utc_at(day * 1440) if flags & 8 else None,
     )
     return VexDocument(

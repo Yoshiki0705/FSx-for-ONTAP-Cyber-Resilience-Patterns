@@ -1,0 +1,9 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pipx install pip-audit
+      - run: pipx install pip-audit
+      - run: pipx install pip-audit

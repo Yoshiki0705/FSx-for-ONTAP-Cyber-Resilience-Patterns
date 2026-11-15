@@ -1,0 +1,1 @@
+{"mcp": {"docs": {"type": "local", "command": ["npx", "-y", "example-mcp@1.2.3"]}}}

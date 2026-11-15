@@ -54,13 +54,16 @@ POLICY_PATH = "docs/agent/supply-chain-policy.json"
 #: The Hub repository whose Reusable_Workflows the Spokes call (design D-9).
 HUB_REPOSITORY = "yoshiki0705/fsx-for-ontap-adoption-playbook"
 
-#: Requirement 16.9 / Q-16. ``False`` until the pilot (task 19.3) has shown that a SHA
-#: reference to the Hub resolves; then change it to ``True``. While ``False``, a Hub
-#: Reusable_Workflow may be referenced by tag. A branch name or no ref still fails.
-HUB_SHA_REQUIRED = False
+#: Requirement 16.2. A Hub Reusable_Workflow ``uses:`` always needs a 40-character SHA.
+#: GitHub documents the SHA form for ``jobs.<id>.uses`` ("a SHA is the safest"); what the
+#: pilot still has to show (Q-16) is only that Renovate's *preset* reference
+#: (``extends: github>...#<sha>``) resolves, which is a different mechanism checked in
+#: ``renovate.py``. A tag in ``uses:`` would leave the Spoke exposed to a moved tag.
+HUB_SHA_REQUIRED = True
 
-#: Tools of Requirement 13.3 (SBOM_Generator and Aggregator).
-TOOLS = ("syft", "trivy", "osv-scanner", "grype")
+#: Tools of Requirement 13.3: the SBOM_Generator and Aggregator, and the scanners this
+#: repository's own workflows install (a gate that floats its own tools is not a gate).
+TOOLS = ("syft", "trivy", "osv-scanner", "grype", "bandit", "zizmor", "checkov", "pip-audit")
 
 _SKIP_DIRS_PREFIX = "."
 _SKIP_DIRS = frozenset({"node_modules", "__pycache__", "cdk.out", "venv", "site-packages"})
@@ -77,6 +80,17 @@ _DOCKER_RUN = re.compile(r"\bdocker\s+(?:container\s+)?run\b(.*)")
 _TOOL_WORD = re.compile(r"(?<![\w.-])(" + "|".join(re.escape(t) for t in TOOLS) + r")(?!\w)", re.IGNORECASE)
 _TOOL_UNPINNED = re.compile(r"(@latest\b|@main\b|@master\b|:latest\b|[=\s]latest\b)", re.IGNORECASE)
 _PIP_TOOL = re.compile(r"\bpip3?\s+install\b[^\n]*?\b(" + "|".join(re.escape(t) for t in TOOLS) + r")\b(?!==)", re.I)
+#: ``pip install --upgrade pip``: the installer itself moves to whatever is newest (Requirement 13.15).
+_PIP_UPGRADE = re.compile(
+    r"\bpip3?\s+install\b[^\n]*?(?:--upgrade|\s-U)\b[^\n]*?\b(pip3?|setuptools|wheel)\b(?![\w.-]|\s*==|\s*~=)", re.I
+)
+#: ``pipx install pip-audit`` / ``pipx run zizmor``: a tool run from an isolated environment, with no version.
+_PIPX_TOOL = re.compile(
+    r"\bpipx\s+(?:install|run)\s+(?:-\S+\s+)*("
+    + "|".join(re.escape(t) for t in TOOLS)
+    + r")(?![\w.-]|\[|\s*==|\s*~=|==)",
+    re.I,
+)
 _DOCKER_VALUE_FLAGS = frozenset(
     "-e -v -p -w -u -l -h -m --name --env --volume --publish --workdir --user --entrypoint --network "
     "--label --platform --mount --env-file --cidfile --hostname --add-host --memory --cpus --pull "
@@ -417,10 +431,54 @@ def uses_references(text: str) -> list[tuple[int, str]]:
     return out
 
 
-def _workflow(rel: str, text: str, owners: frozenset[str], hub_sha: bool) -> list[Violation]:
-    out: list[Violation] = []
+_COMMENT_WORD = re.compile(r"(?:^|\s)#\s*(\S+)")
+
+
+def uses_references_with_comment(text: str) -> list[tuple[int, str, str | None]]:
+    """List ``uses:`` values with the first word of their trailing comment.
+
+    Renovate writes the version it pinned as ``uses: owner/name@<sha> # v4.2.2``.
+    ``scripts/check_pinned_sha_exist.py`` compares that word with the tag in the action's
+    repository.
+
+    Args:
+        text: Workflow file contents.
+
+    Returns:
+        ``(line, value, comment word or None)`` in file order.
+    """
+    out: list[tuple[int, str, str | None]] = []
     for number, raw in enumerate(text.splitlines(), start=1):
         line = re.sub(r"(^|\s)#.*$", "", raw)
+        if line.strip() and (m := _USES.match(line)):
+            word = _COMMENT_WORD.search(raw[len(line) :])
+            out.append((number, m.group(1), word.group(1) if word else None))
+    return out
+
+
+def _continued_lines(text: str) -> list[tuple[int, str]]:
+    """Return ``(first physical line number, text)`` with trailing-backslash continuations joined (T1-R3-R2-03).
+
+    Comments are removed per physical line before joining, so a ``#`` in a later line never hides an earlier one.
+    """
+    joined: list[tuple[int, str]] = []
+    pending: tuple[int, str] | None = None
+    for number, raw in enumerate(text.splitlines(), start=1):
+        line = re.sub(r"(^|\s)#.*$", "", raw)
+        if pending is not None:
+            line = pending[1] + " " + line.strip()
+            number = pending[0]
+            pending = None
+        if line.rstrip().endswith("\\"):
+            pending = (number, line.rstrip()[:-1].rstrip())
+            continue
+        joined.append((number, line))
+    if pending is not None:
+        joined.append(pending)
+    return joined
+def _workflow(rel: str, text: str, owners: frozenset[str], hub_sha: bool) -> list[Violation]:
+    out: list[Violation] = []
+    for number, line in _continued_lines(text):
         if not line.strip():
             continue
         found: Violation | None = None
@@ -440,8 +498,21 @@ def _workflow(rel: str, text: str, owners: frozenset[str], hub_sha: bool) -> lis
             out.append(found)
         if image_line or _USES.match(line):
             continue
+        if m := _PIP_UPGRADE.search(line):
+            out.append(
+                Violation(
+                    rel,
+                    number,
+                    "unpinned-tool",
+                    f"{m.group(1)} is upgraded without a version (pin it, `{m.group(1)}==<version>`): `{line.strip()}`",
+                )
+            )
+        if m := _PIPX_TOOL.search(line):
+            out.append(
+                Violation(rel, number, "unpinned-tool", f"{m.group(1)} is not at an exact version: `{line.strip()}`")
+            )
         tool = _TOOL_WORD.search(line)
-        if tool and (_TOOL_UNPINNED.search(line) or _PIP_TOOL.search(line)):
+        if tool and not _PIPX_TOOL.search(line) and (_TOOL_UNPINNED.search(line) or _PIP_TOOL.search(line)):
             out.append(
                 Violation(rel, number, "unpinned-tool", f"{tool.group(1)} is not at an exact version: `{line.strip()}`")
             )

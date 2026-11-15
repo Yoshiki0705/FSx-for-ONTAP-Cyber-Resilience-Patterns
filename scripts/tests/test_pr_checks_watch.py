@@ -63,7 +63,7 @@ def _write_gh_shim(shim_dir: Path, checks_json: str, checks_exit: int) -> dict[s
         f"  cat <<'CHECKS_EOF'\n{checks_json}\nCHECKS_EOF\n"
         f"  exit {checks_exit}\n"
         'elif [[ "$1" == "pr" && "$2" == "view" ]]; then\n'
-        '  printf \'%s\\n\' "CLEAN"\n'
+        "  printf '%s\\n' \"CLEAN\"\n"
         "  exit 0\n"
         "fi\n"
         "exit 2\n"

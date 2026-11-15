@@ -117,7 +117,9 @@ def _cooldown_inverted(doc: Doc, _pick: int) -> Expected:
 
 
 def _wait_inverted(doc: Doc, _pick: int) -> Expected:
-    doc["package_manager_wait"]["default_days"] = doc["package_manager_wait"]["major_days"] + 1
+    # The key is optional (derived from cooldown_days); a file that writes it can still write it inverted.
+    major = doc["cooldown_days"]["major"]
+    doc["package_manager_wait"] = {"default_days": major + 1, "major_days": major}
     return ("$.package_manager_wait.major_days", "range")
 
 

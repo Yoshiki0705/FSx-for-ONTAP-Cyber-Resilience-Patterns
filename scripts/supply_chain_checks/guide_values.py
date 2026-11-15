@@ -38,6 +38,14 @@ REQUIRED_KEYS = (
     "response_target.fix_days_high",
 )
 
+#: Key paths that the Policy_File derives instead of storing (T1-15): the package manager's waiting
+#: period is the Cooldown. A guide marker on the derived path is compared with its source.
+DERIVED_KEYS = {
+    "package_manager_wait.default_days": "cooldown_days.default",
+    "package_manager_wait.major_days": "cooldown_days.major",
+}
+#: Values the Policy_File may omit; an absent key is read as its default, so a guide marker on it still compares.
+DEFAULTS = {"watchdog.limit_hours": 8}
 _MARKER = re.compile(r"<!--\s*policy:([^\s>]+?)\s*-->(\s*)(\d+)?")
 
 
@@ -54,7 +62,10 @@ def _lookup(policy: dict[str, Any], key_path: str) -> Any:
     node: Any = policy
     for part in key_path.split("."):
         if not isinstance(node, dict) or part not in node:
-            return None
+            derived = DERIVED_KEYS.get(key_path)
+            if derived is not None:
+                return _lookup(policy, derived)
+            return DEFAULTS.get(key_path)
         node = node[part]
     return node
 
