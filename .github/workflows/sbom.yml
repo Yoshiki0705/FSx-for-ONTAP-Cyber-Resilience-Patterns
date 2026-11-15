@@ -1,0 +1,14 @@
+# Layer B of the supply-chain design: generate an SBOM and a scan of this repository on each push to
+# main, with the reusable workflow of the Hub repository. The artifact is `sbom-<commit-sha>`. The
+# reference is a full commit SHA (the commit that is also tagged supply-chain-preset-v1.0.0).
+name: sbom
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  sbom:
+    permissions:
+      contents: read
+    uses: Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/.github/workflows/sbom-generate.yml@8dfe0318f82ef3d086b96e24760447e0be85a30a # supply-chain-preset-v1.0.0
