@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs the real sandbox-exec, for tests that need a profile to bind. It stands in the place of the test double that
+# ``HANDOFF_OS_BOUNDARY_TEST_DOUBLE`` names, so the runner does not try the probes first (that is the double's mark), and
+# the profile that the runner wrote is enforced by the operating system. macOS only.
+# Usage: real-sandbox-exec -f PROFILE COMMAND [ARGUMENT...]
+exec /usr/bin/sandbox-exec "$@"

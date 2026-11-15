@@ -126,7 +126,7 @@ MAX_BODY_BYTES: Final = 100 * 1024
 #: The titles of the eleven sections of design section 17, in order. Section ``n`` is drawn as
 #: ``## n. <title>`` (:func:`section_headings`).
 SECTION_TITLES: Final[tuple[str, ...]] = (
-    "対象リポジトリ",
+    "Handoff_Target",
     "変更の目的",
     "作成・変更するファイル",
     "参照する Renovate_Preset と Reusable_Workflow",
@@ -400,7 +400,7 @@ def section_headings(mode: str) -> tuple[str, ...]:
         mode: ``query`` or ``change``.
 
     Returns:
-        ``## 1. 対象リポジトリ`` to ``## 11. 行わない操作``, followed for ``query`` by
+        ``## 1. Handoff_Target`` to ``## 11. 行わない操作``, followed for ``query`` by
         ``## 12. 問いの一覧`` and ``## 13. 答え方``.
 
     Raises:
@@ -1034,11 +1034,11 @@ def _checks_section(item: Item, places: _Places) -> list[str]:
     """Section 6: the checks before starting, and the commands of the manual mode."""
     main = _shell_path(places.main_tree)
     worktree = _shell_path(places.worktree)
-    lead = (
-        "1. `git branch --show-current` と `git status --porcelain` を読む。cwd が、この依頼を渡した "
-        f"Handoff_Harness の作った worktree {_code(places.worktree)} で、"
-    )
     if item.mode == "query":
+        lead = (
+            "1. `git branch --show-current` と `git status --porcelain` を読む。cwd が、この依頼を渡した "
+            f"Handoff_Harness の作った worktree {_code(places.worktree)} で、"
+        )
         steps = [
             lead + "ブランチを持たない（`git branch --show-current` が何も表示しない）ことを確かめる。"
             "違えば何もせずに停止して保守者に報告する",
@@ -1047,10 +1047,15 @@ def _checks_section(item: Item, places: _Places) -> list[str]:
         ]
         add = f"git -C {main} worktree add --detach {worktree} <sha>"
     else:
+        # The change agent's shell allows `git status` and `git log` only (allowedCommands); it refuses
+        # `git branch` and `--porcelain`. The check names what the agent can run (selftest of 2026-11-15).
         steps = [
-            lead
-            + f"ブランチが {_code(_branch(item))} であることを確かめる。違えば何も変更せずに停止して保守者に報告する",
-            "2. 3 節の一覧のファイルに未コミットの変更があれば、何も変更せずに停止して保守者に報告する",
+            "1. `git status` と `git log --oneline` を、ここに書いた形のまま、ほかの引数を付けずに実行して読む"
+            "（`git log --oneline -5` や `git status --short` は拒否される）。cwd が、この依頼を渡した Handoff_Harness の作った "
+            f"worktree {_code(places.worktree)} で、`git status` の冒頭が引き継ぎ用ブランチ "
+            f"{_code(_branch(item))} を示すことを確かめる。違えば何も変更せずに停止して保守者に報告する",
+            "2. 3 節の一覧のファイルに未コミットの変更が `git status` に出ていれば、何も変更せずに停止して"
+            "保守者に報告する",
         ]
         add = f"git -C {main} worktree add -b {_branch(item)} {worktree} <sha>"
     return [

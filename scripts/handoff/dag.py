@@ -278,12 +278,22 @@ def _readiness_reasons(
         return (SkipReason("not_queued", f"{item.id} is {state}, not {QUEUED}"),)
     reasons: list[SkipReason] = []
     for dependency in item.depends_on:
-        dependency_state = _record(records, dependency, item.id)["state"]
+        record = _record(records, dependency, item.id)
+        dependency_state = record["state"]
         if dependency_state != SUCCEEDED:
             reasons.append(
                 SkipReason(
                     "dependency_not_succeeded",
                     f"{item.id} depends on {dependency}, which is {dependency_state}, not {SUCCEEDED}",
+                )
+            )
+        elif (record["observations"] or {}).get("query_findings") == "none":
+            # A query that ended with an answer that names no path found nothing to depend on (T4-06).
+            reasons.append(
+                SkipReason(
+                    "dependency_not_succeeded",
+                    f"{item.id} depends on {dependency}, which {SUCCEEDED} with an answer that cites no path "
+                    "(query_findings none), so there is no finding to build on",
                 )
             )
     for ref in item.requires_refs:

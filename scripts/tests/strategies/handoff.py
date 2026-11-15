@@ -1508,7 +1508,7 @@ def _mode_for_conditions(
     needs = {mode} if mode is not None else set(MODES)
     if "no_commits" in wanted:
         needs &= {"change"}
-    if "empty_output" in wanted:
+    if "empty_output" in wanted or "cited_path_missing" in wanted:
         needs &= {"query"}
     conflict_needs_declared = "conflicts" in wanted and "undeclared_files" not in wanted
     if conflict_needs_declared and declared is None:
@@ -1528,7 +1528,7 @@ def _applicable_conditions(mode: str, commands: tuple[tuple[str, ...], ...]) -> 
     for condition, _ in PRECEDENCE:
         if condition == "no_commits" and mode != "change":
             continue
-        if condition == "empty_output" and mode != "query":
+        if condition in ("empty_output", "cited_path_missing") and mode != "query":
             continue
         if condition in ("rerun_unaccounted", "rerun_failed") and not commands:
             continue
@@ -1634,6 +1634,11 @@ def _observations(
         main_tree_change=("relevant" if "main_tree_changed" in holds else draw(st.sampled_from(("none", "unrelated")))),
         rerun=rerun,
         rerun_skipped=skipped,
+        common_dir_changed=("config",) if "common_dir_changed" in holds else (),
+        control_plane_changed=("config_sha256",) if "control_plane_changed" in holds else (),
+        secret_in_report=("aws_access_key_id",) if "secret_in_report" in holds else (),
+        cited_paths_missing=("docs/not-there.md",) if "cited_path_missing" in holds else (),
+        query_findings="cited" if not change else "not_checked",
     )
     return ObservationsCase(
         mode=mode,

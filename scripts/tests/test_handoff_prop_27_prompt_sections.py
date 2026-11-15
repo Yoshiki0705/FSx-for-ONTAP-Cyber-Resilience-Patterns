@@ -48,7 +48,7 @@ from strategies import handoff as handoff_strategies
 #: The section titles of design section 17, in order. The comment names the requirement that
 #: each section meets.
 DESIGN_TITLES: Final[tuple[str, ...]] = (
-    "対象リポジトリ",  # 23.2
+    "Handoff_Target",  # 23.2
     "変更の目的",  # 23.2
     "作成・変更するファイル",  # 23.2
     "参照する Renovate_Preset と Reusable_Workflow",  # 23.2, 23.5
@@ -520,7 +520,13 @@ def _check_prompt(inputs: RenderInputs, item: manifest.Item, rendered: prompt.Re
     assert item.repo in text[1]
     assert sections[2] == _slot_lines(template, "purpose", item.vars)
     _check_dependencies(sections[5], item, by_id, unconfirmed, providers)
-    assert "git branch --show-current" in text[6] and "git status --porcelain" in text[6]
+    if item.mode == "query":
+        assert "git branch --show-current" in text[6] and "git status --porcelain" in text[6]
+    else:
+        # The change agent's shell allows plain `git status` only (allowedCommands); `git branch` and
+        # `--porcelain` are refused, so the check names the command the agent can run (2026-11-15).
+        assert "`git status`" in text[6]
+        assert "git branch" not in text[6] and "--porcelain" not in text[6]
     assert any("未コミットの変更" in line and "停止して保守者に報告" in line for line in sections[6])
     assert all(term in text[9] for term in PUBLIC_OUTPUT_TERMS)
     _check_executor(sections[10], item, inputs.uncommitted[item.id], rendered)

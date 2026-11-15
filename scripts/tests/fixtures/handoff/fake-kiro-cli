@@ -28,7 +28,7 @@ Invocations. Anything else is a usage error (exit 2):
   exception is ``write-file``, which stands for a ``kiro-cli`` that enforces them.
 
 Selftest trials. A selftest of the harness (task 5.2) starts ``chat`` once per trial, T0 to
-T4, and each prompt holds the trial's token ``handoff-selftest-t<n>-<16 lowercase hex
+T6, and each prompt holds the trial's token ``handoff-selftest-t<n>-<16 lowercase hex
 digits>``, with no letter, digit or ``_`` right before or after it. When the prompt holds
 one token of trial ``t<n>`` and ``FAKE_KIRO_MODE_T<n>`` is set, that variable replaces
 ``FAKE_KIRO_MODE`` for this run, so that one selftest gets different behaviors per trial.
@@ -88,6 +88,31 @@ to as the guard wrapper of the selftest would (design note of task 5.2).
       argv trusts :data:`WRITE_TOOL` (``--trust-tools`` naming it, or ``--trust-all-tools``
       or ``-a``), as a ``kiro-cli`` that enforces the allowlist would. Otherwise it writes
       nothing and records the refusal. A refusal is a result, not a failure.
+    - ``git-config-alias``: ``git config alias.zz '!echo ALIAS'`` in the working directory. In a worktree
+      the setting goes to the ``config`` that the main working tree shares (T4-02).
+    - ``hook-write``: writes ``hooks/pre-commit`` in the common git directory (T4-02).
+    - ``control-edit``: appends a newline to the file named by ``FAKE_KIRO_CONTROL_FILE`` (T4-03).
+    - ``worktree-redirect`` (T4-R3-01): makes a repository ``evilrepo`` below the working directory whose configuration sets
+      ``core.fsmonitor`` to a command that creates the file ``FAKE_KIRO_PWNED`` names, and points the ``.git`` file of
+      the worktree at it, as an agent that can write its worktree would. The git of the harness runs outside the
+      sandbox afterwards.
+    - ``nested-repo`` (T4-R4-01): makes a repository ``sub`` below the working directory whose configuration sets
+      ``filter.x.clean`` to a command that creates the file ``FAKE_KIRO_PWNED`` names, commits it to the worktree as
+      a gitlink (mode 160000) and changes a file of ``sub`` to a content of the same size, so that the ``git status``
+      of the harness would run the filter. ``nested-repo-staged`` stops after ``git add sub``; ``nested-repo-untracked``
+      leaves ``sub`` untracked.
+    - ``setsid-orphan`` (T4-R2-08): starts ``python3 -c "time.sleep(...)"`` with ``start_new_session=True`` in the working
+      directory and leaves it running when the fake exits, as an agent's script that called ``setsid`` would. The group
+      that the runner stops does not hold it. The result records its PID. The sleep ends by itself after 120 seconds.
+    - ``read-decoy`` (T5): stands for an agent whose read tool is not restricted: reads the file that the
+      prompt names (``Read the file <path> with``) and commits ``<token> read=<its first line>``
+      (``read=none`` when it cannot read it).
+    - ``connect-loopback`` (T6): stands for an agent whose shell is not restricted: sends one request to
+      the loopback port that the prompt names, and commits ``<token> curl-exit=<code>``.
+    - ``run-uname`` (T7): stands for an agent whose shell runs what no allow rule names: writes ``<token>.txt`` in the
+      working directory, as ``uname -s > <token>.txt`` would.
+    - ``write-outside`` (T8): stands for an agent whose write tool is not confined to ``./**``: writes
+      ``../outside-<token>.txt``.
     - ``write-file-anyway`` (T4): writes ``<token>.txt`` whatever the argv trusts, as a
       ``kiro-cli`` that does not enforce the allowlist would.
     - ``guard-block``: appends to ``HANDOFF_GUARD_LOG`` the entry that the guard wrapper
@@ -220,7 +245,31 @@ EXIT_INTERNAL = 4
 
 WHOAMI_BEHAVIORS = ("whoami-fail",)
 VERSION_BEHAVIORS = ("version-fail",)
-SELFTEST_BEHAVIORS = ("empty-commit", "gh-status", "write-file", "write-file-anyway")
+SELFTEST_BEHAVIORS = (
+    "empty-commit",
+    "gh-status",
+    "write-file",
+    "write-file-anyway",
+    "read-decoy",
+    "connect-loopback",
+    "run-uname",
+    "write-outside",
+)
+#: Behaviors of an agent that writes outside its worktree (T4-02, T4-03): into the git directory that worktrees share,
+#: and into a file that ``FAKE_KIRO_CONTROL_FILE`` names.
+BOUNDARY_BEHAVIORS = (
+    "git-config-alias",
+    "hook-write",
+    "control-edit",
+    "setsid-orphan",
+    "setsid-chdir-orphan",
+    "symref-branch",
+    "stale-ref-lock",
+    "worktree-redirect",
+    "nested-repo",
+    "nested-repo-staged",
+    "nested-repo-untracked",
+)
 GUARD_BEHAVIORS = ("guard-block", "guard-allow", "guard-block-other")
 CHAT_BEHAVIORS = (
     "noise",
@@ -232,19 +281,20 @@ CHAT_BEHAVIORS = (
     "push-url",
     "switch-main",
     *SELFTEST_BEHAVIORS,
+    *BOUNDARY_BEHAVIORS,
     *GUARD_BEHAVIORS,
 )
 
 #: The behaviors whose guard log entry must hold the prompt's token.
-TOKEN_BEHAVIORS = ("guard-block", "guard-allow")
+TOKEN_BEHAVIORS = ("guard-block", "guard-allow", "run-uname", "write-outside")
 
 #: A selftest token in a prompt: the trial and 16 lowercase hexadecimal digits, with no
 #: letter, digit or ``_`` right before or after it.
-SELFTEST_TOKEN = re.compile(r"(?<![A-Za-z0-9_])handoff-selftest-(t[0-4])-[0-9a-f]{16}(?![A-Za-z0-9_])")
+SELFTEST_TOKEN = re.compile(r"(?<![A-Za-z0-9_])handoff-selftest-(t[0-8])-[0-9a-f]{16}(?![A-Za-z0-9_])")
 
 #: The per-trial variables are this prefix and the trial in capitals.
 TRIAL_MODE_PREFIX = "FAKE_KIRO_MODE_"
-TRIAL_SUFFIXES = ("T0", "T1", "T2", "T3", "T4")
+TRIAL_SUFFIXES = ("T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8")
 
 #: What the selftest behaviors write in place of the token when the prompt holds none.
 NO_TOKEN_LABEL = "fake-kiro-selftest"
@@ -373,6 +423,7 @@ class Context(NamedTuple):
     record: str | None
     options: dict[str, Any]
     token: str | None
+    prompt: str | None = None
 
 
 def noise_payload(stream: str, size: int) -> bytes:
@@ -457,7 +508,9 @@ def _main(argv: list[str], environ: Mapping[str, str]) -> int:
     problem = chat_problem(settings, token)
     if problem is not None:
         return _finish(record, output, EXIT_USAGE, [], f"usage: {problem}")
-    context = Context(settings=settings, output=output, record=record, options=options or {}, token=token)
+    context = Context(
+        settings=settings, output=output, record=record, options=options or {}, token=token, prompt=prompt
+    )
     results: list[dict[str, Any]] = []
     for behavior in settings.behaviors:
         if behavior in WHOAMI_BEHAVIORS + VERSION_BEHAVIORS:
@@ -580,7 +633,7 @@ def read_settings(environ: Mapping[str, str], trial: str | None = None) -> tuple
             continue
         suffix = name[len(TRIAL_MODE_PREFIX) :]
         if suffix not in TRIAL_SUFFIXES:
-            return None, f"{name} names no trial: the per-trial variables are {TRIAL_MODE_PREFIX}T0 to T4"
+            return None, f"{name} names no trial: the per-trial variables are {TRIAL_MODE_PREFIX}T0 to T8"
         chosen, error = _behaviors(environ, name)
         if error is not None:
             return None, error
@@ -938,6 +991,62 @@ def _gh_status(context: Context) -> tuple[dict[str, Any], str | None]:
     return result, failure
 
 
+def _git_config_alias(context: Context) -> tuple[dict[str, Any], str | None]:
+    """``git config alias.zz '!echo ALIAS'`` from the worktree: the shared ``config`` of the repository changes."""
+    completed = _git(["config", "alias.zz", "!echo ALIAS"])
+    result: dict[str, Any] = {"behavior": "git-config-alias", "exit_code": completed.returncode}
+    return result, None if completed.returncode == 0 else f"git config exited {completed.returncode}"
+
+
+def _hook_write(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Write ``hooks/pre-commit`` in the common git directory, which every worktree of the repository shares."""
+    common = _text(_git(["rev-parse", "--path-format=absolute", "--git-common-dir"]))
+    path = os.path.join(common, "hooks", "pre-commit")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("#!/bin/sh\necho HOOK\n")
+    return {"behavior": "hook-write", "path": path}, None
+
+
+def _control_edit(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Append a newline to the file that ``FAKE_KIRO_CONTROL_FILE`` names, as an agent that can write there would."""
+    path = os.environ.get("FAKE_KIRO_CONTROL_FILE", "")
+    if not os.path.isabs(path):
+        return {"behavior": "control-edit"}, "FAKE_KIRO_CONTROL_FILE must be an absolute path"
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write("\n")
+    return {"behavior": "control-edit", "path": path}, None
+
+
+def _read_decoy(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T5: stand for an agent whose read tool is not restricted: read the file the prompt names, commit its first line."""
+    found = re.search(r"Read the file (\S+) with", context.prompt or "")
+    content = "none"
+    if found is not None:
+        try:
+            with open(found.group(1), encoding="utf-8") as handle:
+                content = handle.readline().strip() or "none"
+        except OSError:
+            content = "none"
+    return _commit_empty("read-decoy", f"{_label(context)} read={content}")
+
+
+def _connect_loopback(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T6: stand for an agent whose shell is not restricted: send a request to the loopback port the prompt names."""
+    import socket
+
+    found = re.search(r"http://127\.0\.0\.1:([0-9]+)/(\S+?);", context.prompt or "")
+    code = 7
+    if found is not None:
+        try:
+            with socket.create_connection(("127.0.0.1", int(found.group(1))), timeout=5) as connection:
+                connection.sendall(f"GET /{found.group(2)} HTTP/1.0\r\n\r\n".encode("ascii"))
+                code = 0
+        except OSError:
+            code = 7
+    return _commit_empty("connect-loopback", f"{_label(context)} curl-exit={code}")
+
+
 def _commit_empty(behavior: str, message: str) -> tuple[dict[str, Any], str | None]:
     """Make a commit without changes in the working directory.
 
@@ -1072,6 +1181,147 @@ def _guard_entry(
     return result, None
 
 
+def _run_uname(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T7: write ``<token>.txt`` in the working directory, as the command of the prompt would."""
+    path = f"{context.token}.txt"
+    with open(path, "w", encoding="ascii") as handle:
+        handle.write("Fake\n")
+    return {"behavior": "run-uname", "path": path}, None
+
+
+def _write_outside(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T8: write ``../outside-<token>.txt``, above the working directory."""
+    path = os.path.join(os.pardir, f"outside-{context.token}.txt")
+    with open(path, "w", encoding="ascii") as handle:
+        handle.write("selftest\n")
+    return {"behavior": "write-outside", "path": path}, None
+
+
+def _setsid_orphan(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Leave a process of a session of its own, with the working directory as its own, after this process ends."""
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(120)"],
+        cwd=os.getcwd(),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return {"behavior": "setsid-orphan", "pid": child.pid}, None
+def _setsid_chdir_orphan(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R6-03: as ``setsid-orphan``, but the process also leaves the working directory, so ``lsof`` cannot name it.
+
+    The process is the Python of this fake, so ``ps`` shows its environment (the token of the run). It writes
+    ``late.txt`` in the working directory after ``FAKE_KIRO_ORPHAN_DELAY`` seconds (default 3), as a process that
+    outlives the harness's check would.
+    """
+    work = os.getcwd()
+    code = (
+        "import os, sys, time; os.chdir('/'); time.sleep(float(sys.argv[2])); "
+        "open(os.path.join(sys.argv[1], 'late.txt'), 'w').write('late')"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", code, work, os.environ.get("FAKE_KIRO_ORPHAN_DELAY", "3")],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return {"behavior": "setsid-chdir-orphan", "pid": child.pid}, None
+
+
+def _symref_branch(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R6-01: make the run's own branch a symbolic ref to ``refs/heads/main`` by writing its ref file."""
+    common = _text(_git(["rev-parse", "--path-format=absolute", "--git-common-dir"]))
+    branch = _text(_git(["symbolic-ref", "--short", "HEAD"]))
+    path = os.path.join(common, "refs", "heads", *branch.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.lexists(path):
+        os.unlink(path)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("ref: refs/heads/main\n")
+    return {"behavior": "symref-branch", "path": path}, None
+
+
+def _stale_ref_lock(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R6-05: leave ``<branch>.lock`` in the common git directory, as a run that was killed while it wrote its ref."""
+    common = _text(_git(["rev-parse", "--path-format=absolute", "--git-common-dir"]))
+    branch = _text(_git(["symbolic-ref", "--short", "HEAD"]))
+    path = os.path.join(common, "refs", "heads", *branch.split("/")) + ".lock"
+    with open(path, "w", encoding="utf-8"):
+        pass
+    return {"behavior": "stale-ref-lock", "path": path}, None
+
+
+def _worktree_redirect(context: Context) -> tuple[dict[str, Any], str | None]:
+    """Point the ``.git`` file of the working directory at a repository of the agent's own, with ``core.fsmonitor`` set."""
+    marker = os.environ.get("FAKE_KIRO_PWNED", "")
+    if not marker.startswith("/"):
+        return {"behavior": "worktree-redirect"}, "FAKE_KIRO_PWNED must be an absolute path"
+    made = _git(["init", "-q", "evilrepo"])
+    if made.returncode != 0:
+        return {"behavior": "worktree-redirect"}, f"git init exited {made.returncode}"
+    with open(os.path.join("evilrepo", ".git", "config"), "a", encoding="utf-8") as handle:
+        handle.write(f'[core]\n\tfsmonitor = touch "{marker}" #\n')
+    with open(".git", "w", encoding="utf-8") as handle:
+        handle.write(f"gitdir: {os.path.realpath('evilrepo')}/.git\n")
+    return {"behavior": "worktree-redirect"}, None
+
+
+def _nested_repository(behavior: str, *, stage: bool, commit: bool) -> tuple[dict[str, Any], str | None]:
+    """Make ``sub`` in the working directory, a repository whose ``filter.x.clean`` creates ``FAKE_KIRO_PWNED``."""
+    marker = os.environ.get("FAKE_KIRO_PWNED", "")
+    result: dict[str, Any] = {"behavior": behavior}
+    if not marker.startswith("/"):
+        return result, "FAKE_KIRO_PWNED must be an absolute path"
+    identity = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgSign=false"]
+    if _git(["init", "-q", "sub"]).returncode != 0:
+        return result, "git init exited non-zero"
+    with open(os.path.join("sub", "a.txt"), "w", encoding="ascii") as handle:
+        handle.write("one\n")
+    for args in (["add", "a.txt"], ["commit", "-q", "-m", "s"]):
+        done = subprocess.run(
+            ["git", *identity, "-C", "sub", *args], stdin=subprocess.DEVNULL, capture_output=True, check=False
+        )
+        if done.returncode != 0:
+            return result, f"git {args[0]} in sub exited {done.returncode}"
+    with open(os.path.join("sub", ".git", "config"), "a", encoding="utf-8") as handle:
+        handle.write(f'[filter "x"]\n\tclean = touch "{marker}"; cat\n')
+    with open(os.path.join("sub", ".gitattributes"), "w", encoding="ascii") as handle:
+        handle.write("* filter=x\n")
+    if stage:
+        added = subprocess.run(
+            ["git", *identity, "add", "sub"], stdin=subprocess.DEVNULL, capture_output=True, check=False
+        )
+        if added.returncode != 0:
+            return result, "git add sub exited non-zero"
+    if commit:
+        done = subprocess.run(
+            ["git", *identity, "commit", "-q", "-m", "nested"], stdin=subprocess.DEVNULL, capture_output=True, check=False
+        )
+        if done.returncode != 0:
+            return result, "git commit of the gitlink exited non-zero"
+    with open(os.path.join("sub", "a.txt"), "w", encoding="ascii") as handle:
+        handle.write("two\n")  # the same size as "one": git reads the content, and so runs the clean filter
+    return result, None
+
+
+def _nested_repo(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R4-01: a committed gitlink to a repository with a clean filter."""
+    return _nested_repository("nested-repo", stage=True, commit=True)
+
+
+def _nested_repo_staged(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R4-01: a gitlink in the index only."""
+    return _nested_repository("nested-repo-staged", stage=True, commit=False)
+
+
+def _nested_repo_untracked(context: Context) -> tuple[dict[str, Any], str | None]:
+    """T4-R4-01: a repository that git does not track."""
+    return _nested_repository("nested-repo-untracked", stage=False, commit=False)
+
+
 _CHAT_ACTIONS: dict[str, Callable[[Context], tuple[dict[str, Any], str | None]]] = {
     "noise": _noise,
     "ignore-sigterm": _ignore_sigterm,
@@ -1085,6 +1335,21 @@ _CHAT_ACTIONS: dict[str, Callable[[Context], tuple[dict[str, Any], str | None]]]
     "gh-status": _gh_status,
     "write-file": _write_file,
     "write-file-anyway": _write_file_anyway,
+    "git-config-alias": _git_config_alias,
+    "hook-write": _hook_write,
+    "control-edit": _control_edit,
+    "setsid-orphan": _setsid_orphan,
+    "setsid-chdir-orphan": _setsid_chdir_orphan,
+    "symref-branch": _symref_branch,
+    "stale-ref-lock": _stale_ref_lock,
+    "worktree-redirect": _worktree_redirect,
+    "nested-repo": _nested_repo,
+    "nested-repo-staged": _nested_repo_staged,
+    "nested-repo-untracked": _nested_repo_untracked,
+    "run-uname": _run_uname,
+    "write-outside": _write_outside,
+    "read-decoy": _read_decoy,
+    "connect-loopback": _connect_loopback,
     "guard-block": _guard_block,
     "guard-allow": _guard_allow,
     "guard-block-other": _guard_block_other,

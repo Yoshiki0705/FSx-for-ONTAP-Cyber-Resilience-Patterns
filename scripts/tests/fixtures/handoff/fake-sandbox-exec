@@ -1,0 +1,12 @@
+#!/bin/sh
+# A stand-in for sandbox-exec in the tests of the Handoff_Harness: it enforces nothing.
+# Usage: fake-sandbox-exec -f PROFILE COMMAND [ARGUMENT...]
+# It refuses (exit 64, 65) when the arguments are not that form or the profile file is not readable, so that a test
+# notices when the runner stops naming a profile; then it runs the command as it is.
+[ "$1" = "-f" ] || exit 64
+[ -r "$2" ] || exit 65
+shift 2
+# FAKE_SANDBOX_LOG: append the command that is put under the profile, one line each, so that a test can see what ran
+# under layer 0 (the re-run of a verification command, T4-R5-01)
+[ -z "$FAKE_SANDBOX_LOG" ] || printf '%s\n' "$*" >> "$FAKE_SANDBOX_LOG"
+exec "$@"

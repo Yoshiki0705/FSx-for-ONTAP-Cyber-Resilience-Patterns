@@ -838,7 +838,7 @@ def test_a_selftest_token_selects_the_behaviors_of_its_trial(handoff_sandbox: Ha
         FAKE_KIRO_MODE_T3="ignore-sigterm,noise",
     )
     t0, t1, t3 = (selftest_token(trial) for trial in ("t0", "t1", "t3"))
-    not_tokens = f"Not tokens: x{t0}, {t0}0, {t0.upper()}, {selftest_token('t5')}."
+    not_tokens = f"Not tokens: x{t0}, {t0}0, {t0.upper()}, {selftest_token('t9')}."
     cases: list[tuple[str, str | None, str | None, list[str], str]] = [
         (selftest_prompt(t0), "t0", t0, ["ignore-sigterm"], "FAKE_KIRO_MODE_T0"),
         (f"{selftest_prompt(t3)} Again: {t3}.", "t3", t3, ["ignore-sigterm", "noise"], "FAKE_KIRO_MODE_T3"),
@@ -859,7 +859,7 @@ def test_a_selftest_token_selects_the_behaviors_of_its_trial(handoff_sandbox: Ha
 SELFTEST_REFUSED: tuple[tuple[str, str, dict[str, str]], ...] = (
     ("two-tokens", f"{selftest_prompt(selftest_token('t0'))} {selftest_token('t1')}", {}),
     ("one-trial-two-nonces", f"{selftest_prompt(selftest_token('t1'))} {selftest_token('t1', 'fedcba9876543210')}", {}),
-    ("trial-out-of-range", "p", {"FAKE_KIRO_MODE_T5": "noise"}),
+    ("trial-out-of-range", "p", {"FAKE_KIRO_MODE_T9": "noise"}),
     ("trial-in-lower-case", "p", {"FAKE_KIRO_MODE_t1": "noise"}),
     (
         "unknown-behavior-of-the-trial",

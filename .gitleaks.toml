@@ -29,6 +29,10 @@ paths = [
     '''parameters/''',
     '''cfn-params/''',
     '''docs/''',
+    # Fake credentials that the redaction and selftest tests feed to the harness (not real values).
+    '''scripts/tests/test_handoff_evaluate_examples\.py$''',
+    '''scripts/tests/test_handoff_safety\.py$''',
+    '''scripts/tests/test_handoff_round4_boundary\.py$''',
 ]
 # Test files use RFC-5737/placeholder values (123456789012, 10.0.x.x) per project convention.
 regexes = [

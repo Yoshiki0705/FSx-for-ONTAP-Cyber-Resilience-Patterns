@@ -88,6 +88,10 @@ REQUIRED_KEYS: tuple[str, ...] = (
     "repos",
 )
 
+#: Top-level keys that may be left out. ``kiro_cli_supported_versions`` is a list of ``fnmatch`` patterns (``"2.32.*"``)
+#: for the version that ``kiro-cli --version`` prints: a change item runs only when the version of the selftest matches
+#: one (T4-R2-03). Absent or empty means the selftest's own version equality is the only pin.
+OPTIONAL_KEYS: tuple[str, ...] = ("kiro_cli_supported_versions",)
 #: Bytes in one unit of ``min_free_disk_gb``: a GiB, the 1024**3-byte block of ``df -g``.
 DISK_UNIT_BYTES = 1024**3
 
@@ -203,6 +207,8 @@ class HandoffConfig:
             mode may trust. ``query`` is :data:`QUERY_TOOL_CEILING`.
         agents: The agent configuration name for each mode that has one. Can be empty.
         repos: The target repositories by name.
+        kiro_cli_supported_versions: ``fnmatch`` patterns for the supported versions of ``kiro-cli``; empty when the
+            key is absent.
     """
 
     schema_version: int
@@ -214,6 +220,7 @@ class HandoffConfig:
     mode_tool_ceiling: Mapping[str, tuple[str, ...]]
     agents: Mapping[str, str]
     repos: Mapping[str, RepoConfig]
+    kiro_cli_supported_versions: tuple[str, ...] = ()
 
     @property
     def min_free_disk_bytes(self) -> int:
@@ -276,6 +283,7 @@ def parse_config(
     ceiling = _tool_ceiling(found["mode_tool_ceiling"], issues)
     agents = _agents(found["agents"], issues)
     repos = _repos(found["repos"], home, issues)
+    supported = _supported_versions(raw.get("kiro_cli_supported_versions", _MISSING), issues)
 
     if worktrees_root is not None:
         protected = [
@@ -285,7 +293,7 @@ def parse_config(
         protected += [("a main working tree given by the caller", tree) for tree in main_trees]
         protected.append(("the IDE session worktree directory", session_dir))
         issues.extend(_overlap_issues(worktrees_root, protected))
-    issues.extend(_unknown_keys(raw, REQUIRED_KEYS, ()))
+    issues.extend(_unknown_keys(raw, (*REQUIRED_KEYS, *OPTIONAL_KEYS), ()))
 
     if issues:
         raise ConfigError(issues)
@@ -299,7 +307,27 @@ def parse_config(
         mode_tool_ceiling=MappingProxyType(_present(ceiling)),
         agents=MappingProxyType(_present(agents)),
         repos=MappingProxyType(_present(repos)),
+        kiro_cli_supported_versions=supported,
     )
+
+
+def _supported_versions(value: Any, issues: list[ConfigIssue]) -> tuple[str, ...]:
+    """Check ``kiro_cli_supported_versions``: absent, or a list of non-empty strings without white space."""
+    if value is _MISSING:
+        return ()
+    path = "kiro_cli_supported_versions"
+    if not isinstance(value, list):
+        issues.append(ConfigIssue(path, "type", f"must be a list of version patterns, got {_describe(value)}"))
+        return ()
+    patterns: list[str] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, str) or not entry or any(char.isspace() for char in entry):
+            issues.append(
+                ConfigIssue(f"{path}[{index}]", "format", f'must be a pattern such as "2.32.*", got {_describe(entry)}')
+            )
+        else:
+            patterns.append(entry)
+    return tuple(patterns)
 
 
 def normalize_path(path: str, home: str) -> str:

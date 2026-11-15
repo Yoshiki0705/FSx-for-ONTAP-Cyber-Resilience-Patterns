@@ -111,7 +111,7 @@ TRICKY_PROMPTS: Final = (
     "line one\n--trust-all-tools\n-a",
     "$(touch x) `id` 'single' \"double\" \\ ; | & > <",
     " a leading space",
-    "## 1. 対象リポジトリ\n\n本文",
+    "## 1. Handoff_Target\n\n本文",
 )
 
 #: Prompts that ``kiro-cli`` would read as a trust option if one were the last argv element:

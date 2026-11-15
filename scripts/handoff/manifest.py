@@ -86,6 +86,10 @@ ITEM_KEYS: Final[tuple[str, ...]] = (
     "artifact_paths",
 )
 
+#: Keys of an item that may be left out. ``external_text`` says whether the Handoff_Prompt of the item takes in text
+#: that someone outside this repository wrote (an advisory, an Issue body, a pull-request comment): a change item that
+#: does so is not run (T4-R2-02, Requirement 28.46). A change item that does not state it is not run either.
+OPTIONAL_ITEM_KEYS: Final[tuple[str, ...]] = ("external_text",)
 #: Every key of an entry of ``requires_refs``. All are required.
 REF_KEYS: Final[tuple[str, ...]] = ("repo", "kind", "name")
 
@@ -301,6 +305,10 @@ class Item:
             ``git show origin/main:<path>``, in normal form, each once.
         artifact_paths: Paths of the artifacts the item leaves in this repository, such as
             its Handoff_Prompt, in normal form, each once.
+        external_text: ``True`` when the Handoff_Prompt takes in text from outside this repository, ``False`` when it
+            does not, ``None`` when the item does not say. A change item runs only with ``False`` (the runner holds
+            the others as ``external_text_in_change_mode`` and ``external_text_undeclared``); a query item is not
+            held for it.
     """
 
     id: str
@@ -320,6 +328,7 @@ class Item:
     knowledge_kinds: tuple[str, ...]
     read_paths: tuple[str, ...]
     artifact_paths: tuple[str, ...]
+    external_text: bool | None = None
 
     def executor_attrs(self, *, uncommitted_count: int) -> ExecutorAttrs:
         """Map the item onto the rows of the executor table (design section 20).
@@ -592,7 +601,8 @@ def _check_item(index: int, value: Any, context: _Context, issues: list[Manifest
     knowledge_kinds = _entries(found["knowledge_kinds"], (*where, "knowledge_kinds"), _line_problem, issues)
     read_paths = _entries(found["read_paths"], (*where, "read_paths"), _path_problem, issues)
     artifact_paths = _entries(found["artifact_paths"], (*where, "artifact_paths"), _path_problem, issues)
-    issues.extend(_unknown_keys(value, ITEM_KEYS, where))
+    external_text = _external_text(value.get("external_text"), (*where, "external_text"), issues)
+    issues.extend(_unknown_keys(value, (*ITEM_KEYS, *OPTIONAL_ITEM_KEYS), where))
 
     if (
         declared_files is not None
@@ -644,7 +654,18 @@ def _check_item(index: int, value: Any, context: _Context, issues: list[Manifest
         knowledge_kinds=_present(knowledge_kinds),
         read_paths=_present(read_paths),
         artifact_paths=_present(artifact_paths),
+        external_text=external_text,
     )
+
+
+def _external_text(value: Any, where: tuple[str | int, ...], issues: list[ManifestIssue]) -> bool | None:
+    """Check ``external_text``: absent (``None``), ``true`` or ``false``; nothing else."""
+    if value is None:
+        return None
+    if type(value) is not bool:
+        issues.append(ManifestIssue(_key_path(*where), "type", f"must be true or false, got {_describe(value)}"))
+        return None
+    return value
 
 
 def _schema_version(value: Any, issues: list[ManifestIssue]) -> int | None:

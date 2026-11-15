@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from handoff import state
+from handoff import command, state
 from test_handoff_change_integration import (
     BRANCH,
     CHANGE,
@@ -161,7 +161,13 @@ def git_calls(sb: HandoffSandbox) -> list[list[str]]:
     path = sb.root / "records" / "git.jsonl"
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    return [without_hardening(json.loads(line)) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def without_hardening(call: list[str]) -> list[str]:
+    """``call`` without the options that ``command.harden_git`` puts after ``git`` (T4-R3-01): the plan's own argv."""
+    size = len(command.GIT_HARDENING)
+    return call[size:] if tuple(call[:size]) == command.GIT_HARDENING else call
 
 
 def pushes(sb: HandoffSandbox) -> list[list[str]]:

@@ -105,6 +105,7 @@ def item(item_id: str, sync_point: str, mode: str = "query", **over: Any) -> dic
         "knowledge_kinds": ["records under .private/"] if query else [],
         "read_paths": [],
         "artifact_paths": [],
+        "external_text": False,
     }
     base.update(over)
     return base
@@ -474,6 +475,8 @@ def test_run_starts_only_the_named_query_items_in_the_order_of_dag_select(
     """``run`` starts the named query items as ``dag.select`` orders them and holds the others."""
     sb = handoff_sandbox
     prepare(sb, monkeypatch)
+    # An answer that cites no path is no finding, and an item that depends on it is not started (T4-06).
+    monkeypatch.setenv("FAKE_KIRO_ANSWER", "README.md has a heading and one sentence.\n")
     code, out, err = call(sb, "run", "--items", NAMED)
     assert code == 1, (out, err)  # two items were held
     status = read_status(sb)
