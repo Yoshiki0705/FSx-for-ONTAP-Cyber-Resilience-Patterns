@@ -1,0 +1,23 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://example.invalid/vex/vex-check",
+  "author": "VEX_Reviewer",
+  "role": "VEX_Reviewer",
+  "timestamp": "2026-11-15T18:35:54Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-0000-00000"
+      },
+      "products": [
+        {
+          "@id": "pkg:pypi/example-package@0.0.0"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Example only: an approval-flow check document. The named identifier and package do not exist."
+    }
+  ]
+}
