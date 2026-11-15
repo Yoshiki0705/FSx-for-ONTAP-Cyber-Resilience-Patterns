@@ -246,7 +246,7 @@ CVE のデータベースに依存するスキャナーは、CVE が付く前の
 3. Cooldown の値を確かめる。メジャー更新は <!-- policy:cooldown_days.major -->7 日、pin を除くそれ以外の更新（マイナー、パッチ、digest を含む）は <!-- policy:cooldown_days.default -->3 日である。どちらも慣行の値で、実測に基づかない。pin（`pinDigest`）の更新は待たせない。すでに解決している内容を固定するだけの更新で、待たせると、リリースの頻繁なパッケージで pin が付かない期間が延びるためである [G1]。
 4. 脆弱性修正の PR には Cooldown が働かないので、自動マージを使わず、人の承認レビューを必須にする。Renovate の文書によれば、脆弱性修正の PR は Cooldown を経ずに作られる [G1]。
 5. GitHub の Dependabot アラートを有効にする。Renovate の脆弱性修正の経路は Dependabot アラートを読むので、無効なリポジトリでは修正 PR が作られない見込みである（hypothesis）[E-055]。
-6. Renovate が Cooldown を適用しない更新（`lockFileMaintenance`）と推移的な依存には、パッケージマネージャー側の待ち時間を置く。値は Cooldown の通常の更新と同じ <!-- policy:package_manager_wait.default_days -->3 日で、ポリシーファイルには書かず `cooldown_days` から導出する（直前のマーカーは、検証ゲートが `cooldown_days` の値と比べる印である。ポリシーファイルのスキーマは `package_manager_wait` を任意の項目として受けるが、導出する形は実装の途中なので書かない。書くなら `default_days` と `major_days` の両方が要る）。パッケージマネージャーの待ち時間はロックファイルの全パッケージに一律に適用されるので、メジャー更新だけ別の値にはならない。ツールごとの設定名と単位は、次の表のとおりである。
+6. Renovate が Cooldown を適用しない更新（`lockFileMaintenance`）と推移的な依存には、パッケージマネージャー側の待ち時間を置く。値は Cooldown の通常の更新と同じ <!-- policy:package_manager_wait.default_days -->3 日で、ポリシーファイルには書かず `cooldown_days` から導出する（直前のマーカーは、検証ゲートが `cooldown_days` の値と比べる印である。ポリシーファイルのスキーマは `package_manager_wait` を任意の項目として受けるが、持てるのは `default_days` だけで、`cooldown_days.default` と同じ値でなければならない。`major_days` は拒否される。書かなくてよい）。パッケージマネージャーの待ち時間はロックファイルの全パッケージに一律に適用されるので、メジャー更新だけ別の値にはならない。ツールごとの設定名と単位は、次の表のとおりである。
 
    | ツール | 設定名 | 単位 | 確認状況 |
    |---|---|---|---|

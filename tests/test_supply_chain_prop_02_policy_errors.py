@@ -117,10 +117,10 @@ def _cooldown_inverted(doc: Doc, _pick: int) -> Expected:
 
 
 def _wait_inverted(doc: Doc, _pick: int) -> Expected:
-    # The key is optional (derived from cooldown_days); a file that writes it can still write it inverted.
-    major = doc["cooldown_days"]["major"]
-    doc["package_manager_wait"] = {"default_days": major + 1, "major_days": major}
-    return ("$.package_manager_wait.major_days", "range")
+    # The key is optional (derived from cooldown_days.default); a file that writes it below the minimum is
+    # reported whether or not cooldown_days parsed (the equality check needs a parsed cooldown_days).
+    doc["package_manager_wait"] = {"default_days": 0}
+    return ("$.package_manager_wait.default_days", "range")
 
 
 LIMIT = "$.issue_limits.max_new_issues_per_repo_per_run"
@@ -186,7 +186,7 @@ CATALOG: tuple[Injection, ...] = (
     _inj("duplicate_excluded", "excluded", _dup_excluded),
     _inj("target_also_excluded", "targets,excluded", _overlap),
     _inj("cooldown_major_below_default", "cooldown", _cooldown_inverted),
-    _inj("wait_major_below_default", "wait", _wait_inverted),
+    _inj("wait_below_minimum", "wait", _wait_inverted),
     _inj(
         "open_if_malicious_false",
         "threshold",

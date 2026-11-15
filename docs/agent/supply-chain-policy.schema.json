@@ -51,13 +51,12 @@
       }
     },
     "package_manager_wait": {
-      "description": "Optional. The package manager's waiting period is one value for every update, derived from cooldown_days; a file that writes it must write the same values (T1-15).",
+      "description": "Optional. The package manager's waiting period is one value for every update (no separate value for major updates), derived from cooldown_days.default; a file that writes it must write the same value (T1-15, Requirement 12.21).",
       "type": "object",
       "additionalProperties": false,
-      "required": ["default_days", "major_days"],
+      "required": ["default_days"],
       "properties": {
-        "default_days": {"type": "integer", "minimum": 1},
-        "major_days": {"type": "integer", "minimum": 1}
+        "default_days": {"type": "integer", "minimum": 1}
       }
     },
     "dependency_scope": {

@@ -838,5 +838,5 @@ def check(root: Path) -> Report:
             )
     scanned += _check_required_checks(root, out, policy, policy_text)
     scanned = _check_repo_config_file(root, out, policy, scanned)
-    scanned += _check_package_managers(root, out, policy.package_manager_wait.default)
+    scanned += _check_package_managers(root, out, policy.package_manager_wait)
     return Report(violations=out, scanned=scanned)

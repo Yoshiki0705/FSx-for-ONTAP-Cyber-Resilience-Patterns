@@ -75,7 +75,7 @@ def test_response_target_values(policy: Policy) -> None:
 
 def test_package_manager_wait_equals_cooldown(policy: Policy) -> None:
     assert (policy.cooldown_days.default, policy.cooldown_days.major) == (3, 7)
-    assert policy.package_manager_wait == policy.cooldown_days
+    assert policy.package_manager_wait == policy.cooldown_days.default
 
 
 def test_automerge_starts_disabled_everywhere(policy: Policy) -> None:

@@ -55,8 +55,7 @@
     "open_if_malicious": false
   },
   "package_manager_wait": {
-    "default_days": 3,
-    "major_days": 7
+    "default_days": 3
   },
   "response_target": {
     "detect_hours": 24,
