@@ -322,6 +322,9 @@ OBJECT_IMPORT_REJECTED: Final = "object_import_rejected"
 BRANCH_REF_IS_SYMBOLIC: Final = "branch_ref_is_symbolic"
 #: The run left ``refs/heads/handoff/<id>.lock`` or ``packed-refs.lock`` (T4-R6-05): the next ``update-ref`` would fail.
 STALE_REF_LOCK: Final = "stale_ref_lock"
+#: A run starts while ``refs/heads/handoff/*`` has a branch whose tip object is not in the repository (task 5.45): a
+#: stopped, interrupted or unstarted run left it, and its objects are only in that run's own directory.
+DANGLING_BRANCH_REF: Final = "dangling_branch_ref"
 #: A verification command cannot be re-run under layer 0 (the run has no boundary, T4-R5-01): the harness does not run
 #: the code of a worktree outside the boundary that ``kiro-cli`` ran in.
 OS_BOUNDARY_RERUN_DENIED: Final = "os_boundary_rerun_denied"
@@ -1111,6 +1114,59 @@ def stale_ref_locks(main_tree: str, branch: str) -> tuple[str, ...]:
     git_dir = posixpath.join(os.path.realpath(main_tree), ".git")
     names = ("packed-refs.lock", f"refs/heads/{branch}.lock")
     return tuple(sorted(name for name in names if os.path.lexists(posixpath.join(git_dir, name))))
+
+
+def dangling_handoff_branches(main_tree: str, *, timeout_seconds: float) -> tuple[str, ...]:
+    """List the ``handoff/*`` branches whose tip object is not in the repository, reading only (task 5.45).
+
+    A change run commits into its own object directory and the harness imports those objects after the run
+    (``_import_objects``). A run that ends as stopped, interrupted or not started returns before the import, so its
+    branch stays in the main repository with a tip that the repository does not have. Git commands that walk the
+    refs can then fail, so the next run looks for such a branch first and holds when it finds one. The branch and the
+    objects are never deleted by the harness: a person reads them, imports or drops them, and queues the item again.
+
+    Args:
+        main_tree: The repository's main working tree, absolute.
+        timeout_seconds: The time limit of each git command.
+
+    Returns:
+        The branch names without ``refs/heads/``, sorted. A tip that is not an object name counts as missing.
+
+    Raises:
+        GitCommandFailed: git did not start, did not end in time, or ended with an unexpected code.
+    """
+    listed = _git_once(
+        (
+            "git",
+            "--no-optional-locks",
+            "-C",
+            main_tree,
+            "for-each-ref",
+            "--format=%(objectname) %(refname)",
+            "refs/heads/handoff/",
+        ),
+        main_tree,
+        "listing the handoff branches",
+        timeout_seconds=timeout_seconds,
+    )
+    missing: list[str] = []
+    for line in listed.stdout.decode("utf-8", "replace").splitlines():
+        sha, _, ref = line.partition(" ")
+        if not ref.startswith("refs/heads/"):
+            continue
+        if _OBJECT_ID.fullmatch(sha) is None:
+            missing.append(ref.removeprefix("refs/heads/"))
+            continue
+        probe = _git_once(
+            ("git", "--no-optional-locks", "-C", main_tree, "cat-file", "-e", f"{sha}^{{commit}}"),
+            main_tree,
+            "looking up the tip of a handoff branch",
+            timeout_seconds=timeout_seconds,
+            allowed=(0, 128),
+        )
+        if probe.exit_code != 0:
+            missing.append(ref.removeprefix("refs/heads/"))
+    return tuple(sorted(missing))
 
 
 def branch_exists(main_tree: str, branch: str, *, timeout_seconds: float) -> bool:
@@ -3081,13 +3137,23 @@ class _QueryRun:
             )
         report.write()
         if result.ending == "interrupted":
-            self._end(report, state.FAILED, HARNESS_INTERRUPTED, note="ハーネスが中断された（KeyboardInterrupt）")
+            self._end(
+                report,
+                state.FAILED,
+                HARNESS_INTERRUPTED,
+                note="ハーネスが中断された（KeyboardInterrupt）" + self._left_branch_note(),
+            )
             raise KeyboardInterrupt
         if result.ending == "stopped":
-            return self._end(report, state.FAILED, HARNESS_INTERRUPTED, note="停止の依頼を受けて止めた")
+            return self._end(
+                report, state.FAILED, HARNESS_INTERRUPTED, note="停止の依頼を受けて止めた" + self._left_branch_note()
+            )
         if result.ending == "not_started":
             return self._end(
-                report, state.FAILED, "kiro_cli_not_started", note=f"起動できなかった: {result.start_error}"
+                report,
+                state.FAILED,
+                "kiro_cli_not_started",
+                note=f"起動できなかった: {result.start_error}" + self._left_branch_note(),
             )
         if result.exit_code is None:
             return self._end(report, state.FAILED, "kiro_cli_not_reaped", note="SIGKILL の後も終了を確かめられなかった")
@@ -3170,6 +3236,19 @@ class _QueryRun:
             evaluation.history_reason,
             observations=observations,
             after=after,
+        )
+
+    def _left_branch_note(self) -> str:
+        """Say what a run that ended before the import left behind (task 5.45); empty for a query run.
+
+        The safe side is chosen: the branch and the run's object directory stay, nothing is imported or deleted, and
+        the start of the next run finds the branch (:func:`dangling_handoff_branches`) and holds.
+        """
+        if self.agent_objects is None or not self.branch:
+            return ""
+        return (
+            f"。ブランチ {self.branch} は残す。先端のオブジェクトは項目専用のディレクトリ {self.agent_objects} にだけある"
+            f"場合があり、取り込んでいない。次の実行の開始時に検出して保留にする（{DANGLING_BRANCH_REF}）"
         )
 
     def _evaluate(self, observations: evaluate.Observations) -> evaluate.Evaluation:
@@ -3361,6 +3440,18 @@ class _QueryRun:
         """Step 6: decision D-15. Returns the outcome when the item is held, ``None`` when the worktree exists."""
         self.plan = plan
         if plan.branch is not None:
+            try:
+                dangling = dangling_handoff_branches(plan.main_tree, timeout_seconds=self.timeout)
+            except GitCommandFailed as error:
+                return self._hold("git_branch_lookup_failed", str(error))
+            if dangling:
+                return self._hold(
+                    DANGLING_BRANCH_REF,
+                    f"{', '.join(dangling)} in {plan.main_tree} points to a commit that the repository does not have: "
+                    "an earlier run was stopped, interrupted or did not start, and its objects are only in that run's "
+                    "own directory. Nothing was deleted. Read the branch and the directory, import or drop them, "
+                    "then queue the item again",
+                )
             try:
                 taken = branch_exists(plan.main_tree, plan.branch, timeout_seconds=self.timeout)
             except GitCommandFailed as error:

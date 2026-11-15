@@ -891,7 +891,9 @@ def _planted_piece(draw: st.DrawFn, kind: str, terms: tuple[str, ...]) -> str:
         first, low, high = draw(st.sampled_from(_INTERNAL_BLOCKS))
         text = ".".join(str(octet) for octet in (first, draw(st.integers(low, high)), *_octets(draw, 2)))
     elif kind == "home_path":
-        text = "/".join(("", "Users", draw(st.text(_LETTERS, min_size=1, max_size=12))))
+        # ``u`` and ``example`` are the placeholder user names that the detector allows on purpose.
+        user = draw(st.text(_LETTERS, min_size=1, max_size=12).filter(lambda name: name not in ("u", "example")))
+        text = "/".join(("", "Users", user))
     elif kind == "case_number":
         label = draw(st.sampled_from(_CASE_LABELS))
         text = label + draw(st.sampled_from(_CASE_SEPARATORS)) + str(draw(st.integers(10_000, 9_999_999_999)))

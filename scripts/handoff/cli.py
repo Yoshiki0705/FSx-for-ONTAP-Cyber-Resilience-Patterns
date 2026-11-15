@@ -271,6 +271,7 @@ from handoff import (  # noqa: E402
     os_boundary,  # noqa: E402
     runner,
     state,
+    surface_scan,
 )
 from handoff.config import MODES, ConfigError, HandoffConfig, is_within, normalize_path, parse_config  # noqa: E402
 from handoff.executor import Executor, ExecutorChoice, choose  # noqa: E402
@@ -2247,9 +2248,14 @@ def _read_publish_approval(given: str, inputs: _Inputs) -> command.PublishApprov
     if not isinstance(raw, dict):
         raise _Exit(EXIT_USAGE, f"{path} must hold a JSON object")
     acknowledged = raw.get("execution_surface_ack", [])
+    extras = ("execution_surface_ack", surface_scan.SCANS_KEY)
     issues = _key_issues(
-        "approval", {key: value for key, value in raw.items() if key != "execution_surface_ack"}, _PUBLISH_APPROVAL_KEYS
+        "approval", {key: value for key, value in raw.items() if key not in extras}, _PUBLISH_APPROVAL_KEYS
     )
+    if surface_scan.SCANS_KEY in raw:
+        issues.extend(
+            surface_scan.scans_issues(raw[surface_scan.SCANS_KEY])
+        )  # evidence for the maintainer; not read by publish
     if type(acknowledged) is not list or not all(type(entry) is str for entry in acknowledged):
         issues.append("approval.execution_surface_ack: must be a list of item IDs")
     if not issues:
