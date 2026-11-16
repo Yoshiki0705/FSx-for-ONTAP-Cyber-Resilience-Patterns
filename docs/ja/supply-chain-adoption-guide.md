@@ -47,7 +47,7 @@
 - 起票の判定、VEX による除外の判定、見張りの判定は、このリポジトリの `solutions/supply-chain/` に純粋な関数としてあり、単体テストで確かめている。
 - 検証ゲートは `make check-supply-chain` で動く。ポリシーファイルとこの文書の数値の一致は、ゲートの 1 つ（`guide-values`）が確かめる。
 - `.vex/` の変更が作成者以外の人に承認されたかの確認は Hub 側で動く部品である。Hub に `vex-validate` は公開済みだが、それが `.vex/` を読むことと、作成者以外の承認を確かめることは、実行して確かめていない（open）。
-- 次の 3 点は、実行して確かめていない。Renovate の共有プリセットの参照形（`github>…#<タグ>`）が Renovate で解決されること。GitHub Actions に対する Cooldown がタグの付け替えを防ぐこと（防がない見込みで、hypothesis）。Lambda のカナリアデプロイでトラフィックが移り、アラームで巻き戻ること。
+- 次の 2 点は、実行して確かめていない。Renovate の共有プリセットの参照形（`github>…#<タグ>`）が Renovate で解決されること。Lambda のカナリアデプロイでトラフィックが移り、アラームで巻き戻ること。
 - 見張りの週 1 回の確認（`watchdog_cli`）と、記録の連鎖の分岐の復旧（`chain_recovery`）は、このリポジトリの `solutions/supply-chain/` にあり、手順は 2026-11-15 に使い捨てのディレクトリで実行して確かめた。確かめたのは、`PYTHONPATH` の要否、作業ディレクトリを変えた実行、Hub の実際のワークフロー一覧（`gh api`）の読み取り、分岐の検出・登録・再接続である。launchd からの起動は、使い捨ての plist を `launchctl bootstrap` して `kickstart` で起動し、ジョブ内で `--overdue-check` が終了コード 1 を返し、`osascript display notification` が終了コード 0 で呼ばれたことまで、同日に確かめた。2026-11-16〜17 に、保守者の機械（macOS 27.0）で本番の plist 2 本から週次確認を実行し、`supply-chain-runs` ブランチの取得から報告まで通ること（`healthy: true`）、通知バナーが画面に出ること（保守者の目視）、`StartCalendarInterval` の時刻がスリープ中に過ぎたジョブが復帰時に実行されること（1 回の観測）を確かめた。確かめていないのは、Hub の集約ジョブと見張りが台帳に登録した分岐を読むこと（分岐が起きていない）である。
 - 第 2 と第 3 の柱の手順は公開していない。
 
@@ -284,7 +284,7 @@ Renovate の悪意のあるパッケージの検出は、文書上 experimental 
 
 ### GitHub Actions の Cooldown の限界
 
-Renovate は、SHA で固定した Actions の更新が使う `github-tags` の公開日時を、コミットの `committedDate`（push の時刻ではない）とする。既存のタグを強制 push しても、digest 更新は元のリリース日で判定される [G1]。そのため、Actions に対する <!-- policy:cooldown_days.default -->3 日の Cooldown は、タグの付け替え型の侵害に対する防御として数えない（hypothesis。過去の日付のコミットを指すテスト用タグが経過判定を通るかは、実行して確かめていない）。第三者の Actions の更新は自動マージしない（ポリシーファイルの `automerge.exclude` の `third_party_action`）。
+Renovate は、SHA で固定した Actions の更新が使う `github-tags` の公開日時を、コミットの `committedDate`（push の時刻ではない）とする。既存のタグを強制 push しても、digest 更新は元のリリース日で判定される [G1]。そのため、Actions に対する <!-- policy:cooldown_days.default -->3 日の Cooldown は、タグの付け替え型の侵害に対する防御として数えない。2026-11-17 に使い捨てのリポジトリで 1 回確かめた。過去の日付（2026-01-02）のコミットを指す新しいタグ（push した直後）への更新は、`minimumReleaseAge` が 3 日の設定でも、Renovate（Mend の Renovate App、最小の設定）が PR をすぐに作り、`renovate/stability-days` が success になった。同じ時刻に付けた現在の日付のタグは保留され、PR の Pending 欄に出た。1 回の観測で、再現と、注釈付きタグ（Renovate はタグ付けした人の日付を読む。Renovate のソースの記述で、実行は未確認）は確かめていない。第三者の Actions の更新は自動マージしない（ポリシーファイルの `automerge.exclude` の `third_party_action`）。
 
 Actions のワークフローの依存関係を固定する lockfile（`.github/workflows/actions.lock`）を採用するリポジトリでも、`uses:` の SHA 固定は lockfile の存在で置き換えない。lockfile で SHA 固定を置き換えてよいかは、機能の成熟度を確認できていないので `open` とし、パイロットの後に決める。それまでは SHA 固定を求める。
 
