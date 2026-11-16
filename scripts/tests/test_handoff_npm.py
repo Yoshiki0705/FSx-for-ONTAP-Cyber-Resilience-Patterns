@@ -257,7 +257,11 @@ def test_npm_gets_a_cache_below_the_run_and_no_user_configuration() -> None:
     """The cache is in the run's temporary directory (writable also under an allow list); the configuration files are empty."""
     env = child({"PATH": "/usr/bin"})
     assert env["npm_config_cache"] == "/tmp/handoff-child-x/npm-cache"
-    assert env["npm_config_userconfig"] == env["npm_config_globalconfig"] == "/tmp/handoff-child-x/aws-empty"
+    assert env["npm_config_userconfig"] == "/tmp/handoff-child-x/aws-empty"
+    # npm stops with "double-loading config ... as global, previously loaded as user" when both name one path
+    # (found by the live run of task 5.56-c); the global one is its own empty file in the same directory.
+    assert env["npm_config_globalconfig"] == "/tmp/handoff-child-x/npm-global-empty"
+    assert env["npm_config_userconfig"] != env["npm_config_globalconfig"]
     assert env["npm_config_ignore_scripts"] == "true"
     assert env["npm_config_registry"] == "https://registry.npmjs.org/"
     assert env["npm_config_audit"] == env["npm_config_fund"] == env["npm_config_update_notifier"] == "false"

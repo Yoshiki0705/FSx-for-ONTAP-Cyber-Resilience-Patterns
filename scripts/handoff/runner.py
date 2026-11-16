@@ -5580,6 +5580,7 @@ class _ChildPaths:
         gh_config_dir: ``<directory>/gh``, an empty directory.
         aws_empty_file: ``<directory>/aws-empty``, an empty file.
         npm_cache_dir: ``<directory>/npm-cache``, an empty directory for npm's cache (task 5.56).
+        npm_global_empty_file: ``<directory>/npm-global-empty``, an empty file; npm's global configuration.
     """
 
     def __enter__(self) -> _ChildPaths:
@@ -5591,8 +5592,10 @@ class _ChildPaths:
         self.npm_cache_dir = posixpath.join(self.directory, "npm-cache")
         os.mkdir(self.gh_config_dir, 0o700)
         os.mkdir(self.npm_cache_dir, 0o700)
-        with open(self.aws_empty_file, "xb"):
-            pass
+        self.npm_global_empty_file = posixpath.join(self.directory, "npm-global-empty")
+        for empty in (self.aws_empty_file, self.npm_global_empty_file):
+            with open(empty, "xb"):
+                pass
         return self
 
     def __exit__(self, *exc_info: object) -> None:
