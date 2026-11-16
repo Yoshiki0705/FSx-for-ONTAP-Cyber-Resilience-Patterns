@@ -1022,7 +1022,8 @@ def child_env(
       parent's registry, prefix, cache or token would otherwise move what ``npm`` in a run reads and writes (task 5.56).
     - When ``npm_cache_dir`` is given, ``npm_config_cache`` set to it (a directory of the run's temporary directory,
       which stays writable whether layer 0 is a list of denials or, later, of permissions), ``npm_config_userconfig``
-      and ``npm_config_globalconfig`` set to ``aws_empty_file`` (so ``~/.npmrc``, which layer 0 does not let anyone
+      set to ``aws_empty_file`` and ``npm_config_globalconfig`` to ``npm-global-empty`` beside it (two paths: npm stops
+      when both settings name one file, "double-loading config"; so ``~/.npmrc``, which layer 0 does not let anyone
       read, is not consulted), the registry set to the public one, and ``ignore_scripts``, ``audit``, ``fund`` and
       ``update_notifier`` set. Environment variables rank above a project's ``.npmrc`` in npm's order of
       precedence, so the registry cannot be moved by a file the run writes.
@@ -1109,7 +1110,7 @@ def child_env(
             {
                 "npm_config_cache": npm_cache_dir,
                 "npm_config_userconfig": aws_empty_file,
-                "npm_config_globalconfig": aws_empty_file,
+                "npm_config_globalconfig": posixpath.join(posixpath.dirname(aws_empty_file), "npm-global-empty"),
                 "npm_config_registry": NPM_REGISTRY,
                 "npm_config_ignore_scripts": "true",
                 "npm_config_audit": "false",
