@@ -535,6 +535,11 @@ def _parser() -> argparse.ArgumentParser:
     status_parser.add_argument(
         "--verify-log", action="store_true", help="check the chain of status.log.jsonl and its end against status.json"
     )
+    status_parser.add_argument(
+        "--record-tip",
+        action="store_true",
+        help="write the SHA-256 of the last line of status.log.jsonl to the branch handoff-log-tips and push it",
+    )
     cleanup = commands.add_parser(
         "cleanup", help="list an item's worktree and branch; remove the worktree with --approved"
     )
@@ -1030,7 +1035,7 @@ def _plan(args: argparse.Namespace, inputs: _Inputs) -> int:
     selector, named = _named_items(inputs, args)
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         context = _context(inputs, deny, approvals, harness.status)
         view = _with_records(harness.status, inputs.manifest)
         drafts = {
@@ -1280,7 +1285,7 @@ def _run(args: argparse.Namespace, inputs: _Inputs) -> int:
     selector, named = _named_items(inputs, args)
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         context = _context(inputs, deny, approvals, harness.status)
         missing = _missing_kiro_cli(inputs)
         if missing is not None:
@@ -1649,7 +1654,7 @@ def _manual(args: argparse.Namespace, inputs: _Inputs) -> int:
     item = _item(inputs, args.item_id)
     approvals = _agent_approvals(inputs)
     deny = _deny_terms(inputs)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         view = _with_records(harness.status, inputs.manifest)
         current = view["items"][item.id]["state"]
         if current not in _MANUAL_STATES:
@@ -1663,7 +1668,7 @@ def _verify(args: argparse.Namespace, inputs: _Inputs) -> int:
     if not posixpath.isabs(args.worktree):
         raise _Exit(EXIT_USAGE, f"--worktree {args.worktree} must be an absolute path")
     worktree = posixpath.normpath(args.worktree)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         context = _run_context(inputs, runner.DenyTerms((), ()), frozenset())
         outcome = harness.verify_manual(context, item.id, worktree)
     _out(f"{item.id}: {outcome.state}（{outcome.reason}）")
@@ -1801,6 +1806,8 @@ def _status(args: argparse.Namespace, inputs: _Inputs) -> int:
         return _accept_common_dir(args, inputs)
     if args.verify_log:
         return _verify_log(inputs)
+    if args.record_tip:
+        return _record_tip(inputs)
     status = runner.read_status(inputs.handoff_dir)
     now = datetime.now(timezone.utc)
     manifest_ids = [item.id for item in inputs.manifest.items]
@@ -1963,7 +1970,7 @@ def _accept_common_dir(args: argparse.Namespace, inputs: _Inputs) -> int:
     if args.repo not in inputs.config.repos:
         raise _Exit(EXIT_USAGE, f"{args.repo} is not a repository of config.json")
     context = _run_context(inputs, runner.DenyTerms((), ()), frozenset())
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         try:
             digest, before = harness.accept_common_dir(context, args.repo)
         except runner.RunnerError as error:
@@ -1971,6 +1978,29 @@ def _accept_common_dir(args: argparse.Namespace, inputs: _Inputs) -> int:
     _out(f"{args.repo}: 共有 git ディレクトリの記録 {before or 'なし'} → {digest}")
     _out("  次の run は、この状態を前回の終了時の状態として比べる")
     return EXIT_OK
+
+
+def _open_harness(inputs: _Inputs) -> runner.Harness:
+    """Open the harness with the log-tip recorder (task 5.19): a final state or a re-queue records the tip."""
+    harness = runner.Harness.open(inputs.handoff_dir)
+    handoff_dir = inputs.handoff_dir
+    harness.set_tip_recorder(lambda: _report_tip(runner.record_log_tip(handoff_dir), quiet_when_ok=True))
+    return harness
+
+
+def _report_tip(result: runner.TipRecord, *, quiet_when_ok: bool) -> None:
+    """Show what :func:`handoff.runner.record_log_tip` did; a failure is a warning, never an error."""
+    if result.outcome in ("push_failed", "skipped"):
+        _err(f"status.log.jsonl の末尾の SHA-256 を書き残せなかった（{result.outcome}）: {result.detail}")
+    elif not quiet_when_ok:
+        _out(f"status.log.jsonl の末尾の SHA-256 {result.sha256}: {result.outcome}（{result.detail}）")
+
+
+def _record_tip(inputs: _Inputs) -> int:
+    """``status --record-tip``: record the SHA-256 of the last line of ``status.log.jsonl`` now; 1 when it was not."""
+    result = runner.record_log_tip(inputs.handoff_dir)
+    _report_tip(result, quiet_when_ok=False)
+    return EXIT_ITEMS if result.outcome in ("push_failed", "skipped") else EXIT_OK
 
 
 def _verify_log(inputs: _Inputs) -> int:
@@ -1988,7 +2018,7 @@ def _status_set(args: argparse.Namespace, inputs: _Inputs) -> int:
     reason = args.reason
     if not reason.strip() or reason.splitlines() != [reason]:
         raise _Exit(EXIT_USAGE, "--reason must be one non-blank line")
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         record = harness.status["items"].get(item.id)
         if record is None:
             raise _Exit(EXIT_ITEMS, f"{item.id} has no record yet; it starts as queued when run or plan adds it")
@@ -2015,7 +2045,7 @@ def _cleanup(args: argparse.Namespace, inputs: _Inputs) -> int:
     """``cleanup ID [--approved]``: list what would be removed; remove the worktree only when approved."""
     item = _item(inputs, args.item_id)
     if args.approved:
-        with runner.Harness.open(inputs.handoff_dir) as harness:
+        with _open_harness(inputs) as harness:
             return _cleanup_with(inputs, item, harness.status, harness)
     return _cleanup_with(inputs, item, runner.read_status(inputs.handoff_dir), None)
 
@@ -2119,7 +2149,7 @@ def _selftest(args: argparse.Namespace, inputs: _Inputs) -> int:
     _require_private_control_files(inputs)
     approvals = _agent_approvals(inputs)
     try:
-        with runner.Harness.open(inputs.handoff_dir) as harness:
+        with _open_harness(inputs) as harness:
             earlier = harness.status["selftest"]
             try:
                 return _selftest_in(harness, inputs, approvals, earlier)
@@ -2212,7 +2242,7 @@ def _publish(args: argparse.Namespace, inputs: _Inputs) -> int:
     """
     approval = _read_publish_approval(args.approval, inputs)
     deny = _deny_terms(inputs)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         context = _run_context(inputs, deny, frozenset())
         outcomes = harness.publish_batch(context, approval)
     for outcome in outcomes:
@@ -2308,7 +2338,7 @@ def _confirm_ref(args: argparse.Namespace, inputs: _Inputs) -> int:
     if problem is not None:
         raise _Exit(EXIT_USAGE, f"--name {args.name!r} {problem}")
     ref = RequiredRef(args.repo, args.kind, args.name)
-    with runner.Harness.open(inputs.handoff_dir) as harness:
+    with _open_harness(inputs) as harness:
         try:
             entry = harness.confirm_ref(inputs.config, ref)
         except (runner.RefNotConfirmed, state.TransitionError) as error:

@@ -223,6 +223,10 @@ LOCK_FILE: Final = ".lock"
 STATUS_BACKUP_FILE: Final = command.STATUS_FILE + ".bak"
 #: The append-only history of the saves of ``status.json`` (T4-04), next to it.
 STATUS_LOG_FILE: Final = "status.log.jsonl"
+#: The branch of this repository that keeps the SHA-256 of the last line of the log (task 5.19, D-38 item 6).
+TIP_BRANCH: Final = "handoff-log-tips"
+#: The file of that branch: one JSON line per record.
+TIP_FILE: Final = "tips.jsonl"
 
 #: Seconds between SIGTERM to a process group and SIGKILL to what remains of it (design H2).
 KILL_GRACE_SECONDS: Final = 10.0
@@ -1553,6 +1557,15 @@ class Harness:
         self._stale_lock: StaleLock | None = None
         self._interrupted: tuple[str, ...] = ()
         self._closed = False
+        self._tip_recorder: Callable[[], object] | None = None
+
+    def set_tip_recorder(self, recorder: Callable[[], object] | None) -> None:
+        """Set what runs after an item reaches a final state or is re-queued (see :func:`record_log_tip`).
+
+        The recorder runs after the status and its log line are saved. A recorder that raises is logged and
+        does not fail the transition.
+        """
+        self._tip_recorder = recorder
 
     @classmethod
     def open(cls, handoff_dir: str) -> Harness:
@@ -2271,7 +2284,12 @@ class Harness:
             if self._closed:
                 raise RunnerError("the harness is closed; open it again")
             self._file.save(status)
-            self._status = status
+            previous, self._status = self._status, status
+            if self._tip_recorder is not None and _ended_or_requeued(previous, status):
+                try:
+                    self._tip_recorder()
+                except Exception as exc:  # noqa: BLE001 - a recorder must never fail a transition
+                    _LOG.warning("the log tip could not be recorded (%s)", exc)
 
     def _record_stale_lock(self, stale: StaleLock) -> None:
         """Record in ``events`` that :meth:`open` removed a stale lock."""
@@ -6123,6 +6141,138 @@ def verify_status_log(directory: str) -> list[str]:
         elif last_status != current:
             problems.append(f"line {len(lines)}: status_sha256 is not the digest of status.json as it is now")
     return problems
+
+
+def _ended_or_requeued(before: state.StatusDoc, after: state.StatusDoc) -> bool:
+    """Whether a save moved an existing item to a final state, or moved a final one back to ``queued``."""
+    final = (state.SUCCEEDED, state.FAILED, state.NEEDS_HUMAN)
+    for item_id, record in after["items"].items():
+        old = before["items"].get(item_id)
+        if old is None or old["state"] == record["state"]:
+            continue
+        if record["state"] in final or (record["state"] == state.QUEUED and old["state"] in final):
+            return True
+    return False
+
+
+@dataclass(frozen=True)
+class TipRecord:
+    """The result of :func:`record_log_tip`.
+
+    Attributes:
+        outcome: ``recorded`` (committed and pushed), ``recorded_local`` (committed; the repository has no
+            ``origin``), ``unchanged`` (the last record already holds this digest), ``push_failed``
+            (committed; the push did not succeed, the next record pushes it), or ``skipped`` (no log, or not a
+            git repository; nothing was written).
+        sha256: SHA-256 of the last line of the log, when there is one.
+        detail: One line for a person.
+    """
+
+    outcome: str
+    sha256: str | None
+    detail: str
+
+
+_TIP_README: Final = (
+    "# Log tips\n\n"
+    "Each line of `tips.jsonl` holds the SHA-256 of the last line of a local, append-only log of the\n"
+    "Handoff_Harness, and the time it was recorded. The log is not published. The digest lets its owner see that\n"
+    "an earlier part of the log was not rewritten. Nothing else is recorded here.\n"
+)
+_TIP_IDENTITY: Final = {
+    "GIT_AUTHOR_NAME": "handoff-harness",
+    "GIT_AUTHOR_EMAIL": "handoff-harness@users.noreply.github.com",
+    "GIT_COMMITTER_NAME": "handoff-harness",
+    "GIT_COMMITTER_EMAIL": "handoff-harness@users.noreply.github.com",
+}
+
+
+def record_log_tip(handoff_dir: str, *, push: bool = True, timeout_seconds: float = 60.0) -> TipRecord:
+    """Write the SHA-256 of the last line of ``status.log.jsonl`` to :data:`TIP_BRANCH`, and push it.
+
+    ``.private/`` is gitignored, so a rewrite of the log is seen by nothing outside the machine. The branch of
+    this repository (the one that holds ``.private/``) keeps the digest in Git's history, and ``origin`` keeps a
+    copy that the machine cannot rewrite quietly. Only git plumbing runs (``hash-object``, ``mktree``,
+    ``commit-tree``, ``update-ref``), so the working tree, the index and ``.git/config`` of a shared main tree
+    are not touched. The branch holds a digest and the time it was recorded; no path, item, state or count.
+
+    Never raises for a git problem: the result says what happened.
+
+    Args:
+        handoff_dir: ``.private/handoff`` of this repository.
+        push: Push to ``origin`` when it exists.
+        timeout_seconds: The limit of each git command.
+
+    Returns:
+        What was recorded.
+    """
+    log = posixpath.join(handoff_dir, STATUS_LOG_FILE)
+    last = _last_line(log)
+    if not last:
+        return TipRecord("skipped", None, "status.log.jsonl has no line to record")
+    digest = sha256(last).hexdigest()
+    tree = posixpath.dirname(posixpath.dirname(handoff_dir))
+    env = {**git_environment(os.environ), **_TIP_IDENTITY, "GIT_CONFIG_NOSYSTEM": "1"}
+
+    def run(*argv: str, data: str | None = None, ok: tuple[int, ...] = (0,)) -> str | None:
+        try:
+            done = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                ["git", *argv],
+                cwd=tree,
+                env=env,
+                input=data,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return done.stdout if done.returncode in ok else None
+
+    common = run("rev-parse", "--git-common-dir")
+    if common is None:
+        return TipRecord("skipped", digest, "the harness tree is not a git repository; nothing was recorded")
+    gitdir = posixpath.normpath(posixpath.join(tree, common.strip()))
+    base = ("--git-dir=" + gitdir,)
+    has_origin = run(*base, "remote", "get-url", "origin") is not None
+    ref = f"refs/heads/{TIP_BRANCH}"
+    parent = run(*base, "rev-parse", "-q", "--verify", f"{ref}^{{commit}}")
+    if parent is None and push and has_origin:
+        run(*base, "fetch", "-q", "origin", f"+{ref}:{ref}")
+        parent = run(*base, "rev-parse", "-q", "--verify", f"{ref}^{{commit}}")
+    parent = parent.strip() if parent else None
+    previous = run(*base, "cat-file", "blob", f"{parent}:{TIP_FILE}") if parent else ""
+    if previous is None:
+        return TipRecord("skipped", digest, f"{TIP_BRANCH} has no {TIP_FILE}; nothing was recorded")
+    records = previous.splitlines()
+    last_record: Any = {}
+    if records:
+        try:
+            last_record = json.loads(records[-1])
+        except ValueError:
+            last_record = {}
+    if last_record.get("sha256") == digest:
+        if push and has_origin and run(*base, "push", "-q", "origin", f"{ref}:{ref}") is None:
+            return TipRecord("push_failed", digest, "the tip is recorded; the push to origin failed")
+        return TipRecord("unchanged", digest, "the last record already holds this digest")
+    entry = json.dumps({"at": _now(), "sha256": digest}, sort_keys=True, separators=(",", ":"))
+    body = "".join(line + "\n" for line in [*records, entry])
+    tips_blob = run(*base, "hash-object", "-w", "--stdin", data=body)
+    readme_blob = run(*base, "hash-object", "-w", "--stdin", data=_TIP_README)
+    if tips_blob is None or readme_blob is None:
+        return TipRecord("skipped", digest, "git could not write the objects; nothing was recorded")
+    listing = f"100644 blob {readme_blob.strip()}\tREADME.md\n100644 blob {tips_blob.strip()}\t{TIP_FILE}\n"
+    root = run(*base, "mktree", data=listing)
+    commit_args = ["commit-tree", (root or "").strip(), "-m", "chore: record log tip"]
+    commit = run(*base, *commit_args, *(["-p", parent] if parent else [])) if root else None
+    if commit is None or run(*base, "update-ref", ref, commit.strip(), parent or "0" * 40) is None:
+        return TipRecord("skipped", digest, "git could not write the commit; nothing was recorded")
+    if not has_origin:
+        return TipRecord("recorded_local", digest, "recorded in the local branch; the repository has no origin")
+    if push and run(*base, "push", "-q", "origin", f"{ref}:{ref}") is None:
+        return TipRecord("push_failed", digest, "recorded in the local branch; the push to origin failed")
+    return TipRecord("recorded", digest, "recorded and pushed")
 
 
 def _last_line(path: str) -> bytes:
