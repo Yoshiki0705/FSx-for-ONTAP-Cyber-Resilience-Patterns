@@ -106,7 +106,7 @@ FSx for ONTAP に組み込まれたセキュリティ機能。追加コンポー
 
 | Technology | アプローチ / Approach | 強み / Strength |
 |-----------|---------------------|----------------|
-| **TrendAI Vision One — File Security** | シグネチャ + ヒューリスティック (Vscan/ICAP) | 既知脅威の高精度検知、低偽陽性 |
+| **TrendAI Vision One — File Security** | シグネチャ + ヒューリスティック (Vscan/ICAP) | 既知脅威のシグネチャ検知（精度は未測定） |
 | **Deep Instinct for NetApp ONTAP** | Deep Learning 推論 (予防型) | 未知脅威・ゼロデイの事前防御 |
 
 ### Layer 3: Event-Driven Response（イベント駆動対応）

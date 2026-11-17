@@ -119,7 +119,7 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 
 ## セキュリティアラートトピックの暗号化
 
-`event-driven.yaml` は、`SecurityAlertTopic` を AWS マネージドキー `aws/sns` ではなく、お客様管理キー（`AlertTopicKey`、キーローテーション有効）で暗号化します。試験では、`aws/sns` で暗号化したトピックを指定した CloudWatch アラームのアクションが失敗しました [E-039]。このトピックに通知するアラームは 5 つです。`event-driven.yaml` の DLQ アラーム、`observability.yaml` の 3 つ、`siem-integration.yaml` の DLQ アラームです。この試験の結果からは、トピックが `aws/sns` のままだと、これらのアラームは通知できなかったと考えています。スタックにはトピックポリシーもなく、既定のポリシーだけのトピックには EventBridge ルールが何も配信しませんでした [E-040]。そのため `RuleNotification` ルールも配信できていなかったと考えています。
+`event-driven.yaml` は、`SecurityAlertTopic` を AWS マネージドキー `aws/sns` ではなく、カスタマーマネージドキー（`AlertTopicKey`、キーローテーション有効）で暗号化します。試験では、`aws/sns` で暗号化したトピックを指定した CloudWatch アラームのアクションが失敗しました [E-039]。このトピックに通知するアラームは 5 つです。`event-driven.yaml` の DLQ アラーム、`observability.yaml` の 3 つ、`siem-integration.yaml` の DLQ アラームです。この試験の結果からは、トピックが `aws/sns` のままだと、これらのアラームは通知できなかったと考えています。スタックにはトピックポリシーもなく、既定のポリシーだけのトピックには EventBridge ルールが何も配信しませんでした [E-040]。そのため `RuleNotification` ルールも配信できていなかったと考えています。
 
 ### スタックが作るもの
 
@@ -143,16 +143,16 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 |--------|------|
 | `aws/sns` で暗号化したトピックへのアラーム | アクションが失敗し、配信されない [E-039] |
 | 暗号化なしのトピックへのアラーム | 配信された [E-039] |
-| お客様管理キーで暗号化したトピックへのアラーム（上記のキーポリシー） | 配信された [E-039] |
+| カスタマーマネージドキーで暗号化したトピックへのアラーム（上記のキーポリシー） | 配信された [E-039] |
 | 既定のトピックポリシーだけのトピックへの EventBridge ルール | 配信されず、`FailedInvocations` が 2 [E-040] |
-| `events.amazonaws.com` を許可したトピックポリシーへの EventBridge ルール（お客様管理キーの有無とも） | 配信された [E-040] |
+| `events.amazonaws.com` を許可したトピックポリシーへの EventBridge ルール（カスタマーマネージドキーの有無とも） | 配信された [E-040] |
 | `sns:Publish` だけのロール、次に `kms:ViaService` の権限を足したロール | `KMSAccessDenied`、次に配信された |
 | カスタムイベントバスのルールから、`aws/sns` で暗号化し、`events.amazonaws.com` を許可したトピックポリシーを付けたトピックへ | 配信されず、`FailedInvocations` が 2 [E-041] |
-| カスタムイベントバスのルールから、お客様管理キー（鍵ポリシーとトピックポリシーで `events.amazonaws.com` を許可）で暗号化したトピックへ | 配信された [E-041] |
+| カスタムイベントバスのルールから、カスタマーマネージドキー（鍵ポリシーとトピックポリシーで `events.amazonaws.com` を許可）で暗号化したトピックへ | 配信された [E-041] |
 
 ### ハブのアラートトピック
 
-`hub-aggregation.yaml` の `HubAlertTopic` にも同じ変更を入れました。このトピックに発行するのは、ハブの EventBridge ルール（`HubNotificationRule`）だけです。お客様管理キー `HubAlertTopicKey`（ローテーション有効、削除の待機期間 30 日）、トピックポリシー `HubAlertTopicPolicy`、出力 `HubAlertTopicKeyArn` を追加しています。ハブのスタックにはアラームがないため、発行を許可するのはハブのアカウントの `events.amazonaws.com` だけです。`aws/sns` で暗号化したトピックは、トピックポリシーを付けても、ルールから何も受け取りませんでした [E-041]。
+`hub-aggregation.yaml` の `HubAlertTopic` にも同じ変更を入れました。このトピックに発行するのは、ハブの EventBridge ルール（`HubNotificationRule`）だけです。カスタマーマネージドキー `HubAlertTopicKey`（ローテーション有効、削除の待機期間 30 日）、トピックポリシー `HubAlertTopicPolicy`、出力 `HubAlertTopicKeyArn` を追加しています。ハブのスタックにはアラームがないため、発行を許可するのはハブのアカウントの `events.amazonaws.com` だけです。`aws/sns` で暗号化したトピックは、トピックポリシーを付けても、ルールから何も受け取りませんでした [E-041]。
 
 ### 未測定の項目
 
@@ -178,7 +178,7 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 
 | リソース | 役割 |
 |----------|------|
-| `AlertFallbackTopic` と `AlertFallbackTopicKey` | 専用のお客様管理キー（ローテーション有効）で暗号化した 2 つ目のトピック。同じアカウントの CloudWatch が発行でき、Step Functions のロールは `sns:Publish` と鍵の権限を持つ |
+| `AlertFallbackTopic` と `AlertFallbackTopicKey` | 専用のカスタマーマネージドキー（ローテーション有効）で暗号化した 2 つ目のトピック。同じアカウントの CloudWatch が発行でき、Step Functions のロールは `sns:Publish` と鍵の権限を持つ |
 | `NotifyFallback` の状態 | `SendAlert` が失敗したときに発行する。成功しても失敗しても `WaitForApproval` に進む |
 | `ApprovalWaitingAlarm` | 承認キューの `ApproximateAgeOfOldestMessage`（名前空間 `AWS/SQS`、`Maximum`、期間 300 秒）を監視し、両方のトピックに通知する |
 | パラメータ `FallbackNotificationEmail` | 予備のトピックに購読させるアドレス。`NotificationEmail` とは別のアドレスにする。テンプレートでは確かめられない |
@@ -191,7 +191,7 @@ CloudWatch アラームは、他のリージョンの SNS トピックを指定�
 - AWS のドキュメントには、3 回以上受信して削除していないメッセージは、標準キューの後ろに回され、この指標から外れるとあります（[Amazon SQS の CloudWatch 指標](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html)）。下の試験では、キューに 1 件だけのときはこの動きは見えませんでした。複数の依頼が待っているときは、指標が次のメッセージを指すことがあります（未測定）。
 - 2 つのトピックは、同じリージョンの SNS です。リージョン単位の SNS の障害では、両方が止まります。
 
-2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、単独のリソース（キュー、閾値と期間が 60 秒のアラーム、お客様管理キーで暗号化したトピック）を使い、各 1 回測りました。
+2026-11-13（UTC）に、1 アカウントの `ap-northeast-1` で、単独のリソース（キュー、閾値と期間が 60 秒のアラーム、カスタマーマネージドキーで暗号化したトピック）を使い、各 1 回測りました。
 
 | 場合 | 結果 |
 |------|------|

@@ -1,0 +1,139 @@
+<mxfile host="drawio" modified="2026-11-17T00:00:00.000Z" agent="build.py">
+  <diagram id="d" name="page">
+    <mxGraphModel dx="0" dy="0" grid="0" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="940" pageHeight="1520" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c2" value="&lt;b&gt;Maintainer (person)&lt;/b&gt;&lt;br&gt;approves the request (bound to the diff SHA)" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="20" y="20" width="290" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="Maintainer's machine" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="130" width="900" height="1000" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;b&gt;Handoff harness (start)&lt;/b&gt;&lt;br&gt;plan → run&lt;br&gt;records each item's declaration and state&lt;br&gt;(the state log is hash-chained)" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="40" y="180" width="270" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="Sandbox (sandbox-exec) boundary" style="shape=ext;double=1;rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="340" y="180" width="560" height="460" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="&lt;b&gt;Hub's Kiro *1&lt;/b&gt;&lt;br&gt;kiro-cli 2.32.0 (non-interactive)&lt;br&gt;macOS 27.0&lt;br&gt;agent config handoff-change&lt;br&gt;hooks.preToolUse guard" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="230" width="250" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="&lt;b&gt;Kiro for the other 10 repositories *1&lt;/b&gt;&lt;br&gt;not started" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;dashed=1;dashPattern=6 4;" parent="1" vertex="1">
+          <mxGeometry x="360" y="400" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="&lt;b&gt;Known limit&lt;/b&gt;&lt;br&gt;The 15 MCP servers still start inside the boundary; those holding tokens can reach out" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#B3261E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="490" width="250" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="Per-item worktree&lt;br&gt;handoff/&amp;lt;item&amp;gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="230" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="Per-item&lt;br&gt;object directory" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="320" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="Examples denied by the sandbox" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="340" y="680" width="270" height="306" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value="~/.ssh, ~/.aws, ~/.config/gh, ~/Library/Keychains and a list of 93 names" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="720" width="250" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="Link targets (sync folders)" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="840" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="Other worktrees and the main .git/objects" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="906" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="Harness (after exit)" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="630" y="680" width="280" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="&lt;b&gt;Import&lt;/b&gt;&lt;br&gt;unpack-objects --strict&lt;br&gt;done = commit and diff, not exit code" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="720" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="&lt;b&gt;Checks&lt;/b&gt;&lt;br&gt;files outside the declared set&lt;br&gt;.git shape&lt;br&gt;gitlink (160000)&lt;br&gt;execution-surface scan (zizmor, gitleaks)" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="850" width="270" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="&lt;b&gt;Publish&lt;/b&gt;&lt;br&gt;opens a draft PR after approval" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="1030" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="&lt;b&gt;Stopped, interrupted or failed to start&lt;/b&gt;&lt;br&gt;state: failed" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#B3261E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="40" y="350" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="The branch and per-item objects are kept" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#B3261E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="40" y="450" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="The next run is held because the branch remains (dangling_branch_ref)" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#B3261E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="40" y="556" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="A person decides, using the repository runbook, to import or discard" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#B3261E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="40" y="662" width="270" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="GitHub" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="630" y="1160" width="280" height="232" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="&lt;b&gt;Draft PR&lt;/b&gt;&lt;br&gt;lists the execution-surface files" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="1200" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="&lt;b&gt;Hub CI&lt;/b&gt;&lt;br&gt;SHA-pinned workflows, zizmor, gitleaks" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="1306" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="&lt;b&gt;Maintainer (person)&lt;/b&gt;&lt;br&gt;marks ready and merges" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="1420" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="Legend and notes" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="1160" width="590" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="① The maintainer approves the request&lt;br&gt;② The harness creates a worktree and starts kiro-cli under the sandbox&lt;br&gt;③ Commits go to the per-item object directory, not to the main .git/objects&lt;br&gt;④ Imported after the process exits&lt;br&gt;⑤ Checked&lt;br&gt;⑥ A draft PR is opened after approval&lt;br&gt;⑦ The maintainer marks it ready and merges&lt;br&gt;⑧ Red dashed: path after a stop (the harness deletes nothing)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontSize=16;fontColor=#232F3E;spacingLeft=4;spacingRight=4;" parent="1" vertex="1">
+          <mxGeometry x="30" y="1194" width="570" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="&lt;b&gt;*1 Environment and counts&lt;/b&gt;&lt;br&gt;macOS 27.0, kiro-cli 2.32.0. 93 names are denied. 15 Hub PRs were opened as drafts (2026-11-13 to 17). The rollout to the other 10 repositories has not started." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontSize=16;fontColor=#232F3E;spacingLeft=4;spacingRight=4;" parent="1" vertex="1">
+          <mxGeometry x="30" y="1390" width="570" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="①" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.88;exitY=1;exitDx=0;exitDy=0;entryX=0.87;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c2" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="②" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.36;entryDx=0;entryDy=0;" parent="1" edge="1" source="c4" target="c6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.43;entryDx=0;entryDy=0;" parent="1" edge="1" source="c6" target="c9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c33" value="③" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.21;entryDx=0;entryDy=0;" parent="1" edge="1" source="c6" target="c10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c34" value="denied" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5185;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c5" target="c11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c35" value="④" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.9;exitY=1;exitDx=0;exitDy=0;entryX=0.837;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c10" target="c16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c36" value="⑤" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c16" target="c17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c37" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c17" target="c18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c38" value="⑥" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c18" target="c24">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c39" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c24" target="c25">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c40" value="⑦" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c25" target="c26">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c41" value="⑧" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;dashed=1;dashPattern=6 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c4" target="c19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;dashed=1;dashPattern=6 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c19" target="c20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c43" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;dashed=1;dashPattern=6 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c20" target="c21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c44" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#B3261E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;dashed=1;dashPattern=6 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c21" target="c22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

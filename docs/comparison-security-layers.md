@@ -1,4 +1,4 @@
-# Security Layer Comparison: ONTAP ARP vs TrendAI File Security vs Deep Instinct
+# Security Layer Comparison: ONTAP ARP, TrendAI File Security and Deep Instinct
 
 ## Table of Contents / 目次
 
@@ -57,7 +57,7 @@ Deep learning inference-based preventive security. Analyzes file structure itsel
 | **追加インフラ** | 不要（ONTAP 内蔵） | Vscan サーバー EC2 必要 | Agent サーバー EC2 必要 |
 | **ブロック能力** | 直接ブロックなし（検知＋Snapshot） | 書き込みブロック可能（FPolicy 連携、**NFS / SMB のみ**） | 書き込みブロック可能（FPolicy 連携、**NFS / SMB のみ**） |
 | **レスポンスタイム** | 分単位。suspect の一覧は先に立つが `attack_probability` は書き込みから 10 分以上遅れる（実測） | ミリ秒（インラインスキャン） | ミリ秒（推論完了時） |
-| **偽陽性リスク** | 中（旧世代 ARP は学習期間に依存。ARP/AI は事前学習モデル） | 低（シグネチャ精度高い） | 低〜中（モデル依存） |
+| **偽陽性リスク** | 中（旧世代 ARP は学習期間に依存。ARP/AI は事前学習モデル） | 環境依存（測っていない） | 環境依存（測っていない） |
 | **シグネチャ更新** | 不要（行動ベース） | 必要（自動更新） | 不要（モデルベース） |
 | **ONTAP 統合** | ネイティブ（設定のみ） | Vscan/ICAP 標準統合 | FPolicy / API 統合 |
 | **ライセンス** | FSx for ONTAP 利用料に含まれる（追加課金なし） | 別途商用ライセンス | 別途商用ライセンス |
@@ -82,12 +82,13 @@ Deep learning inference-based preventive security. Analyzes file structure itsel
 
 | 強み / Strengths | トレードオフ / Trade-offs |
 |-----------------|-------------------------|
-| 既知マルウェアの高精度検知 | シグネチャ未対応の未知脅威は検知困難 |
-| 業界実績のある検知エンジン | EC2 上の Vscan サーバー運用が必要 |
-| 低い偽陽性率 | スキャンサーバー障害時のフォールバック設計が必要 |
-| ONTAP Vscan 標準統合で導入が容易 | ファイル書き込み時のレイテンシ増加 |
-| Vision One プラットフォームとの統合分析 | 商用ライセンスコスト |
-| AWS Marketplace ソリューションとして利用可能 | 大量同時書き込み時のスキャンサーバースケーリング |
+| シグネチャとヒューリスティックによる既知マルウェアの検知（検知率は未測定。ベンダーの記述による） | シグネチャ未対応の未知脅威は検知困難 |
+| ONTAP の Vscan（ICAP）の標準の仕組みに接続する | EC2 上の Vscan サーバー運用が必要 |
+| Vision One プラットフォームとの統合分析 | スキャンサーバー障害時のフォールバック設計が必要 |
+| AWS Marketplace ソリューションとして利用可能 | ファイル書き込み時のレイテンシ増加 |
+|  | 商用ライセンスコスト |
+|  | 大量同時書き込み時のスキャンサーバースケーリング |
+|  | 偽陽性率は環境依存（本リポジトリでは測っていない） |
 
 ### Deep Instinct for NetApp ONTAP
 
@@ -97,7 +98,7 @@ Deep learning inference-based preventive security. Analyzes file structure itsel
 | シグネチャ更新不要（モデルベース） | 正規ファイルの誤検知（False Positive）への運用対応が必要 |
 | 高速推論（ミリ秒オーダー） | EC2 上の Agent 運用が必要 |
 | Prevention モードで書き込み前ブロック可能 | 商用ライセンスコスト |
-| オフライン環境でも動作可能 | モデル更新サイクルの管理 |
+| オフライン環境でも動作可能（ベンダーの記述による。本リポジトリでは確認していない） | モデル更新サイクルの管理 |
 | 既知マルウェアも検知可能 | 特定ファイル形式への対応範囲はモデル依存 |
 
 ---
@@ -127,7 +128,7 @@ graph LR
 
 | 脅威タイプ / Threat Type | ONTAP ARP | TrendAI | Deep Instinct |
 |-------------------------|-----------|---------|---------------|
-| 既知マルウェア（シグネチャあり） | — | ◎ 最適 | ○ 検知可能 |
+| 既知マルウェア（シグネチャあり） | — | ◎ 適する | ○ 検知可能 |
 | 既知マルウェアの亜種 | — | ○ ヒューリスティック | ◎ 推論で検知 |
 | ゼロデイ（完全未知） | △ 行動で間接検知 | △ ヒューリスティック依存 | ◎ 推論で検知 |
 | ランサムウェア（暗号化行動） | ◎ 行動分析で検知 | ○ ファイル単体で検知 | ○ ファイル単体で検知 |
@@ -136,7 +137,7 @@ graph LR
 | 内部不正（正当アカウントでの大量コピー、持ち出しのみ） | — 対象外（読み取りだけを条件にした検知は文書にない。推論 [E-012]） | — 対象外 | — 対象外 |
 | 内部不正（正当アカウントでの大量削除・上書き） | ○ 履歴に対する急増で検知 [E-005] | — 対象外（ファイル単体の判定で、操作の量は入力にない。推論） | — 対象外（ファイル単体の判定で、操作の量は入力にない。推論） |
 
-凡例: ◎ = 最も適した技術、○ = 検知可能、△ = 一定条件下で検知、— = 対象外
+凡例: ◎ = 主な対象として設計されている、○ = 検知可能、△ = 一定条件下で検知、— = 対象外
 
 持ち出しの検知は監査ログと SIEM で行う（[framework mapping](ja/cyber-resilience-framework-mapping.md) の持ち出し型の節）。
 Exfiltration is detected with audit logs and a SIEM (see the exfiltration scenario in the [framework mapping](en/cyber-resilience-framework-mapping.md)).
@@ -190,8 +191,8 @@ graph LR
 
 | 適している環境 / Suited for | 考慮事項 / Considerations |
 |---|---|
-| 既知マルウェアの確実なブロックが最優先 | シグネチャ未対応の新種は通過する可能性 |
-| 低い偽陽性率が求められる環境 | Vscan サーバーの運用管理が必要 |
+| 既知マルウェアのブロックが最優先 | シグネチャ未対応の新種は通過する可能性 |
+| ONTAP の Vscan（ICAP）の標準の仕組みでスキャンしたい環境 | Vscan サーバーの運用管理が必要 |
 | TrendAI Vision One を既に他の用途で利用中 | |
 
 ---
@@ -216,7 +217,7 @@ graph LR
 | 適している環境 / Suited for | 考慮事項 / Considerations |
 |---|---|
 | ゼロデイ・未知脅威が主要リスク | 偽陽性の運用対応プロセスが必要 |
-| シグネチャ更新の運用負荷を避けたい | 既知マルウェアに対する検知精度は TrendAI に劣る場合がある |
+| シグネチャ更新の運用負荷を避けたい | 既知マルウェアの検知は、シグネチャを使う構成のほうが適する場合がある（本リポジトリでは検知精度を測っていない） |
 | AI ベースの防御に投資する方針 | |
 
 ---
@@ -249,9 +250,9 @@ graph LR
 | ゼロトラストアーキテクチャの一部として多層防御を実装する環境 | 書き込みレイテンシへの影響が累積する |
 | 規制要件で多層スキャンが求められる環境 | 二重スキャンによるリソース消費、偽陽性の相関分析が複雑 |
 
-> **Important note**: Pattern D は最も包括的だが、多くの環境にとっては過剰投資（over-engineered）となりうる。
+> **Important note**: Pattern D は重ねる層が最も多く、運用負荷とコストも最も大きい。規制要件がなければ、B または C で足りる環境がある。
 > Pattern B または C で、既知マルウェアと未知脅威の双方に対する検知レイヤーを確保できる（カバー率の定量値は未測定）。
-> 規制要件で明確に「多層スキャン」が求められない限り、Pattern B/C から開始し、必要に応じて拡張するアプローチを推奨する。
+> 規制要件で多層スキャンが求められる場合は D、求められない場合は B または C から始める進め方もある。選び方は上の表（適している環境 / 考慮事項）による。
 
 ---
 
@@ -270,10 +271,10 @@ flowchart TD
     Q2 -->|両方 / 高セキュリティ要件| PD["Pattern D<br/>(フル構成)"]
 
     Q3 -->|Yes| PB["Pattern B<br/>(ARP + TrendAI)"]
-    Q3 -->|No| Q4{偽陽性許容度は?}
+    Q3 -->|No| Q4{検知の方式の要件は?}
 
-    Q4 -->|低い偽陽性率が必須| PB
-    Q4 -->|多少の偽陽性は許容| PC
+    Q4 -->|シグネチャ照合が要件| PB
+    Q4 -->|シグネチャに依らない方式を選ぶ| PC
 ```
 
 ### 選定基準マトリクス / Selection Criteria Matrix
@@ -350,7 +351,7 @@ flowchart TD
 
 ### PoC クイックスタート（3日間検証セット） / PoC Quick Start (3-Day Validation)
 
-Partner/SI が顧客環境で最小限の PoC を実施するための手順。
+Partner/SI が利用者の環境で最小限の PoC を実施するための手順。
 
 PoC コストの概算（3 日間、ap-northeast-1、2026 年 6 月時点の料金に基づく参考値）:
 
@@ -388,7 +389,7 @@ PoC コストの概算（3 日間、ap-northeast-1、2026 年 6 月時点の料�
 
 | 優先する選択肢 | 適した状況 |
 |---|---|
-| TrendAI File Security | コンプライアンス要件でシグネチャベーススキャンが必須; 既に TrendAI Vision One エコシステムを利用中; 偽陽性を最小限に抑えたい; AWS Marketplace ソリューションとしてワンストップで調達したい |
+| TrendAI File Security | コンプライアンス要件でシグネチャベーススキャンが必須; 既に TrendAI Vision One エコシステムを利用中; AWS Marketplace ソリューションとしてワンストップで調達したい |
 | Deep Instinct | 未知脅威・ゼロデイが主要な懸念事項; シグネチャ更新の運用負荷を避けたい; AI ベースセキュリティへの投資方針がある; オフライン/エアギャップ環境での利用がある |
 | 両方を導入 | 金融、医療、政府機関などの高セキュリティ環境; ゼロトラストアーキテクチャの全面採用; 規制要件で多層スキャンが求められる |
 
@@ -436,7 +437,7 @@ PoC コストの概算（3 日間、ap-northeast-1、2026 年 6 月時点の料�
 
 本プロジェクトは Amazon FSx for NetApp ONTAP をデモンストレーションプラットフォームとして使用しているが、防御多層化の原則とイベント駆動型応答パターンは汎用的に適用可能である。
 
-This project uses FSx for ONTAP because it provides unique storage-native security primitives (ARP, FPolicy, SnapLock, Tamperproof Snapshots; Multi-Admin Verification is documented for ONTAP, and on FSx for ONTAP 9.18.1P6 it was refused to fsxadmin in one observation [E-025]) not available in general-purpose storage. However, the defense-in-depth principles and event-driven response patterns are broadly applicable.
+This project uses FSx for ONTAP because it provides storage-native security features (ARP, FPolicy, SnapLock, Tamperproof Snapshots; Multi-Admin Verification is documented for ONTAP, and on FSx for ONTAP 9.18.1P6 it was refused to fsxadmin in one observation [E-025]) that this project builds on. However, the defense-in-depth principles and event-driven response patterns are broadly applicable.
 
 | 本プロジェクトのデモ内容 | 適用可能な一般原則 |
 |------------------------|-------------------|

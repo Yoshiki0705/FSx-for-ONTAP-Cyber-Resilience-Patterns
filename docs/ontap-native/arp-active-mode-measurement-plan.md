@@ -48,7 +48,7 @@ measurement would run. **This plan needs no 30-day budget.**
 
 ### 旧世代 ARP を測る必要が出たときの 30 日の調達 / Funding the 30 days if the original ARP must be measured
 
-**30 日を単独予算で回さない。** 顧客が 9.15.1 以下に留まっている、または FlexGroup を
+**30 日を単独予算で回さない。** 利用者の環境が 9.15.1 以下に留まっている、または FlexGroup を
 9.17.1 で使っている場合だけ必要になる。そのときは次の形にする。
 
 **Do not fund 30 days on its own.** It is only needed for a cluster on 9.15.1 or earlier,
