@@ -4,6 +4,8 @@
 >
 > ONTAP または Amazon FSx for NetApp ONTAP（以降 FSx for ONTAP）を使う組織が、ストレージを含むシステム全体のソフトウェアサプライチェーンを管理するときの使い方と選択肢を、11 のユースケース（A1 から D1）に分けてまとめる。AWS サービス、SaaS、標準の選択肢は、向く場面とトレードオフを同じ粒度で並べ、順位は付けない。価格は書かない。調査と確認の日は 2026-11-17（日本時間）である。
 
+全体の位置づけと、データを FSx for ONTAP に置く理由は、[サイバーレジリエンス プログラム](cyber-resilience-programme.md#fsx-for-ontap-を全体システムの実装パターンに置く理由)にある。
+
 ## この文書で分かること
 
 この文書で判断できるのは、自分の環境（オンプレミスの ONTAP、新規の FSx for ONTAP、既存の FSx for ONTAP）で、サプライチェーン管理のどの部分をこのリポジトリの仕組みで行い、どの部分を AWS サービスや SaaS で補うかである。手順と数値の正本は[サプライチェーン導入ガイド](supply-chain-adoption-guide.md)とポリシーファイル（[`supply-chain-policy.json`](../agent/supply-chain-policy.json)）にあり、この文書には写さない。ここには、状況ごとの使い方と選択肢の対応だけを書く。

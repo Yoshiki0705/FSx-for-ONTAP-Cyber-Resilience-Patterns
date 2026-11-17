@@ -4,6 +4,8 @@
 >
 > This document describes how an organization that runs ONTAP or Amazon FSx for NetApp ONTAP (FSx for ONTAP hereafter) can manage the software supply chain of the whole system, storage included. It is organized as 11 use cases (A1 to D1). AWS services, SaaS products and standards are listed with the situations they suit and their trade-offs at the same level of detail, without a ranking. It states no prices. Research and confirmation date: 2026-11-17 (Japan time).
 
+The overall position of this document, and why the data is placed on FSx for ONTAP, are in the [Cyber Resilience Programme](cyber-resilience-programme.md#why-fsx-for-ontap-appears-in-a-whole-system-implementation-pattern).
+
 ## What this document lets you decide
 
 This document helps you decide, for your own environment (on-premises ONTAP, a new FSx for ONTAP, or an existing FSx for ONTAP), which parts of supply-chain management this repository's mechanisms cover and which parts you complement with AWS services or SaaS products. The procedures and numbers are defined in the [Supply-Chain Adoption Guide](supply-chain-adoption-guide.md) and the policy file ([`supply-chain-policy.json`](../agent/supply-chain-policy.json)), and are not copied here. This document only maps each situation to usage and options.

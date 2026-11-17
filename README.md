@@ -10,6 +10,9 @@
 
 Multi-layered cyber resilience patterns for Amazon FSx for NetApp ONTAP — combining storage-native security, AI-powered threat prevention, and event-driven automated response.
 
+Why FSx for ONTAP appears in a whole-system security pattern, and how the three pillars (supply chain, RTO/RPO with SLA/SLO/SLI, forensics) fit together: [Cyber Resilience Programme](docs/en/cyber-resilience-programme.md#why-fsx-for-ontap-appears-in-a-whole-system-implementation-pattern).
+システム全体を安全に実装するパターンに FSx for ONTAP が現れる理由と 3 本の柱の関係: [サイバーレジリエンス プログラム](docs/ja/cyber-resilience-programme.md#fsx-for-ontap-を全体システムの実装パターンに置く理由)。
+
 ## はじめ方 / Get Started
 
 | やりたいこと | ガイド | 所要時間 |
