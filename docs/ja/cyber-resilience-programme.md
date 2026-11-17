@@ -34,7 +34,11 @@
 
 ## 現在の状態
 
-2026-11-15 時点で、第 1 の柱は導入ガイドと検証ゲートがあり、Hub のワークフローは公開済みだが設定が未作成のため毎回失敗している（詳細は[導入ガイドの「現在の状態」](supply-chain-adoption-guide.md#現在の状態)）。第 2 と第 3 の柱は、計画がまだない。
+2026-11-17 時点の状態は次のとおり。
+
+- 第 1 の柱: 導入ガイドと検証ゲートがある。Hub の集約ジョブは、2026-11-13 以降の 22 回の実行のうち 17 回が成功し、直近 5 回（2026-11-16 18:15Z〜2026-11-17 09:11Z）は成功した。Renovate の共有プリセットは Hub のタグとして公開済みである。Spoke への採用は済んでいない。詳細は[導入ガイドの「現在の状態」](supply-chain-adoption-guide.md#現在の状態)にある。spec は `cyber-resilience-phase4-supply-chain` で、完了している
+- 第 2 の柱: 着手済みで、spec（`cyber-resilience-phase5-recovery-objectives`）を作成中である。公開する文書は未作成
+- 第 3 の柱: 未着手である。spec は `cyber-resilience-phase6-forensics` の名前で予定している。公開する文書は未作成
 
 ## 背景となる傾向
 
@@ -47,11 +51,11 @@
 
 ## 3 本の柱
 
-| 柱 | 目的 | 範囲 | 導入手順 | 状態（2026-11-14 時点） |
+| 柱 | 目的 | 範囲 | 導入手順 | 状態（2026-11-17 時点） |
 |---|---|---|---|---|
-| 第 1: ソフトウェアサプライチェーンの可視化と対応 | 使っている構成要素を把握し、脆弱性と悪意のあるパッケージへの対応を、目標時間つきで回す | 対象リポジトリの SBOM、集約ジョブによる Issue 化、Renovate による更新、VEX、来歴証明、ONTAP の[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)。SBOM の最小要素は [1]、[2] を、保管と脆弱性管理の手順は [3] の 6.2 と第 7 章を参照する | [導入ガイド](supply-chain-adoption-guide.md) | 着手済み |
-| 第 2: RTO/RPO と SLA/SLO/SLI | サービス提供者が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | 未作成 | 未着手 |
-| 第 3: フォレンジック | 侵害のあとに、何が起きたかを再構成できる証跡を残す | 証跡の取得手順、インシデント後のレビュー | 未作成 | 未着手 |
+| 第 1: ソフトウェアサプライチェーンの可視化と対応 | 使っている構成要素を把握し、脆弱性と悪意のあるパッケージへの対応を、目標時間つきで回す | 対象リポジトリの SBOM、集約ジョブによる Issue 化、Renovate による更新、VEX、来歴証明、ONTAP の[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)。SBOM の最小要素は [1]、[2] を、保管と脆弱性管理の手順は [3] の 6.2 と第 7 章を参照する | [導入ガイド](supply-chain-adoption-guide.md) | 着手済み（spec `cyber-resilience-phase4-supply-chain` は完了） |
+| 第 2: RTO/RPO と SLA/SLO/SLI | サービス提供者が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | 未作成 | 着手済み（spec `cyber-resilience-phase5-recovery-objectives` を作成中） |
+| 第 3: フォレンジック | 侵害のあとに、何が起きたかを再構成できる証跡を残す | 証跡の取得手順、インシデント後のレビュー | 未作成 | 未着手（spec `cyber-resilience-phase6-forensics` は未作成） |
 
 第 1 の柱が参照する資料は次のとおり。
 
@@ -59,6 +63,71 @@
 - 悪意のあるパッケージは、OpenSSF の Malicious Packages（OSV 形式、`MAL-` の識別子）を参照する [15]
 - AI エージェントのツール定義は、使用中の MCP サーバーの棚卸しと、版の固定および定義変更の検知を勧める研究ノート [11] を参照する。この研究ノートは、AI の支援で作られ、CSA の正式なレビューを経ていないと自ら書いている。
 - AWS の実践として、SBOM、版の固定、悪意のあるパッケージの扱いを述べたブログ [14] を参照する。仕様ではなくガイダンスである
+
+## FSx for ONTAP を全体システムの実装パターンに置く理由
+
+このプロジェクトが扱うのはストレージ単体ではなく、システム全体を安全に実装する方法である。データを Amazon FSx for NetApp ONTAP（以降 FSx for ONTAP）に置く構成は、そのための 1 つのパターンである。Amazon EBS と AWS Backup、データベースのレプリケーション、Amazon S3 のバージョニングなど、別の構成で同じ分離を作れる場合もある。どれが合うかはワークロードで決まる。
+
+データを FSx for ONTAP のボリュームに置くと、データがコンピュート（EC2、コンテナ）、ソフトウェアのライセンス、データベースエンジンのいずれとも別の層になる。層が分かれると、層ごとに次のことができる見込みがある。ただしこの 4 点は、次の「根拠の区分」の表で示すとおり、多くが推論である。
+
+- 何が入っているかを、層ごとに棚卸しする
+- 版を、層ごとに独立して上げる
+- 復旧点を、層ごとに別に持つ
+- コンピュートを、固定した版から作り直し、同じデータを接続し直す
+
+### 3 本の柱での分離の使い方
+
+| 柱 | 分離を使ってすること | 状態 |
+|---|---|---|
+| 第 1 | コンピュート側の構成要素の SBOM、版の固定、来歴証明を、作り直しの入力にする。ストレージ層の ONTAP の版は FSx の API で選べず、返ってもこない [E-058]。ONTAP の脆弱性への対応は、ONTAP 側で版を確認する[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)で行う | spec は完了。導入ガイドが手順を持ち、Spoke への採用は未了 |
+| 第 2 | 「クリーンな作り直し」を測る。第 1 の柱が固定した版でコンピュートを作り、同じボリュームを接続して、起動からデータを読めるまでの時間を測る。復旧点からの復元時間（Snapshot、SnapMirror、AWS Backup）とは別の測定として記録する。第 3 の柱との受け渡しの形も、先に着手するこの柱が定義する。復旧点の一覧と承認付きの復元の画面は、S3 Access Points のサーバーレスパターンのリポジトリのファイルポータルに[実装がある](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/solutions/amplify-portal/docs/data-protection-recovery-design.md)。実アカウントで確認した範囲は、[ラボの記録](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/infrastructure/shared-backup-vault-lab/docs/verification-record.md)に分けて書かれている | 着手済み |
+| 第 3 | 侵害されたコンピュートを作り直す前に、データ側で証跡を保全する。手順は [Ransomware Recovery Runbook の証拠保全](../runbooks/ransomware-recovery.md)にある。データの置き場が別の層なので、証跡の取得元（ONTAP の監査ログ、CloudTrail の FSx API の記録、AWS Backup の記録）をアクセスの経路ごとに分けて数えられる（推論） | 未着手 |
+
+### 根拠の区分
+
+根拠の種別は、この文書の冒頭の 4 語で示す。AWS Well-Architected の 4 件は、2026-11-17 に各ページを開いて、引用した記述を確かめた。
+
+| 主張 | 種別 | 内容と出典 |
+|---|---|---|
+| コンピュートを入れ替えても、データはボリュームに残る | verified | ECS on EC2 でタスクとインスタンスを入れ替えたあとも、書いたマーカーが一致した。EKS on Fargate では、Pod を作り直したあとも先に書いたオブジェクトが一致して読めた。2026-11-10、ap-northeast-1、既存の Single-AZ のファイルシステム上の使い捨ての SVM、1 GiB のボリューム、各項目 1 回。性能、Multi-AZ、データベース、大きなデータは範囲外。[Container-Datastore の検証](https://github.com/Yoshiki0705/FSx-for-ONTAP-Container-Datastore-Patterns/blob/main/docs/ja/atx-containerization-fsxn-storage-verification.md)の 3.3 と 5.4 |
+| バックアップを別リージョンへコピーし、コピーから復元できる | verified | 東京から大阪、2026-08-28、第 1 世代の SINGLE_AZ_1、ボリューム内のデータ 9.4 MiB。復元は 13 分 21 秒（`CREATED` まで）で 1 回。データ量との関係は測っていない。[Hub のノート](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/notes/backup-copies-across-regions-and-accounts.md)（日本語のみ） |
+| 共有した論理エアギャップボールトの復旧ポイントから、別アカウントの既存ファイルシステムへ復元できる | verified | 2026-10-12、同一 Organization の 2 アカウント、AWS RAM の招待経路で共有、ap-northeast-1 と ap-northeast-3、各 1 回。組織単位の共有、MPA、別リージョンの復旧ポイントからの復元は試していない。[論理エアギャップボールトのガイド](../data-protection/aws-backup-logically-air-gapped-vault.md) |
+| 状態を計算資源の外へ出すと、サーバーを入れ替えても可用性に影響しない | documented | [REL05-BP06](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_stateless.html)。ページの例はセッションデータで、FSx for ONTAP には触れない。ファイルデータへの当てはめはこのプロジェクトの読み（hypothesis） |
+| 稼働中の環境を更新せず、新しい環境を作って切り替える | documented | [REL08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html)。ページは FSx for ONTAP に触れない |
+| バックアップと復元の自動化には、本番のデータと同じアクセス権を与えない | documented | [REL09-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_secured_backups_data.html)。同じアクセス権と、本番とバックアップで同じセキュリティドメインを使うことを、アンチパターンに挙げている |
+| 元の環境の外に、変更できないコピーを保管する | documented | [SEC08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html)。望ましい結果の記述 |
+| 固定した版でコンピュートを作り直し、同じボリュームを接続して復旧できる | hypothesis | 通しで測った記録は、Hub と Spoke を含む 13 リポジトリに見つからなかった（2026-11-17 に `clean rebuild` と「クリーンな作り直し」で検索し、どちらも一致なし）。第 2 の柱の最初の測定で確かめる |
+| データを分けると、層ごとに見える、版を上げられる、守れる | hypothesis | ボリューム単位の Snapshot、バックアップ、SnapMirror、FlexClone は文書にある。層ごとの一覧性や更新のしやすさを測った記録はない。VMware 移行の調査も、OS 起動とデータ層の分離を[確かめる仮説の 1 つ](https://github.com/Yoshiki0705/VMware-Migration-EC2-ONTAP/blob/main/docs/ja/research.md)と書く。ソフトウェアの一覧は第 1 の柱の SBOM の仕事で、データの置き場が直接与えるものではない |
+
+### トレードオフ
+
+どの項目も、ここで述べた構成を選ぶ側の制約である。
+
+| 項目 | 内容 | 出典 |
+|---|---|---|
+| 起動ディスク | FSx for ONTAP の LUN は起動ディスクに使わない構成である。OS のディスクは EBS に残り、OS のパッチとライセンスは引き続きインスタンス単位である | [Hub のノート](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/block-storage/notes/when-shared-block-changes-the-design.md)（documented） |
+| ONTAP の版 | 作成・更新の API に版の項目がなく、`DescribeFileSystems` も版を返さない。利用者が決めるのは週次のメンテナンスウィンドウの開始時刻である [E-058] | [evidence-ledger.json](../agent/evidence-ledger.json) |
+| 2 つの管理面 | ONTAP の REST・CLI と FSx の API は、同じリソースに対する別の真実の源である。ONTAP で作ったボリュームが FSx の API に現れるまで、12〜36 分の観測がある（観測ごとに結果が一致せず、上限としては使えない）。HA ペアが複数ある第 2 世代のファイルシステムでは、NetApp Console と NetApp System Manager を使えない [E-023] | [Hub のデータ保護方式の比較](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/reference/comparison/data-protection-methods.md)、[管理面の整理](../management-planes-cyber-resilience.md)、[evidence-ledger.json](../agent/evidence-ledger.json) |
+| 最小構成の費用 | ファイルシステムには SSD 容量とスループット容量の下限があり、データが小さくても月額が発生する。Hub の試算では、最小構成の月額の大半がスループット容量である。EBS や S3 との比較は、データセットの規模と複製の数で変わる。単価は当日の Pricing API で確認する | [Hub のノート](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/block-storage/notes/when-ebs-stops-being-the-cheaper-answer.md) |
+| Fargate での到達形態 | Fargate のタスクと Pod は、ボリュームのマウントではなく、S3 Access Points 経由のオブジェクト API でデータを読み書きする。アプリを S3 の SDK に合わせる改修が要る。EC2 系はファイルのマウント（NFS、iSCSI）で使える | [Container-Datastore の検証](https://github.com/Yoshiki0705/FSx-for-ONTAP-Container-Datastore-Patterns/blob/main/docs/ja/atx-containerization-fsxn-storage-verification.md)の 1 |
+| 障害ドメイン | Snapshot は同じボリューム、SnapMirror の宛先は別のファイルシステム、論理エアギャップボールトは AWS Backup のサービス所有アカウントにある。分離の強さは、選んだ層で変わる | [論理エアギャップボールトのガイド](../data-protection/aws-backup-logically-air-gapped-vault.md)の比較表 |
+| ONTAP 機能への依存 | SnapMirror、FlexClone、SnapLock は ONTAP どうしの機能である。別の構成で同等の分離を作れる場合は、そちらが合うことがある | 比較は [Hub のデータ保護方式の比較](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/reference/comparison/data-protection-methods.md) |
+| 整合した復旧点 | データベースのように書き込み中の整合が要るデータは、静止やデータベースの機能で整合した復旧点を別に作る必要がある | 推論（hypothesis） |
+
+### 合う場面と他の選択肢を見る場面
+
+合う場面は次のとおり。
+
+- データの寿命がコンピュートより長く、コンピュートを版の固定と来歴証明から作り直したい
+- 同じデータを、NFS、SMB、iSCSI、S3 Access Points の複数の経路で使う
+- ONTAP の Snapshot、SnapMirror、FlexClone を既に運用している、または運用する前提で復旧点を設計する
+
+他の選択肢も見る場面は次のとおり。
+
+- データが小さく、最小構成の月額が釣り合わない
+- Fargate や Lambda のアプリで、S3 の SDK へ改修する余地がない
+- 課題の中心が OS ディスクの更新で、データの分離が主ではない
+- ONTAP の版を AWS 側の設定で固定したい、または管理面を AWS の API に一本化したい
 
 ## 着手の順序
 
@@ -130,16 +199,16 @@ PDCA の 4 段階を、AWS Prescriptive Guidance の Resilience lifecycle framew
 
 このプロジェクトが扱う対象と AWS Well-Architected Framework のベストプラクティス ID の対応は、framework mapping の[ベストプラクティス ID との対応](cyber-resilience-framework-mapping.md#ベストプラクティス-id-との対応)にある。表はそこにだけ置く。この文書は、柱ごとに実装する ID を 1 行に 1 つずつ挙げる。フレームワークの版は v13（2024-11-06）、参照日は 2026-11-13 である。各 ID の 2 つ目のリンクは、版つきのパス `2025-02-25` の同じページである。`2025-02-25` が何の版かは、文書から読み取れていない（`open`）[12]。
 
-- 第 1 の柱: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_automate_testing_throughout_lifecycle.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html)）
-- 第 1 の柱: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)）
-- 第 1 の柱: [SEC11-BP06](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_deploy_software_programmatically.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html)）
-- 第 1 の柱: [SEC11-BP07](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)）
-- 第 2 の柱: [REL13-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_objective_defined_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html)）
-- 第 2 の柱: [REL13-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_disaster_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)）
-- 第 3 の柱: [SEC10-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_incident_response_prepare_forensic.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html)）
-- PDCA の Check: [OPS09-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_measure_ops_goals_kpis.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html)）
-- PDCA の Check と Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)）
-- PDCA の Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)）
+- 第 1 の柱: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html)）
+- 第 1 の柱: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html)）
+- 第 1 の柱: [SEC11-BP06](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html)）
+- 第 1 の柱: [SEC11-BP07](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html)）
+- 第 2 の柱: [REL13-BP01](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html)）
+- 第 2 の柱: [REL13-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html)）
+- 第 3 の柱: [SEC10-BP03](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html)）
+- PDCA の Check: [OPS09-BP01](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html)）
+- PDCA の Check と Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html)）
+- PDCA の Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)（[2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html)）
 
 第 2 の柱が追加で扱うベストプラクティスは、その柱の計画が範囲を決めたときに足す。10 件とも、2026-11-13 に全文を読み、framework mapping の表の記述と照合した。
 
@@ -220,7 +289,7 @@ KEV だけで起票の条件を満たす場合、検出の起点は下限と上�
 | 9 | Using artifact attestations、gh attestation verify | GitHub | 日付の表示なし | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)、[cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 | documented |
 | 10 | Build: Track Basics、Build: Requirements for producing artifacts | OpenSSF SLSA | v1.2 | [Track Basics](https://slsa.dev/spec/v1.2/build-track-basics)、[Requirements](https://slsa.dev/spec/v1.2/build-requirements) | 2026-11-12 | documented（読んだ節）。Isolation strength の詳細は open |
 | 11 | MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance（CSAI Foundation） | 2026-05-04（研究ノート） | [PDF](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 | documented |
-| 12 | AWS Well-Architected Framework（信頼性、運用上の優秀性、セキュリティの各柱のベストプラクティスのページ） | AWS | 2024-11-06（v13） | [welcome.html](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) と、ベストプラクティスの節に挙げた各ページ | 2026-11-13 | documented。版つきパス 2025-02-25 の意味は open |
+| 12 | AWS Well-Architected Framework（信頼性、運用上の優秀性、セキュリティの各柱のベストプラクティスのページ） | AWS | 2024-11-06（v13） | [welcome.html](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/welcome.html) と、ベストプラクティスの節に挙げた各ページ | 2026-11-13 | documented。版つきパス 2025-02-25 の意味は open |
 | 13 | Resilience lifecycle framework: A continuous approach to resilience improvement | AWS Prescriptive Guidance | 2023-10-06（初版） | [docs.aws.amazon.com](https://docs.aws.amazon.com/prescriptive-guidance/latest/resilience-lifecycle-framework/introduction.html) | 2026-11-12 | documented |
 | 14 | Well-architected best practices for software supply chain security | AWS Security Blog | 公開日の表示を取得できなかった | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 | documented（ブログの記述）。公開日は open |
 | 15 | OpenSSF Malicious Packages | OpenSSF（Securing Critical Projects Working Group） | 参照日時点の README | [GitHub](https://github.com/ossf/malicious-packages) | 2026-11-10 | documented |

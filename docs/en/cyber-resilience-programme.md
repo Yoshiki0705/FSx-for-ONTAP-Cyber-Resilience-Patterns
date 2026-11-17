@@ -34,7 +34,11 @@ Evidence is labeled with four words. `documented` means the relevant part of the
 
 ## Status
 
-As of 2026-11-15, the first pillar has an adoption guide and verification gates, and the Hub workflows are published but fail on every run because their settings are not created (see [Status in the adoption guide](supply-chain-adoption-guide.md#status)). The second and third pillars have no plan yet.
+As of 2026-11-17, the state is as follows.
+
+- First pillar: there is an adoption guide and there are verification gates. Of the 22 runs of the Hub aggregation job since 2026-11-13, 17 succeeded, and the latest 5 (2026-11-16 18:15Z to 2026-11-17 09:11Z) all succeeded. The Renovate shared preset is published as a Hub tag. No Spoke has adopted it yet. Details are in [Status in the adoption guide](supply-chain-adoption-guide.md#status). The spec is `cyber-resilience-phase4-supply-chain`, and it is complete
+- Second pillar: started, and the spec (`cyber-resilience-phase5-recovery-objectives`) is being written. No public document yet
+- Third pillar: not started. The spec is planned under the name `cyber-resilience-phase6-forensics`. No public document yet
 
 ## Background trends
 
@@ -47,11 +51,11 @@ The two trends below are written only as far as the sources themselves go. Both 
 
 ## The three pillars
 
-| Pillar | Purpose | Scope | Setup steps | Status (as of 2026-11-14) |
+| Pillar | Purpose | Scope | Setup steps | Status (as of 2026-11-17) |
 |---|---|---|---|---|
-| 1: Software supply chain visibility and response | Know which components are in use, and respond to vulnerabilities and malicious packages within a target time | SBOMs of the target repositories, Issues from the aggregation job, updates through Renovate, VEX, build provenance, and the ONTAP [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md). The SBOM minimum elements follow [1] and [2]. Section 6.2 and chapter 7 of [3] guide storage and vulnerability handling | [Adoption guide](supply-chain-adoption-guide.md) | In progress |
-| 2: RTO/RPO and SLA/SLO/SLI | The service owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | Not yet written | Not started |
-| 3: Forensics | After a compromise, keep the evidence needed to reconstruct what happened | How to collect evidence, post-incident review | Not yet written | Not started |
+| 1: Software supply chain visibility and response | Know which components are in use, and respond to vulnerabilities and malicious packages within a target time | SBOMs of the target repositories, Issues from the aggregation job, updates through Renovate, VEX, build provenance, and the ONTAP [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md). The SBOM minimum elements follow [1] and [2]. Section 6.2 and chapter 7 of [3] guide storage and vulnerability handling | [Adoption guide](supply-chain-adoption-guide.md) | In progress (spec `cyber-resilience-phase4-supply-chain` is complete) |
+| 2: RTO/RPO and SLA/SLO/SLI | The service owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | Not yet written | In progress (spec `cyber-resilience-phase5-recovery-objectives` is being written) |
+| 3: Forensics | After a compromise, keep the evidence needed to reconstruct what happened | How to collect evidence, post-incident review | Not yet written | Not started (spec `cyber-resilience-phase6-forensics` not yet written) |
 
 The first pillar refers to these sources:
 
@@ -59,6 +63,71 @@ The first pillar refers to these sources:
 - Malicious packages follow OpenSSF Malicious Packages (OSV format, `MAL-` identifiers) [15]
 - AI agent tool definitions follow a research note [11] that recommends an inventory of the MCP servers in use, pinned versions, and detection of definition changes. This research note says itself that it was written with AI assistance and has not been formally reviewed by CSA
 - AWS practice on SBOMs, pinned versions, and malicious packages is described in a blog post [14]. It is guidance, not a specification
+
+## Why FSx for ONTAP Appears in a Whole-System Implementation Pattern
+
+This project covers more than storage. It covers how to implement a whole system safely. Putting the data on Amazon FSx for NetApp ONTAP (FSx for ONTAP hereafter) is one pattern for that. Other configurations can build the same separation, for example Amazon EBS with AWS Backup, database replication, or Amazon S3 versioning. Which one fits depends on the workload.
+
+When the data sits on an FSx for ONTAP volume, it becomes a layer separate from the compute (EC2, containers), the software licenses and the database engine. With the layers apart, each layer can in principle do the following. As the "Evidence by claim" table below shows, most of these four points are inference.
+
+- Be inventoried on its own
+- Have its version raised on its own
+- Have its own recovery points
+- Have the compute rebuilt from pinned versions and the same data attached again
+
+### How each pillar uses the separation
+
+| Pillar | What it does with the separation | State |
+|---|---|---|
+| 1 | The SBOMs, pinned versions and build provenance of the compute-side components are the input to a rebuild. The ONTAP version of the storage layer cannot be chosen through the FSx API and is not returned by it [E-058]. Responding to ONTAP vulnerabilities follows the [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md), which checks the version on the ONTAP side | The spec is complete. The adoption guide holds the procedure, and no Spoke has adopted it yet |
+| 2 | Measures the "clean rebuild". Build the compute from the versions pinned by the first pillar, attach the same volume, and time it from start until the data can be read. Record it separately from the restore time from a recovery point (Snapshot, SnapMirror, AWS Backup). This pillar starts first, so it also defines the hand-over format with the third pillar. The file portal in the S3 Access Points serverless patterns repository already has a [recovery-point list and an approval-gated restore screen](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/solutions/amplify-portal/docs/data-protection-recovery-design.en.md). What was checked in a real account is recorded separately in the [lab record](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/blob/main/infrastructure/shared-backup-vault-lab/docs/verification-record.en.md) | In progress |
+| 3 | Preserves evidence on the data side before the compromised compute is rebuilt. The procedure is in [evidence preservation in the Ransomware Recovery Runbook](../runbooks/ransomware-recovery.md). Because the data is a separate layer, the sources of evidence (ONTAP audit logs, FSx API calls in CloudTrail, AWS Backup records) can be counted per access path (inference) | Not started |
+
+### Evidence by claim
+
+The evidence types are the four words defined at the top of this document. For the four Well-Architected items, each page was opened on 2026-11-17 and the quoted statements were checked.
+
+| Claim | Evidence | Content and source |
+|---|---|---|
+| After the compute is replaced, the data stays on the volume | verified | On ECS on EC2, the marker written before still matched after tasks and instances were replaced. On EKS on Fargate, the objects written before still matched after the Pod was recreated. 2026-11-10, ap-northeast-1, a disposable SVM on an existing Single-AZ file system, a 1 GiB volume, one observation per item. Performance, Multi-AZ, databases and large data sets are out of scope. Sections 3.3 and 5.4 of the [Container-Datastore verification](https://github.com/Yoshiki0705/FSx-for-ONTAP-Container-Datastore-Patterns/blob/main/docs/en/atx-containerization-fsxn-storage-verification.md) |
+| A backup can be copied to another Region and restored from the copy | verified | Tokyo to Osaka, 2026-08-28, first-generation SINGLE_AZ_1, 9.4 MiB of data in the volume. The restore took 13 min 21 s (until `CREATED`), once. The relation to data size was not measured. [Hub note](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/domains/data-protection/notes/backup-copies-across-regions-and-accounts.md) (Japanese only) |
+| A recovery point in a shared logically air-gapped vault can be restored into an existing file system in another account | verified | 2026-10-12, two accounts in the same Organization, shared through an AWS RAM invitation, ap-northeast-1 and ap-northeast-3, once each. Organization-wide sharing, MPA and a restore from a recovery point in another Region were not tried. [Logically air-gapped vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) |
+| When state moves out of the compute, servers can be replaced without an availability impact | documented | [REL05-BP06](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_stateless.html). The page's examples are session data and do not mention FSx for ONTAP. Applying it to file data is this project's reading (hypothesis) |
+| Do not update a running environment in place. Build a new one and switch | documented | [REL08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html). The page does not mention FSx for ONTAP |
+| Do not give the backup and restore automation the same access as the production data | documented | [REL09-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_secured_backups_data.html). The page lists the same access, and the same security domain for production and backup, as anti-patterns |
+| Keep immutable copies outside the original environment | documented | [SEC08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html). It appears in the page's desired outcome |
+| Compute can be rebuilt from pinned versions, the same volume attached, and service recovered | hypothesis | No end-to-end measurement was found in the 13 repositories, the Hub and Spokes included (searched on 2026-11-17 for `clean rebuild` and the Japanese term for the same, with no match for either). The first measurement of the second pillar checks it |
+| Separating the data lets each layer be seen, upgraded and protected on its own | hypothesis | Snapshot, backup, SnapMirror and FlexClone per volume are documented. No record measures how easy each layer is to list or to update. The VMware migration research also writes the separation of OS boot and the data layer as [one hypothesis to be tested](https://github.com/Yoshiki0705/VMware-Migration-EC2-ONTAP/blob/main/docs/ja/research.md) (Japanese only). The software inventory is the job of the first pillar's SBOMs, not something the data's location gives directly |
+
+### Trade-offs
+
+Each row is a constraint on the side that chooses this pattern.
+
+| Item | Content | Source |
+|---|---|---|
+| Boot disk | The pattern does not use an FSx for ONTAP LUN as a boot disk. The OS disk stays on EBS, and OS patching and licensing stay per instance | [Hub note](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/block-storage/notes/when-shared-block-changes-the-design.md) (documented) |
+| ONTAP version | The create and update APIs have no version field, and `DescribeFileSystems` does not return one. What the user sets is the start time of the weekly maintenance window [E-058] | [evidence-ledger.json](../agent/evidence-ledger.json) |
+| Two management planes | The ONTAP REST and CLI and the FSx API are separate sources of truth for the same resource. A volume created through ONTAP took 12 to 36 minutes to appear in the FSx API in the observations (the results differed between observations and cannot serve as an upper bound). NetApp Console and NetApp System Manager are not supported on second-generation file systems with more than one HA pair [E-023] | [Hub comparison of data protection methods](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/reference/comparison/data-protection-methods.md) (Japanese only), [management planes](../management-planes-cyber-resilience.md), [evidence-ledger.json](../agent/evidence-ledger.json) |
+| Cost of the minimum configuration | A file system has lower limits on SSD capacity and throughput capacity, so a monthly charge exists even for small data. In the Hub's estimate, most of the minimum configuration's monthly cost is throughput capacity. The comparison with EBS or S3 changes with the data set size and the number of copies. Check unit prices against the Pricing API on the day | [Hub note](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/en/domains/block-storage/notes/when-ebs-stops-being-the-cheaper-answer.md) |
+| How Fargate reaches the data | Fargate tasks and Pods read and write through the object API of S3 Access Points, not through a volume mount. The application has to be changed to use an S3 SDK. EC2-based setups use file mounts (NFS, iSCSI) | Section 1 of the [Container-Datastore verification](https://github.com/Yoshiki0705/FSx-for-ONTAP-Container-Datastore-Patterns/blob/main/docs/en/atx-containerization-fsxn-storage-verification.md) |
+| Failure domain | A Snapshot is on the same volume, a SnapMirror destination is on another file system, and a logically air-gapped vault is in an AWS Backup service-owned account. The strength of the separation depends on the layer chosen | The comparison table in the [logically air-gapped vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) |
+| Dependence on ONTAP features | SnapMirror, FlexClone and SnapLock work between ONTAP systems. Where another configuration builds an equivalent separation, that one may fit better | Comparison in the [Hub comparison of data protection methods](https://github.com/Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook/blob/main/docs/ja/reference/comparison/data-protection-methods.md) (Japanese only) |
+| Consistent recovery points | Data that needs consistency while it is being written, such as a database, needs a consistent recovery point made separately by quiescing or by the database's own feature | Inference (hypothesis) |
+
+### When this fits and when to look at other options
+
+This pattern fits when:
+
+- The data outlives the compute, and you want to rebuild the compute from pinned versions and build provenance
+- The same data is used over several paths: NFS, SMB, iSCSI and S3 Access Points
+- You already operate ONTAP Snapshot, SnapMirror and FlexClone, or you design recovery points on that assumption
+
+Look at other options when:
+
+- The data is small and the monthly cost of the minimum configuration is out of proportion
+- A Fargate or Lambda application has no room to be changed to an S3 SDK
+- The main problem is updating the OS disk, not separating the data
+- You want to pin the ONTAP version through AWS settings, or to unify management on the AWS API
 
 ## Order of work
 
@@ -130,16 +199,16 @@ Disaster recovery testing spans both Evaluate and test and Operate, so it is not
 
 The correspondence between the subjects this project covers and the AWS Well-Architected Framework best-practice IDs is in the framework mapping, under [Best-practice IDs](cyber-resilience-framework-mapping.md#best-practice-ids). The table lives only there. This document lists, one per line, the IDs each pillar implements. The framework version is v13 (2024-11-06) and the reference date is 2026-11-13. The second link for each ID is the same page under the versioned path `2025-02-25`. What `2025-02-25` stands for could not be read from the documentation (`open`) [12].
 
-- Pillar 1: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_automate_testing_throughout_lifecycle.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html))
-- Pillar 1: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html))
-- Pillar 1: [SEC11-BP06](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_deploy_software_programmatically.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html))
-- Pillar 1: [SEC11-BP07](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html))
-- Pillar 2: [REL13-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_objective_defined_recovery.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html))
-- Pillar 2: [REL13-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_planning_for_recovery_disaster_recovery.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html))
-- Pillar 3: [SEC10-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_incident_response_prepare_forensic.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html))
-- PDCA Check: [OPS09-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_measure_ops_goals_kpis.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html))
-- PDCA Check and Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html))
-- PDCA Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_evolve_ops_perform_rca_process.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html))
+- Pillar 1: [SEC11-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_automate_testing_throughout_lifecycle.html))
+- Pillar 1: [SEC11-BP05](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_centralize_services_for_packages_and_dependencies.html))
+- Pillar 1: [SEC11-BP06](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_deploy_software_programmatically.html))
+- Pillar 1: [SEC11-BP07](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_appsec_regularly_assess_security_properties_of_pipelines.html))
+- Pillar 2: [REL13-BP01](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_objective_defined_recovery.html))
+- Pillar 2: [REL13-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/rel_planning_for_recovery_disaster_recovery.html))
+- Pillar 3: [SEC10-BP03](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/sec_incident_response_prepare_forensic.html))
+- PDCA Check: [OPS09-BP01](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_measure_ops_goals_kpis.html))
+- PDCA Check and Act: [OPS09-BP03](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_operations_health_review_ops_metrics_prioritize_improvement.html))
+- PDCA Act: [OPS11-BP02](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html) ([2025-02-25](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/ops_evolve_ops_perform_rca_process.html))
 
 Best practices that the second pillar handles beyond these are added when that pillar's plan sets its scope. All ten pages were read in full on 2026-11-13 and checked against the entries in the framework mapping table.
 
@@ -220,7 +289,7 @@ Numbers match the `[n]` marks in the text. The references of the adoption guide 
 | 9 | Using artifact attestations, gh attestation verify | GitHub | No date shown | [docs.github.com](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations), [cli.github.com](https://cli.github.com/manual/gh_attestation_verify) | 2026-11-10 | documented |
 | 10 | Build: Track Basics, Build: Requirements for producing artifacts | OpenSSF SLSA | v1.2 | [Track Basics](https://slsa.dev/spec/v1.2/build-track-basics), [Requirements](https://slsa.dev/spec/v1.2/build-requirements) | 2026-11-12 | documented (sections read). Details of isolation strength: open |
 | 11 | MCP Security Crisis: Systemic Design Flaws in AI Agent Infrastructure | Cloud Security Alliance (CSAI Foundation) | 2026-05-04 (research note) | [PDF](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/05/CSA_research_note_MCP_security_crisis_20260504-csa-styled.pdf) | 2026-11-10 | documented |
-| 12 | AWS Well-Architected Framework (best-practice pages of the Reliability, Operational Excellence, and Security pillars) | AWS | 2024-11-06 (v13) | [welcome.html](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) and the pages listed in the best-practices section | 2026-11-13 | documented. The meaning of the versioned path 2025-02-25: open |
+| 12 | AWS Well-Architected Framework (best-practice pages of the Reliability, Operational Excellence, and Security pillars) | AWS | 2024-11-06 (v13) | [welcome.html](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/welcome.html) and the pages listed in the best-practices section | 2026-11-13 | documented. The meaning of the versioned path 2025-02-25: open |
 | 13 | Resilience lifecycle framework: A continuous approach to resilience improvement | AWS Prescriptive Guidance | 2023-10-06 (first version) | [docs.aws.amazon.com](https://docs.aws.amazon.com/prescriptive-guidance/latest/resilience-lifecycle-framework/introduction.html) | 2026-11-12 | documented |
 | 14 | Well-architected best practices for software supply chain security | AWS Security Blog | The publication date could not be retrieved | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 | documented (as the blog states it). Publication date: open |
 | 15 | OpenSSF Malicious Packages | OpenSSF (Securing Critical Projects Working Group) | README as of the reference date | [GitHub](https://github.com/ossf/malicious-packages) | 2026-11-10 | documented |

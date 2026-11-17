@@ -787,7 +787,9 @@
       },
       "appears_in": [
         "docs/management-planes-cyber-resilience.md",
-        "CONTRIBUTING.md"
+        "CONTRIBUTING.md",
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md"
       ],
       "note": "Used to scope the management-plane map: on second-generation file systems with more than one HA pair, the CLI and REST API are the available planes. Not a design premise; the map states reachability per plane."
     },
@@ -1787,7 +1789,9 @@
       },
       "appears_in": [
         "docs/ja/supply-chain-use-cases.md",
-        "docs/en/supply-chain-use-cases.md"
+        "docs/en/supply-chain-use-cases.md",
+        "docs/ja/cyber-resilience-programme.md",
+        "docs/en/cyber-resilience-programme.md"
       ],
       "note": "Absence is stated for the pages read on 2026-11-17. The version itself can be read with ONTAP REST GET /api/cluster."
     }

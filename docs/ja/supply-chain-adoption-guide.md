@@ -626,7 +626,7 @@ Check は Well-Architected の OPS09-BP01（運用の目標を指標で測る）
 | G15 | AWS Security Hub now provides an SBOM inventory for your compute resources | AWS | 2026-11-06 | [aws.amazon.com](https://aws.amazon.com/about-aws/whats-new/2026/11/security-hub-sbom-inventory/) | 2026-11-12 | documented |
 | G16 | AWS Security Hub Pricing | AWS | 日付の表示なし | [aws.amazon.com](https://aws.amazon.com/security-hub/pricing/) | 2026-11-12 | documented |
 | G17 | GetSoftwareV2 (AWS Security Hub API Reference) | AWS | 日付の表示なし | [docs.aws.amazon.com](https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_GetSoftwareV2.html) | 2026-11-13 | documented |
-| G18 | AWS Well-Architected Framework | AWS | v13（2024-11-06） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html) | 2026-11-13 | documented |
+| G18 | AWS Well-Architected Framework | AWS | v13（2024-11-06） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/2025-02-25/framework/welcome.html) | 2026-11-13 | documented |
 | G19 | What is AWS Well-Architected? | AWS | 2026-10-01（ページの Last updated） | [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/userguide/well-architected.html) | 2026-11-10 | documented |
 | G20 | Well-architected best practices for software supply chain security | AWS Security Blog | 公開日の表示を取得できなかった | [aws.amazon.com](https://aws.amazon.com/blogs/security/well-architected-best-practices-for-software-supply-chain-security/) | 2026-11-10 | documented（ブログの記述）。公開日は open |
 | G21 | OpenSSF Malicious Packages | OpenSSF | 日付の表示なし | [github.com/ossf](https://github.com/ossf/malicious-packages) | 2026-11-10 | documented |
