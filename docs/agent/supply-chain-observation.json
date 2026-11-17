@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "observed_repos": [
+    "Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns",
+    "Yoshiki0705/FSx-for-ONTAP-Adoption-Playbook"
+  ],
+  "window_start": "2026-11-16T14:26:24Z",
+  "restarts_done": 0,
+  "extensions_exhausted": false,
+  "detector_error_issues": [
+    "Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns#92",
+    "Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns#93",
+    "Yoshiki0705/FSx-for-ONTAP-Cyber-Resilience-Patterns#94"
+  ],
+  "test_issues": []
+}
