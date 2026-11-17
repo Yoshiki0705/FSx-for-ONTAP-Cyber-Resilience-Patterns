@@ -57,7 +57,7 @@ Resources:
         - Name: Resource
           Value: !Sub '${EventTransformerLambda}:live'
         - Name: ExecutedVersion
-          Value: !GetAtt EventTransformerLambda.Version.Version
+          Value: !GetAtt [EventTransformerLambda, Version.Version]
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1
@@ -75,7 +75,7 @@ Resources:
         - Name: FunctionName
           Value: !Ref EventTransformerLambda
         - Name: ExecutedVersion
-          Value: !GetAtt EventTransformerLambda.Version.Version
+          Value: !GetAtt [EventTransformerLambda, Version.Version]
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1
@@ -95,7 +95,7 @@ Resources:
         - Name: Resource
           Value: !Sub '${EventTransformerLambda}:live'
         - Name: ExecutedVersion
-          Value: !GetAtt EventTransformerLambda.Version.Version
+          Value: !GetAtt [EventTransformerLambda, Version.Version]
       Statistic: Maximum
       Period: 60
       EvaluationPeriods: 1

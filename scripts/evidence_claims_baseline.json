@@ -8,10 +8,6 @@
     "after deciding that each newly added line genuinely predates the gate."
   ],
   "baseline": {
-    "docs/articles/01-architecture-overview.md": [
-      "3e339cba91",
-      "a69fc68248"
-    ],
     "docs/deployment-guide-existing-fsxn.md": [
       "8bf8c7d17f"
     ],

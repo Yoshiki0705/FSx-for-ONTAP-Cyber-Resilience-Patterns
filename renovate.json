@@ -38,6 +38,8 @@
     "node_modules/**",
     "vendor/**",
     ".pytest_cache/**",
-    "lambda-packages/**"
+    "lambda-packages/**",
+    "scripts/tests/fixtures/**",
+    "tests/fixtures/**"
   ]
 }

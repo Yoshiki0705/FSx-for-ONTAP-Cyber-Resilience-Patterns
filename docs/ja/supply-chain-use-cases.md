@@ -144,7 +144,7 @@
 
 向く状況は、FSx for ONTAP をこれから作り、版の更新を AWS に任せる部分と、利用者が行う部分を分けたい場合である。FSx for ONTAP では、AWS がファイルシステムの保守と更新を定期的に行う。HA ペアの一方ずつに適用し、適用の前にパートナーへフェイルオーバーするので、60 秒未満の I/O の停止がありうる。Single-AZ と Multi-AZ のどちらも、計画された保守のときに HA ペアがスタンバイへフェイルオーバーする。計画保守での挙動に両者の差はなく、AZ の障害によるフェイルオーバーは Multi-AZ だけが対象である [R33]。NFS と SMB のクライアントでは、AWS はフェイルオーバーを透過的と説明する。iSCSI と NVMe/TCP は、クライアント側のマルチパスの設定が前提になる [R33]。アプリケーション側の再試行とタイムアウトの設計は、この文書では扱わず、確かめていない。メンテナンスウィンドウの開始時刻は作成時に選び、後から変更できる。ウィンドウは 14 日に 1 回以上必要で、パッチが出てから 14 日以内にウィンドウがなければ、AWS が保守を進める [R07]。データの機微度、組織の要件、法令は、利用者の責任である [R09]。管理の入口は、AWS 側のツールと NetApp 側のツール（ONTAP CLI、REST API ほか）の両方が文書に並ぶ [R08]。
 
-利用者の仕事は、「照合して更新を止める」から「適用の時刻を決め、適用後の版と助言を確認する」に移る（推測）。ONTAP の版を利用者が選べるかは、読んだ文書に記載がなく、確かめていない。
+利用者の仕事は、「照合して更新を止める」から「適用の時刻を決め、適用後の版と助言を確認する」に移る（推測）。利用者が設定できるのは、メンテナンスウィンドウの開始時刻（`WeeklyMaintenanceStartTime`）である。ウィンドウは 14 日に 1 回以上必要で、その間にウィンドウがないとパッチは自動で適用される [R07]。ファイルシステムの作成と更新の API には ONTAP の版を指定する項目がなく、`DescribeFileSystems` の `OntapConfiguration` も版を返さない（読んだ API リファレンスの 3 ページ、2026-11-17）[R36][R37] [E-058]。版を知るには ONTAP REST の `GET /api/cluster` を読む [R35]。
 
 このリポジトリでは、ONTAP の版と FSx for ONTAP のデプロイタイプを[構成要素の一覧](../agent/infrastructure-component-ledger.json)に記録する。[ONTAP バージョンアップ手順](../ontap-native/ontap-upgrade-for-security-advisories.md)はセルフマネージドの ONTAP を対象にしていて、FSx for ONTAP には当てはめない。
 
@@ -177,7 +177,7 @@
 
 向く状況は、署名、来歴の証明、段階的な配備を、最初から入れたい場合である。
 
-このリポジトリでは、[来歴証明の検証](supply-chain-adoption-guide.md#来歴証明の検証)と[疎結合な更新](supply-chain-adoption-guide.md#疎結合な更新)に手順がある。Lambda のカナリアデプロイの参照実装は[テンプレート](../../templates/event-driven.yaml)にある。テンプレートの検査は行ったが、実デプロイでトラフィックが移り、アラームで巻き戻ることは、実行して確かめていない。
+このリポジトリでは、[来歴証明の検証](supply-chain-adoption-guide.md#来歴証明の検証)と[疎結合な更新](supply-chain-adoption-guide.md#疎結合な更新)に手順がある。Lambda のカナリアデプロイの参照実装は[テンプレート](../../templates/event-driven.yaml)にある。2026-11-17 に ap-northeast-1 で、テンプレートからカナリアに関わるリソース（関数、alias、デプロイ設定、アラーム、PreTraffic フック）を切り出してデプロイし、各 1 回確かめた。正常な更新では alias が 10% で 10 分間振り分けられたあと新版へ移った。実トラフィックでだけ失敗する版では、新版のエラーのアラームが ALARM になり、CodeDeploy が止まって alias が前の版へ戻った。このときテンプレートの `ExecutedVersion` の参照の書き方が SAM の変換で解決されずデプロイが失敗したので、書き方を直した。FailedRecords・Duration・Throttles の各アラーム単独での巻き戻し、PreTraffic フックの失敗、SQS 経由のトラフィックは試していない。
 
 | 選択肢 | 向く場面 | トレードオフ | 根拠と確度 |
 |---|---|---|---|
@@ -201,7 +201,7 @@
 | 更新の計画と実行 | 版と時期を自分で決めて実行する | メンテナンスウィンドウの時刻の選択と、適用後の確認に変わる | 公式文書に記載（ウィンドウ）、推測（置き換え）[R07] |
 | 更新前の事前検査 | Upgrade Advisor、Upgrade Health Checker | FSx for ONTAP で使えるかは、確かめていない | 未確認 [R06] |
 | 現在の版の取得 | クラスターの管理インターフェースで版を読む | ONTAP REST の `GET /api/cluster` は `version` を返す。FSx for ONTAP の管理エンドポイントには VPC 内から `fsxadmin` で接続する | 公式文書に記載（`version` の項目）[R35]。FSx for ONTAP での読み取りは、本リポジトリの[スナップショット](../ontap-native/ontap-command-api-snapshot.md)に記録がある（1 台、SINGLE_AZ_1、ap-northeast-1、ONTAP 9.18.1P6、2026-11-04、1 回） |
-| 版の選択 | 更新先の版を選ぶ | 利用者が版を選べるかは、読んだ文書に記載がなく、確かめていない | 未確認 [R07][R08] |
+| 版の選択 | 更新先の版を選ぶ | 利用者が選べるのはメンテナンスウィンドウの時刻で、作成と更新の API には版を指定する項目がない（読んだ API リファレンスの 3 ページ） | 公式文書に記載 [R07][R36][R37] |
 
 ### C2 既存の運用スクリプトと ONTAP REST クライアントの依存の棚卸し
 
@@ -286,7 +286,7 @@
 
 | 項目 | 状況 | この文書での扱い |
 |---|---|---|
-| FSx for ONTAP が Digital Advisor の対象か | 読んだ文書に記載が見つからなかった | 対象外とは書かない。C1 は未確認として扱う |
+| FSx for ONTAP が Digital Advisor の対象か | Digital Advisor の機能と制限の 2 ページ、Cloud Volumes ONTAP との統合のページに FSx の記載がなく、NetApp Console の FSx for ONTAP のページに Digital Advisor の記載がない（2026-11-17）[R38][R39] | 対象とも対象外とも書かれていない。C1 は未確認として扱う |
 | FSx for ONTAP の ONTAP の版の選択可否と、版の確認方法を述べた AWS 側の文書 | 専用のページが見つからなかった | AWS が版を決める、とは書かない |
 | NetApp の SBOM と VEX の提供 | 脆弱性対策ポリシーのページと、リソース一覧の冒頭で、記載を探した。記載は見つからなかった | 提供の有無を断定せず、確かめていないと書く |
 | AWS Security Bulletins の FSx for ONTAP の掲載、AWS Config が記録する FSx for ONTAP の設定、SIEM 製品の連携 | 一次の文書を読んでいない | 未確認として表に残す |
@@ -333,3 +333,7 @@ NetApp のセキュリティアドバイザリのサイトは、ページの本�
 - [R33] Amazon FSx for NetApp ONTAP ユーザーガイド, 可用性、耐久性、デプロイオプション. https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/high-availability-AZ.html （確認日 2026-11-17）
 - [R34] AWS Security Hub CSPM ユーザーガイド, 独自製品との統合. https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-custom-providers.html （確認日 2026-11-17）
 - [R35] NetApp Docs, ONTAP REST API リファレンス, クラスターの取得（version の項目）. https://docs.netapp.com/us-en/ontap-restapi/ontap/get-cluster.html （確認日 2026-11-17）
+- [R36] Amazon FSx API リファレンス, CreateFileSystemOntapConfiguration と UpdateFileSystemOntapConfiguration. https://docs.aws.amazon.com/fsx/latest/APIReference/API_CreateFileSystemOntapConfiguration.html 、https://docs.aws.amazon.com/fsx/latest/APIReference/API_UpdateFileSystemOntapConfiguration.html （確認日 2026-11-17）
+- [R37] Amazon FSx API リファレンス, OntapFileSystemConfiguration. https://docs.aws.amazon.com/fsx/latest/APIReference/API_OntapFileSystemConfiguration.html （確認日 2026-11-17）
+- [R38] NetApp Docs, Digital Advisor の機能と制限. https://docs.netapp.com/us-en/active-iq/concept_understand_activeiq_features.html 、https://docs.netapp.com/us-en/active-iq/reference_limitations_activeiq.html 、https://docs.netapp.com/us-en/storage-management-cloud-volumes-ontap/concept-active-iq.html （確認日 2026-11-17）
+- [R39] NetApp Docs, NetApp Console の Amazon FSx for NetApp ONTAP. https://docs.netapp.com/us-en/bluexp-fsx-ontap/start/concept-fsx-aws.html （確認日 2026-11-17）

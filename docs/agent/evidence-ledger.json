@@ -1175,7 +1175,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/ontap-native/gcnv-ontap-mode-security-features.md"
+        "docs/ontap-native/gcnv-ontap-mode-security-features.md",
+        "docs/articles/01-architecture-overview.md"
       ],
       "note": "General ONTAP SnapLock property; applies on both GCNV ONTAP-mode and FSx for ONTAP."
     },
@@ -1744,6 +1745,51 @@
         "docs/ontap-native/ontap-upgrade-for-security-advisories.md"
       ],
       "note": "Stated for ONTAP in general. Whether FSx for ONTAP exposes a revert path at all was not checked."
+    },
+    {
+      "id": "E-058",
+      "claim": "The FSx for ONTAP file system create and update APIs have no field for choosing the ONTAP version, and OntapConfiguration in DescribeFileSystems does not return it. What the user sets is the weekly maintenance window start time; a window is required at least once every 14 days, and without one in that period FSx applies patches automatically.",
+      "subject": "FSx for ONTAP ONTAP version selection and maintenance windows",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/APIReference/API_CreateFileSystemOntapConfiguration.html",
+          "retrieved": "2026-11-17",
+          "read": "full",
+          "note": "No version field; selective search for 'version' returned 0 matches."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/APIReference/API_UpdateFileSystemOntapConfiguration.html",
+          "retrieved": "2026-11-17",
+          "read": "full",
+          "note": "No version field; selective search for 'version' returned 0 matches."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/APIReference/API_OntapFileSystemConfiguration.html",
+          "retrieved": "2026-11-17",
+          "read": "full",
+          "note": "No version field; selective search for 'version' returned 0 matches. A DescribeFileSystems call in ap-northeast-1 returned the same OntapConfiguration keys."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/maintenance-windows.html",
+          "retrieved": "2026-11-17",
+          "read": "full",
+          "note": "Weekly maintenance window start time; at least once every 14 days, otherwise patches are applied automatically."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "The API reference answers the field question. How AWS picks the version of a new file system and whether it notifies users was not found on the pages read and is not claimed."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/supply-chain-use-cases.md",
+        "docs/en/supply-chain-use-cases.md"
+      ],
+      "note": "Absence is stated for the pages read on 2026-11-17. The version itself can be read with ONTAP REST GET /api/cluster."
     }
   ]
 }

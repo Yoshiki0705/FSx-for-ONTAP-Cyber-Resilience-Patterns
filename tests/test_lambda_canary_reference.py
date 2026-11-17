@@ -57,7 +57,10 @@ HOOK = "EventTransformerPreTrafficFunction"
 RULE = "EventTransformerDeploymentFailedRule"
 TOPIC = "SecurityAlertTopic"
 METRIC_NAMESPACE = "FsxnCyberResilience/EventTransformer"
-VERSION_ATTR = "EventTransformerLambda.Version.Version"
+# The list form is required: the SAM transform resolves ``!GetAtt [Fn, Version.Version]`` but left the
+# short form ``!GetAtt Fn.Version.Version`` unresolved, and CloudFormation then rejected the alarms with
+# "Requested attribute Version.Version does not exist in schema" (one real deployment, ap-northeast-1).
+NEW_VERSION_REF = {"GetAtt": ["EventTransformerLambda", "Version.Version"]}
 ALIAS = "live"
 SAM_TRANSFORM = "AWS::Serverless-2016-10-31"
 ALIAS_REF = {"Ref": f"{FUNCTION}.Alias"}
@@ -179,7 +182,7 @@ def check_new_version_errors_alarm(tpl: dict[str, Any]) -> None:
     assert props.get("MetricName") == "Errors"
     dims = _dims(tpl, NEW_ERRORS)
     assert f":{ALIAS}" in json.dumps(dims.get("Resource"))
-    assert VERSION_ATTR in json.dumps(dims.get("ExecutedVersion"))
+    assert dims.get("ExecutedVersion") == NEW_VERSION_REF
     assert props.get("Threshold") == 0 and props.get("ComparisonOperator") == "GreaterThanThreshold"
 
 
@@ -191,7 +194,7 @@ def check_failed_records_alarm(tpl: dict[str, Any]) -> None:
     assert props.get("Statistic") == "Sum"
     assert props.get("Threshold") == 0 and props.get("ComparisonOperator") == "GreaterThanThreshold"
     assert {"FunctionName", "ExecutedVersion"} <= set(_dims(tpl, NEW_FAILED))
-    assert VERSION_ATTR in json.dumps(_dims(tpl, NEW_FAILED)["ExecutedVersion"])
+    assert _dims(tpl, NEW_FAILED)["ExecutedVersion"] == NEW_VERSION_REF
 
 
 def check_duration_alarm(tpl: dict[str, Any]) -> None:
@@ -199,7 +202,7 @@ def check_duration_alarm(tpl: dict[str, Any]) -> None:
     props = _alarm(tpl, NEW_DURATION)
     assert props.get("MetricName") == "Duration"
     assert props.get("Statistic") == "Maximum"
-    assert VERSION_ATTR in json.dumps(_dims(tpl, NEW_DURATION).get("ExecutedVersion"))
+    assert _dims(tpl, NEW_DURATION).get("ExecutedVersion") == NEW_VERSION_REF
     timeout = _props(tpl, FUNCTION).get("Timeout")
     assert isinstance(timeout, int)
     assert props.get("Threshold") == timeout * 1000 // 2
