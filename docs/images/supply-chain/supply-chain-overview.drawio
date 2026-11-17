@@ -1,0 +1,172 @@
+<mxfile host="drawio" modified="2026-11-17T00:00:00.000Z" agent="build.py">
+  <diagram id="d" name="page">
+    <mxGraphModel dx="0" dy="0" grid="0" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="940" pageHeight="1653" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c2" value="対象リポジトリ 12 件（GitHub）" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="20" width="270" height="285" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;b&gt;パイロット 2 件&lt;/b&gt;&lt;br&gt;Cyber Resilience Patterns&lt;br&gt;Adoption Playbook（Hub）&lt;br&gt;取得経路 A と B の SBOM&lt;br&gt;.vex/ と CODEOWNERS" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="60" width="250" height="124" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;b&gt;そのほか 10 件&lt;/b&gt;&lt;br&gt;取得経路 A のみ&lt;br&gt;（依存関係グラフと Dependabot アラート）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="196" width="250" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="外部フィード" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="325" width="270" height="218" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="CISA KEV" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="365" width="250" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="FIRST EPSS" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="415" width="250" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="OSV と&lt;br&gt;OpenSSF Malicious Packages" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="465" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="VEX の承認" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="571" width="270" height="266" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="別身元の GitHub App&lt;br&gt;が PR を作成" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="611" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="所有者が承認&lt;br&gt;（CODEOWNERS /.vex/）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="691" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value=".vex/ に判断を保存&lt;br&gt;（180 日で失効）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="771" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="保守者の機械（macOS）" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="857" width="270" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="launchd 週次確認&lt;br&gt;（月曜 09:00）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="897" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="launchd 期限確認&lt;br&gt;（毎日 09:00）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="965" width="250" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="失敗時: 通知バナー" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="30" y="1033" width="250" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="Hub（Adoption Playbook）" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="335" y="20" width="270" height="1203" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="&lt;b&gt;Renovate の共有プリセット&lt;/b&gt;&lt;br&gt;v1.0.0（immutable release）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="60" width="240" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="&lt;b&gt;sbom-generate&lt;/b&gt;&lt;br&gt;再利用可能ワークフロー&lt;br&gt;skip-paths 入力" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="156" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="集約ジョブ（6 時間ごと）※1" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="350" y="270" width="240" height="595" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="&lt;b&gt;起票の条件（どれか 1 つ）&lt;/b&gt;&lt;br&gt;CVSS が High 以上&lt;br&gt;CISA KEV に掲載&lt;br&gt;悪意のあるパッケージ（MAL-）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="316" width="220" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="EPSS は表示のみ（起票に使わない）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="486" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="新規起票は 1 回 10 件まで&lt;br&gt;超過分はまとめ Issue" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="566" width="220" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="VEX は Code Owner が承認したものだけ採用" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="662" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="悪意のあるパッケージは VEX で止めない" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="360" y="762" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="&lt;b&gt;supply-chain-runs ブランチ&lt;/b&gt;&lt;br&gt;実行結果の記録&lt;br&gt;連鎖ハッシュ、先端のタグ、月の封印" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="915" width="240" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="&lt;b&gt;見張り（毎時）※1&lt;/b&gt;&lt;br&gt;記録が 8 時間より古いと失敗" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="1041" width="240" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="&lt;b&gt;PR の検査&lt;/b&gt;&lt;br&gt;vex-validate&lt;br&gt;cooldown-pinning-check" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="350" y="1137" width="240" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="&lt;b&gt;Renovate&lt;/b&gt;（Mend 提供）&lt;br&gt;Hub の共有プリセットを extends&lt;br&gt;待ち時間: 通常 3 日、メジャー 7 日" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="60" width="270" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="&lt;b&gt;更新 PR（各リポジトリ）&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="200" width="270" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="自動マージ: 全リポジトリで無効から開始" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;dashed=1;dashPattern=6 4;" parent="1" vertex="1">
+          <mxGeometry x="650" y="276" width="270" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" value="&lt;b&gt;Issue（各リポジトリ）&lt;/b&gt;&lt;br&gt;対応時間の目標: 検出 24 時間、修正 7 日（KEV または悪意）・14 日（High 以上）&lt;br&gt;supply-chain-aggregator ラベル" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="400" width="270" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="c33" value="構成要素の一覧とアドバイザリの照合" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="640" y="640" width="290" height="375" as="geometry" />
+        </mxCell>
+        <mxCell id="c34" value="&lt;b&gt;インフラ構成要素の一覧&lt;/b&gt;&lt;br&gt;（JSON ファイル）&lt;br&gt;ONTAP の版&lt;br&gt;Amazon FSx for NetApp ONTAP のデプロイタイプ&lt;br&gt;TrendAI、Deep Instinct の版" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="680" width="270" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c35" value="&lt;b&gt;NetApp のセキュリティ&lt;/b&gt;&lt;br&gt;&lt;b&gt;アドバイザリ（RSS）&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="840" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c36" value="AWS Security Bulletins の FSx for ONTAP 掲載: 未確認（照合の対象に含めていない）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7280;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;dashed=1;dashPattern=6 4;" parent="1" vertex="1">
+          <mxGeometry x="650" y="925" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c37" value="失敗時: Hub の障害 Issue に追記&lt;br&gt;（開いたものがなければ起票）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;align=center;verticalAlign=middle;spacingLeft=6;spacingRight=6;" parent="1" vertex="1">
+          <mxGeometry x="650" y="1051" width="270" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="c38" value="凡例と補足" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6B86;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=16;fontColor=#232F3E;" parent="1" vertex="1">
+          <mxGeometry x="20" y="1253" width="900" height="380" as="geometry" />
+        </mxCell>
+        <mxCell id="c39" value="① 取得経路 A: 依存関係グラフと Dependabot アラートを API で取得（アラートの助言の出どころは GitHub Advisory Database）&lt;br&gt;② 取得経路 B: パイロット 2 件が sbom-generate を呼び、SBOM を集約ジョブへ渡す&lt;br&gt;③ 外部フィード（KEV、EPSS、OSV）を取得&lt;br&gt;④ 起票の条件を満たした所見を Issue に起票&lt;br&gt;⑤ 実行結果を supply-chain-runs に追記（直前の記録のハッシュを持つ）&lt;br&gt;⑥ 見張りが記録の新しさと連鎖を確認&lt;br&gt;⑦ 保守者の機械が Hub のワークフロー一覧と記録を確認（見張り自身の停止も拾う）&lt;br&gt;⑧ 集約ジョブが承認済みの VEX の判断を読む&lt;br&gt;⑨ Renovate が更新 PR を作る&lt;br&gt;⑩ 構成要素の一覧とアドバイザリを人が照合（破線）&lt;br&gt;実線の矢印: 自動の流れ。破線の矢印と枠: 人の手順、または任意・未有効。" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontSize=16;fontColor=#232F3E;spacingLeft=4;spacingRight=4;" parent="1" vertex="1">
+          <mxGeometry x="30" y="1287" width="880" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="c40" value="&lt;b&gt;※1 数値は設定値&lt;/b&gt;&lt;br&gt;12 件、6 時間、8 時間、3 日・7 日、24 時間、180 日、1 回 10 件はポリシーの設定値（2026-11-17 時点）。測定値ではない。" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontSize=16;fontColor=#232F3E;spacingLeft=4;spacingRight=4;" parent="1" vertex="1">
+          <mxGeometry x="30" y="1549" width="880" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c41" value="②" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="c3" target="c19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c42" value="②" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c19" target="c20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c43" value="①" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.10084033613445378;entryDx=0;entryDy=0;" parent="1" edge="1" source="c4" target="c20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c44" value="③" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.33613445378151263;entryDx=0;entryDy=0;" parent="1" edge="1" source="c5" target="c20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c45" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c10" target="c11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c46" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c11" target="c12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c47" value="⑧" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8890756302521008;entryDx=0;entryDy=0;" parent="1" edge="1" source="c12" target="c20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c48" value="④" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.23529411764705882;exitDx=0;exitDy=0;entryX=0;entryY=0.05;entryDx=0;entryDy=0;" parent="1" edge="1" source="c20" target="c32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c49" value="⑤" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c20" target="c26">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c50" value="⑥" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c26" target="c27">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c51" value="⑦" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="c14" target="c26">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c52" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="c18" target="c29">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c53" value="⑨" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c29" target="c30">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c54" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="c27" target="c37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c55" value="⑩" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeColor=#232F3E;strokeWidth=1;fontSize=16;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;startArrow=open;startFill=0;dashed=1;dashPattern=6 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="c34" target="c35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

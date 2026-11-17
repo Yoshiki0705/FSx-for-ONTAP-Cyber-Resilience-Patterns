@@ -67,11 +67,11 @@ sequenceDiagram
 
 | Aspect | TrendAI | Deep Instinct |
 |--------|---------|---------------|
-| Primary strength | 既知マルウェアの高精度検知 | 未知脅威・ゼロデイの事前防御 |
+| Primary strength | 既知マルウェアのシグネチャ検知 | 未知脅威・ゼロデイの事前防御 |
 | Detection method | シグネチャ + ヒューリスティック | Deep Learning 推論 |
 | Signature updates | 必要（定期更新） | 不要（モデル更新は数ヶ月単位） |
-| False positive rate | Very low | Low-Medium (モデル依存) |
-| Offline operation | 制限あり | 完全対応 |
+| False positive rate | 環境依存（測っていない） | 環境依存（測っていない） |
+| Offline operation | 未確認（製品ドキュメントで確認していない） | 未確認（製品ドキュメントで確認していない） |
 | Best for | コンプライアンス要件、既知脅威ブロック | APT 対策、新種ランサムウェア |
 
 両方を導入する場合は FPolicy で2つのポリシーを定義し、直列スキャン（TrendAI → DI）とする。
