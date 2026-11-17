@@ -197,8 +197,8 @@ snapmirror resync -source-path svm-dr:vol_prod_dr -destination-path svm-prod-dev
 
 ### Option D: 論理エアギャップボールトからの復旧
 
-AWS アカウントや ONTAP 管理者が侵害され、同じ管理境界の中の Snapshot や SnapMirror の宛先も改ざん・削除された疑いがある場合の経路。手順は AWS の公開文書に基づき、本リポジトリでは実施していない（documented、[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。
-This path is for when the AWS account or an ONTAP administrator is compromised and snapshots or SnapMirror destinations inside the same boundary may also have been tampered with or deleted. The steps follow AWS public documentation and have not been run in this repository (documented).
+AWS アカウントや ONTAP 管理者が侵害され、同じ管理境界の中の Snapshot や SnapMirror の宛先も改ざん・削除された疑いがある場合の経路。手順は AWS の公開文書に基づく（documented、[ボールト文書](../data-protection/aws-backup-logically-air-gapped-vault.md)）。共有したボールトから別アカウントの既存のファイルシステムへの復元は、コンパニオンのリポジトリのラボで 1 回確かめた（ボールト文書の「検証状況と確認日」）。この runbook の手順を通しで実施したことはない。
+This path is for when the AWS account or an ONTAP administrator is compromised and snapshots or SnapMirror destinations inside the same boundary may also have been tampered with or deleted. The steps follow AWS public documentation (documented). A restore from a shared vault into another account's existing file system was checked once in the companion repository's lab (see Verification Status in the vault guide). This runbook has not been run end to end.
 
 1. 復旧アカウントで、共有された論理エアギャップボールトの復旧ポイントを確認する。RAM で共有されたボールトへの要求には `--backup-vault-account-id` が要る（documented）。
    In the recovery account, list the recovery points in the shared vault; requests against a RAM-shared vault need `--backup-vault-account-id` (documented).

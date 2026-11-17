@@ -11,9 +11,9 @@ In 2026-09, AWS Backup logically air-gapped vaults added support for Amazon FSx 
 
 ## 検証状況と確認日 / Verification Status and Check Date
 
-本リポジトリでは実環境で試していない。記述はすべて AWS の公開文書に基づく（2026-10-08 確認）。リージョン、上限、対象リソースは変わりうるので、使う前に参照の各ページを読み直す。
+このページの前提条件と選び方の記述は、AWS の公開文書に基づく（2026-10-08 確認）。実環境では、2026-10-12 に、同じ組織の 2 アカウントの間で AWS RAM によるボールトの共有、受け手からの可視性、共有の取り消し、受け手の既存のファイルシステムへの復元を各 1 回確かめた（ap-northeast-1 と ap-northeast-3、招待経路の共有）。使ったのはコンパニオンの S3 Access Points サーバーレスリポジトリの[共有ボールトのラボ](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/tree/main/infrastructure/shared-backup-vault-lab)で、記録は[ブログ記事](https://hakobiya.hatenablog.com/entry/FSx-for-ONTAP-shared-backup-vault-visibility)にある。マルチパーティー承認（2 つの AWS Organizations と承認チームが要る）、組織単位の共有、別リージョンの復旧ポイントからの復元は試していない。リージョン、上限、対象リソースは変わりうるので、使う前に参照の各ページを読み直す。
 
-This repository has not tried the vault in a real environment. Everything here is based on AWS public documentation (checked 2026-10-08). Regions, quotas and supported resources change, so reread the referenced pages before you rely on them.
+The prerequisites and the selection guidance on this page are based on AWS public documentation (checked 2026-10-08). In a real environment, on 2026-10-12, sharing a vault over AWS RAM between two accounts in the same organization, its visibility from the recipient, revoking the share, and restoring into the recipient's existing file system were each checked once (ap-northeast-1 and ap-northeast-3, invitation-based sharing). The checks used the [shared backup vault lab](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/tree/main/infrastructure/shared-backup-vault-lab) in the companion S3 Access Points serverless repository, and the record is in a [write-up](https://dev.to/aws-builders/seeing-and-restoring-a-ram-shared-logically-air-gapped-vault-from-another-account-and-region--2jbe). Multi-party approval (which needs two AWS Organizations and an approval team), organization-wide sharing and a restore from a recovery point in another Region were not tried. Regions, quotas and supported resources change, so reread the referenced pages before you rely on them.
 
 ## 前提条件 / Prerequisites
 

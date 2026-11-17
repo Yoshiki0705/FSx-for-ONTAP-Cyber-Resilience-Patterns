@@ -3,14 +3,14 @@
 > Defense-in-depth patterns combining storage-native security, AI-powered scanning, and event-driven automated response.
 
 > **Update (2026-10)**
-> - Since 2026-09, AWS Backup logically air-gapped vaults have supported FSx for ONTAP volume backups. I summarized the setup in the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md); this repository has not tried it in a real environment.
+> - Since 2026-09, AWS Backup logically air-gapped vaults have supported FSx for ONTAP volume backups. I summarized the setup in the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md). On 2026-10-12 I shared a vault over AWS RAM with a second account in the same organization and restored a volume from it into that account's existing file system (n=1), using the [shared backup vault lab](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/tree/main/infrastructure/shared-backup-vault-lab) in the companion S3 Access Points serverless repository ([write-up](https://dev.to/aws-builders/seeing-and-restoring-a-ram-shared-logically-air-gapped-vault-from-another-account-and-region--2jbe)). Multi-party approval, organization-wide sharing and a restore in another Region were not tried.
 > - The NIST CSF 2.0 mapping now lives in one place, the [framework mapping](../en/cyber-resilience-framework-mapping.md) ([日本語](../ja/cyber-resilience-framework-mapping.md)). It covers exfiltration as well as encryption and destruction.
 > - I rewrote the MTTC sentence so that it says which path was measured. The 2-minute figure comes from the Lambda path in the companion Observability repository; the Step Functions path in this repository has not been measured.
 > - This architecture does not rely on ARP to detect read-only exfiltration. ARP's documented detection inputs are write-side (inference) [E-012]. If you suspect exfiltration, see the [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md).
 
 ## Introduction
 
-Enterprise file data stored on NAS (NFS/SMB) faces unique security challenges that general-purpose compute-focused security tools don't fully address. This article introduces a reference architecture that leverages Amazon FSx for NetApp ONTAP's storage-native security capabilities alongside AWS serverless services to build comprehensive file-level cyber resilience.
+Enterprise file data stored on NAS (NFS/SMB) faces security challenges that the controls built for compute workloads cover only in part. This article introduces a reference architecture that combines Amazon FSx for NetApp ONTAP's storage-native security features with AWS serverless services to build layered file-level cyber resilience.
 
 ## The Problem
 
@@ -50,14 +50,14 @@ The architecture uses six complementary layers:
 
 ## Why FSx for ONTAP?
 
-Amazon FSx for NetApp ONTAP provides unique storage-native security primitives not available in general-purpose storage:
+FSx for ONTAP provides the storage-native security features that this architecture builds on:
 
 | Capability | What It Does | Why It Matters |
 |-----------|-------------|---------------|
 | **ARP** | Behavioral anomaly detection at the storage layer | Catches ransomware by file-operation patterns, not signatures |
 | **FPolicy** | Real-time file-event notification to external servers | Enables inline scanning without modifying client workflows |
-| **SnapLock** | WORM (Write Once, Read Many) compliance retention | Evidence preservation that even administrators cannot delete |
-| **Tamperproof Snapshot** | Admin-proof backup snapshots | Recovery point immune to insider threats |
+| **SnapLock** | WORM (Write Once, Read Many) compliance retention | Evidence preservation: in Compliance mode, files cannot be deleted by anyone, administrators included, until the retention period expires [E-036] |
+| **Tamperproof Snapshot** | Admin-proof backup snapshots | Recovery point that cannot be deleted or changed until its lock expires; one control among several against insider threats |
 | **MAV** | Multi-Admin Verification for destructive operations | Prevents single-admin compromise |
 
 ## Key Design Decisions
@@ -112,7 +112,7 @@ This is the first of a 4-part series:
 ## 日本語サマリ
 
 > **Update (2026-10)**
-> - 2026-09 から、AWS Backup の論理エアギャップボールトが FSx for ONTAP のボリュームバックアップに対応した。[vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) にまとめたが、本リポジトリでは実環境で試していない。
+> - 2026-09 から、AWS Backup の論理エアギャップボールトが FSx for ONTAP のボリュームバックアップに対応した。[vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) にまとめた。2026-10-12 に、同じ組織の別アカウントへ AWS RAM でボールトを共有し、そのアカウントの既存のファイルシステムへボリュームを復元した（1 回）。使ったのはコンパニオンの S3 Access Points サーバーレスリポジトリの[共有ボールトのラボ](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns/tree/main/infrastructure/shared-backup-vault-lab)で、記録は[ブログ記事](https://hakobiya.hatenablog.com/entry/FSx-for-ONTAP-shared-backup-vault-visibility)にある。マルチパーティー承認、組織単位の共有、別リージョンでの復元は試していない。
 > - NIST CSF 2.0 の当てはめは [framework mapping](../ja/cyber-resilience-framework-mapping.md)（[English](../en/cyber-resilience-framework-mapping.md)）の 1 か所にまとめた。暗号化・破壊に加えて持ち出しも扱う。
 > - 本文の MTTC の記述を、測った区間がわかる形に直した。2 分はコンパニオンの Observability リポジトリの Lambda 経路の実測値で、本リポジトリの Step Functions 経路は測っていない。
 > - 読み取りだけの持ち出しの検知は ARP に頼らない。文書にある検知条件は書き込み系（推論）[E-012]。持ち出しを疑うときは [Data Exfiltration Response Runbook](../runbooks/data-exfiltration-response.md) を参照。

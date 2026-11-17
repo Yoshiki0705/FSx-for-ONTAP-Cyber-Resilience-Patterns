@@ -47,7 +47,7 @@
 - 起票の判定、VEX による除外の判定、見張りの判定は、このリポジトリの `solutions/supply-chain/` に純粋な関数としてあり、単体テストで確かめている。
 - 検証ゲートは `make check-supply-chain` で動く。ポリシーファイルとこの文書の数値の一致は、ゲートの 1 つ（`guide-values`）が確かめる。
 - `.vex/` の変更が作成者以外の人に承認されたかの確認は Hub 側で動く部品である。Hub に `vex-validate` は公開済みだが、それが `.vex/` を読むことと、作成者以外の承認を確かめることは、実行して確かめていない（open）。
-- 次の 2 点は、実行して確かめていない。Renovate の共有プリセットの参照形（`github>…#<タグ>`）が Renovate で解決されること。Lambda のカナリアデプロイでトラフィックが移り、アラームで巻き戻ること。
+- Lambda のカナリアデプロイでトラフィックが移り、新版のエラーのアラームで巻き戻ることは、2026-11-17 に ap-northeast-1 で各 1 回確かめた（範囲は[ユースケース文書](supply-chain-use-cases.md)の B3）。Renovate の共有プリセットの参照形（`github>…#<タグ>`）が Renovate で解決されることは、まだ確かめていない。このリポジトリでは 2026-11-15 から、テスト用の fixture の `package.json` に置いた Renovate の設定を Renovate が設定の誤りとして扱い、更新の PR を止めていた。fixture を `ignorePaths` に足したので、次の実行で解決を確かめる。
 - 見張りの週 1 回の確認（`watchdog_cli`）と、記録の連鎖の分岐の復旧（`chain_recovery`）は、このリポジトリの `solutions/supply-chain/` にあり、手順は 2026-11-15 に使い捨てのディレクトリで実行して確かめた。確かめたのは、`PYTHONPATH` の要否、作業ディレクトリを変えた実行、Hub の実際のワークフロー一覧（`gh api`）の読み取り、分岐の検出・登録・再接続である。launchd からの起動は、使い捨ての plist を `launchctl bootstrap` して `kickstart` で起動し、ジョブ内で `--overdue-check` が終了コード 1 を返し、`osascript display notification` が終了コード 0 で呼ばれたことまで、同日に確かめた。2026-11-16〜17 に、保守者の機械（macOS 27.0）で本番の plist 2 本から週次確認を実行し、`supply-chain-runs` ブランチの取得から報告まで通ること（`healthy: true`）、通知バナーが画面に出ること（保守者の目視）、`StartCalendarInterval` の時刻がスリープ中に過ぎたジョブが復帰時に実行されること（1 回の観測）を確かめた。確かめていないのは、Hub の集約ジョブと見張りが台帳に登録した分岐を読むこと（分岐が起きていない）である。
 - 第 2 と第 3 の柱の手順は公開していない。
 
