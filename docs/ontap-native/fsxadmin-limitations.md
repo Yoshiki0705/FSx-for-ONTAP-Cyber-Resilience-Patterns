@@ -51,6 +51,7 @@ Instead, use the `fsxadmin` user which has vsadmin-equivalent permissions plus s
 | Snapshot policy create/modify | ✅ | |
 | SnapMirror create/manage | ✅ | |
 | FlexClone create | ✅ | |
+| Cluster peer create | ✅ (not tested here) | `cluster peer create` is run as `fsxadmin` in the ONTAP CLI in the AWS user guide pages [Creating a FlexCache](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/create-flexcache.html) and [Migrating to FSx for ONTAP using NetApp SnapMirror](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/migrating-fsx-ontap-snapmirror.html) (read 2026-11-21). The lakehouse repository records a cluster peer between ap-northeast-1 and us-west-2 reaching `available` on 2026-07-21 ([backlog](https://github.com/Yoshiki0705/FSx-for-ONTAP-Lakehouse-Integrations/blob/main/integrations/snapmirror-flexcache-multicloud/docs/BACKLOG.md), one run; the credential type is not recorded). An earlier version of this page placed it under "use AWS Console for cross-region" without a source, which the two records above do not match. Between two file systems in one Region it has not been tried |
 | AWS Backup integration | ✅ | Via AWS Console/API. RW volumes only; DP, LSM, FlexCache and SnapMirror destination volumes and SnapLock FlexGroup volumes are not backed up [E-010]. To copy backups to a logically air-gapped vault, the file system must be encrypted with a customer managed key [E-009]. See the [vault guide](../data-protection/aws-backup-logically-air-gapped-vault.md) |
 
 ### 監査・監視
@@ -65,7 +66,6 @@ Instead, use the `fsxadmin` user which has vsadmin-equivalent permissions plus s
 
 以下は AWS が管理するため、fsxadmin では実行不可:
 
-- Cluster peer create (use AWS Console for cross-region)
 - Network interface (LIF) create/modify/delete
 - Aggregate create/modify
 - Node management
