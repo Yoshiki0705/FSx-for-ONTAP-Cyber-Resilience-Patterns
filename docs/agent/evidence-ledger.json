@@ -1794,6 +1794,33 @@
         "docs/en/cyber-resilience-programme.md"
       ],
       "note": "Absence is stated for the pages read on 2026-11-17. The version itself can be read with ONTAP REST GET /api/cluster."
+    },
+    {
+      "id": "E-059",
+      "claim": "FSx for ONTAP supports only volume-level SnapMirror replication. SVM Disaster Recovery (SVMDR) is not supported, and synchronous SnapMirror, including StrictSync, is not supported.",
+      "subject": "FSx for ONTAP SnapMirror replication types",
+      "tier": "documented",
+      "premise": true,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/scheduled-replication.html",
+          "retrieved": "2026-11-20",
+          "read": "full",
+          "note": "The Note on the page states that there are two types of SnapMirror replication (volume-level SnapMirror and SVM Disaster Recovery), that only volume-level SnapMirror is supported by FSx for ONTAP, and that synchronous SnapMirror, including StrictSync, is not supported. The page also says replication can be scheduled as frequently as every 5 minutes."
+        }
+      ],
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "The user guide states the limitation directly. Whether the limitation applies to every ONTAP version of the service was not tested here."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ja/recovery-objectives-guide.md",
+        "docs/en/recovery-objectives-guide.md"
+      ],
+      "note": "Stated for the page read on 2026-11-20. This project did not try to create a synchronous or SVM DR relationship."
     }
   ]
 }

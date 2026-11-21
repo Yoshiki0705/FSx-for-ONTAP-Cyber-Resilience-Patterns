@@ -4,7 +4,7 @@
 
 ## Purpose
 
-This document holds the overall policy for the three pillars in one place, so that the position and order of each pillar are not mixed up. Procedures for each pillar live in that pillar's published documents. The setup steps for the first pillar are in the adoption guide (`supply-chain-adoption-guide.md`; [en](supply-chain-adoption-guide.md)). The procedures for the second and third pillars are not yet published.
+This document holds the overall policy for the three pillars in one place, so that the position and order of each pillar are not mixed up. Procedures for each pillar live in that pillar's published documents. The setup steps for the first pillar are in the adoption guide (`supply-chain-adoption-guide.md`; [en](supply-chain-adoption-guide.md)). The procedures for the second pillar are in the [guide to recovery time and recovery point objectives](recovery-objectives-guide.md), and those for the third pillar are not yet published.
 
 Every guideline cited here is governance guidance. None of it is a legal, compliance, or regulatory judgment. The contractual commitment for a service level is the service owner's own decision, and this project gives no legal or contractual judgment.
 
@@ -37,7 +37,7 @@ Evidence is labeled with four words. `documented` means the relevant part of the
 As of 2026-11-17, the state is as follows.
 
 - First pillar: there is an adoption guide and there are verification gates. Of the 22 runs of the Hub aggregation job since 2026-11-13, 17 succeeded, and the latest 5 (2026-11-16 18:15Z to 2026-11-17 09:11Z) all succeeded. The Renovate shared preset is published as a Hub tag. No Spoke has adopted it yet. Details are in [Status in the adoption guide](supply-chain-adoption-guide.md#status). The spec is `cyber-resilience-phase4-supply-chain`, and it is complete
-- Second pillar: started, and the spec (`cyber-resilience-phase5-recovery-objectives`) is being written. No public document yet
+- Second pillar: started (as of 2026-11-20). The [guide to recovery time and recovery point objectives](recovery-objectives-guide.md) and the [measurement results](recovery-measurement-results.md) exist. Measurements are in progress, and only Snapshot restore and clone creation (M1) have results. The restore of FSx backups (M2) is being measured, and the rest are not started
 - Third pillar: not started. The spec is planned under the name `cyber-resilience-phase6-forensics`. No public document yet
 
 ## Background trends
@@ -54,7 +54,7 @@ The two trends below are written only as far as the sources themselves go. Both 
 | Pillar | Purpose | Scope | Setup steps | Status (as of 2026-11-17) |
 |---|---|---|---|---|
 | 1: Software supply chain visibility and response | Know which components are in use, and respond to vulnerabilities and malicious packages within a target time | SBOMs of the target repositories, Issues from the aggregation job, updates through Renovate, VEX, build provenance, and the ONTAP [upgrade procedure](../ontap-native/ontap-upgrade-for-security-advisories.md). The SBOM minimum elements follow [1] and [2]. Section 6.2 and chapter 7 of [3] guide storage and vulnerability handling | [Adoption guide](supply-chain-adoption-guide.md) | In progress (spec `cyber-resilience-phase4-supply-chain` is complete) |
-| 2: RTO/RPO and SLA/SLO/SLI | The service owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | Not yet written | In progress (spec `cyber-resilience-phase5-recovery-objectives` is being written) |
+| 2: RTO/RPO and SLA/SLO/SLI | The service owner sets recovery time and recovery point objectives and measures whether they are met | How to set the objectives, reference architectures (combinations of Snapshot, SnapMirror, AWS Backup, and similar), restore drills | [Guide](recovery-objectives-guide.md), [measurement results](recovery-measurement-results.md) | In progress (as of 2026-11-20; measurements are in progress and only the M1 results are published) |
 | 3: Forensics | After a compromise, keep the evidence needed to reconstruct what happened | How to collect evidence, post-incident review | Not yet written | Not started (spec `cyber-resilience-phase6-forensics` not yet written) |
 
 The first pillar refers to these sources:

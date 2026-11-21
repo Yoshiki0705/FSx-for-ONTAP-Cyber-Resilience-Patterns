@@ -17,6 +17,7 @@
 | ARP / TrendAI / Deep Instinct のどれを選ぶか | 本リポジトリ [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
 | 検知から遮断までの動く実装（Lambda / EMS Webhook / FPolicy サーバー） | [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) |
 | S3 Access Point のライフサイクルとサーバーレス連携 | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
+| 先行する復旧の測定（共有ボールトのラボ、SnapMirror の lag 収集）と、本リポジトリの測定との関係 | 本リポジトリ [復旧の測定結果](recovery-measurement-results.md#先行記録との関係) |
 
 **This repository holds the implementation patterns.** Design guidance lives in the Adoption
 Playbook, and working implementations live in the observability repository. The same material is

@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Recovery_Point_Record",
+  "description": "One record of the hand-over between the forensics pillar (pillar 3) and the recovery-objectives pillar (pillar 2). A decision record (authored_by=pillar3) says which recovery point to return to and why. A restore record (authored_by=pillar2) says when recovery was declared, how the restore ran and when it was accepted, and points back to the decision record through decision_ref. Both records carry the same service and incident_ref. A record is never rewritten: a correction is a new record whose integrity.supersedes names the record it replaces, and one record can be superseded by only one record. integrity.record_sha256 shows the record is internally consistent; it does not show who wrote it. Chain rule: one chain per (service, incident_ref); every record except the first sets integrity.prev_record_sha256 to the record_sha256 of the record before it. Where the records are stored (append-only storage, or a copy of each hash in a separate system) is the service owner's decision; integrity.storage_ref may name it. Signing is out of scope and is an open item of pillar 3. x-owner on each property names who fills it: pillar2, pillar3 or shared. Validators ignore x-owner, so the allOf rules at the end enforce the split between the two record kinds.",
+  "type": "object",
+  "required": ["schema_version", "record_id", "service", "incident_ref", "authored_by", "clock_source", "integrity"],
+  "additionalProperties": false,
+  "$defs": {
+    "utc_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "description": "ISO 8601 in UTC, written with a trailing Z."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "description": "Raise only when pillar 3 asks for a new field or a field changes meaning.",
+      "x-owner": "shared"
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^rpr-[0-9]{8}-[a-z0-9-]+$",
+      "x-owner": "shared"
+    },
+    "service": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Name of the service the recovery is for. Use a service name, not a person or customer name.",
+      "x-owner": "shared"
+    },
+    "incident_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier the service owner assigns to the incident. Both records use the same value. Do not put a support case number here.",
+      "x-owner": "shared"
+    },
+    "authored_by": {
+      "enum": ["pillar2", "pillar3"],
+      "description": "pillar3 = decision record (which recovery point, and why). pillar2 = restore record. A service owner who has no pillar 3 procedure and writes the decision by hand still writes it as pillar3.",
+      "x-owner": "shared"
+    },
+    "clock_source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Time source the timestamps come from (an NTP reference, or the AWS time sync service). Matching ONTAP audit logs, EMS, CloudTrail and Snapshot times against each other is an open item of pillar 3; this field only records the source.",
+      "x-owner": "shared"
+    },
+    "declared_at": {
+      "$ref": "#/$defs/utc_timestamp",
+      "description": "T2: the moment recovery was declared. Start of the reference RTO.",
+      "x-owner": "pillar2"
+    },
+    "decision_ref": {
+      "type": "string",
+      "pattern": "^rpr-[0-9]{8}-[a-z0-9-]+$",
+      "description": "record_id of the decision record this restore follows.",
+      "x-owner": "pillar2"
+    },
+    "restore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "target", "started_at", "data_available_at", "accepted_at"],
+      "properties": {
+        "method": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1, "description": "What was restored or rebuilt. Use placeholders for real identifiers in published copies."},
+        "started_at": {"$ref": "#/$defs/utc_timestamp", "description": "T4: the restore operation started."},
+        "data_available_at": {"$ref": "#/$defs/utc_timestamp", "description": "T5: the quick check matched the manifest. The full SHA-256 match is a separate time and is not T5."},
+        "accepted_at": {"$ref": "#/$defs/utc_timestamp", "description": "T6: the acceptance check finished. End of the reference RTO."},
+        "completed_at": {"$ref": "#/$defs/utc_timestamp", "description": "The restore operation itself finished. Not the same as T5."},
+        "cutover_at": {"$ref": "#/$defs/utc_timestamp", "description": "T7: users started using the recovered environment. Optional."},
+        "job_id": {"type": "string"}
+      },
+      "x-owner": "pillar2"
+    },
+    "decision_started_at": {
+      "$ref": "#/$defs/utc_timestamp",
+      "description": "When the decision work started. It splits S_decide into waiting and deliberating; S_decide itself is decided_at minus declared_at and does not use this field.",
+      "x-owner": "pillar3"
+    },
+    "decided_at": {
+      "$ref": "#/$defs/utc_timestamp",
+      "description": "T3: the recovery point was decided.",
+      "x-owner": "pillar3"
+    },
+    "decided_by_role": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A role name. Do not put a person's name here.",
+      "x-owner": "pillar3"
+    },
+    "approved_by_role": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Role names that approved the decision.",
+      "x-owner": "pillar3"
+    },
+    "suspected_compromise_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "basis_tier"],
+      "properties": {
+        "start": {"$ref": "#/$defs/utc_timestamp"},
+        "end": {"$ref": "#/$defs/utc_timestamp"},
+        "basis_tier": {
+          "enum": ["documented", "verified", "hypothesis", "open"],
+          "description": "How well the window is supported. This is an evidence tier, not a recovery layer."
+        }
+      },
+      "x-owner": "pillar3"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layer", "recovery_point_id", "created_at", "location", "excluded"],
+        "properties": {
+          "layer": {
+            "enum": ["ontap-snapshot", "snapmirror-destination", "fsx-backup", "aws-backup-vault", "aws-backup-lag-vault", "other"],
+            "description": "The recovery layer the point lives in. It is not an evidence tier (see basis_tier)."
+          },
+          "recovery_point_id": {"type": "string", "minLength": 1},
+          "created_at": {"$ref": "#/$defs/utc_timestamp"},
+          "location": {"enum": ["same-volume", "same-fs", "other-fs", "other-region", "other-account"]},
+          "locked": {"type": "boolean"},
+          "lock_expiry": {"$ref": "#/$defs/utc_timestamp"},
+          "state": {"type": "string"},
+          "integrity_checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "result", "at"],
+              "properties": {
+                "type": {"enum": ["flexclone-scan", "hash-manifest", "arp-state", "malware-scan", "manual"]},
+                "result": {
+                  "enum": ["clean", "suspicious", "error"],
+                  "description": "Same words as the verdict in the Observability recovery-point ledger. A pre-filter, not a forensic finding: clean does not mean the point is safe to restore."
+                },
+                "at": {"$ref": "#/$defs/utc_timestamp"},
+                "ref": {"type": "string", "description": "Ledger key {svm}/{volume}/{snapshot} for a flexclone-scan result. This schema refers to the ledger and does not re-implement the verdict."}
+              }
+            }
+          },
+          "excluded": {"type": "boolean"},
+          "exclusion_reason": {"type": "string"}
+        }
+      },
+      "x-owner": "pillar3"
+    },
+    "chosen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recovery_point_id", "rationale_codes", "accepted_data_loss_seconds"],
+      "properties": {
+        "recovery_point_id": {"type": "string", "minLength": 1},
+        "rationale_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"enum": ["latest-clean", "before-compromise-window", "locked", "other-failure-domain", "fastest-restore", "lowest-data-loss", "other"]}
+        },
+        "rationale_text": {"type": "string"},
+        "accepted_data_loss_seconds": {"type": "integer", "minimum": 0, "description": "Seconds of writes after the chosen point that the service owner accepts losing. The service owner decides what it is measured against."},
+        "known_gaps": {"type": "array", "items": {"type": "string"}}
+      },
+      "x-owner": "pillar3"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": {"enum": ["ontap-audit-log", "ontap-ems", "cloudtrail", "arp-alert", "aws-backup-job", "other"]},
+          "ref": {"type": "string", "minLength": 1},
+          "sha256": {"$ref": "#/$defs/sha256"}
+        }
+      },
+      "x-owner": "pillar3"
+    },
+    "preservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flexclone_for_forensics": {"type": "boolean"},
+        "snapshot_locked_for_investigation": {"type": "boolean"}
+      },
+      "x-owner": "pillar3"
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_sha256"],
+      "properties": {
+        "record_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256 of the record without the integrity object, serialised as JSON with keys sorted, no insignificant whitespace, UTF-8. Shows internal consistency only."
+        },
+        "prev_record_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}],
+          "description": "record_sha256 of the previous record in the chain. null, or absent, only for the first record."
+        },
+        "supersedes": {
+          "oneOf": [{"type": "string", "pattern": "^rpr-[0-9]{8}-[a-z0-9-]+$"}, {"type": "null"}],
+          "description": "record_id of the record this one replaces. One record can be superseded by only one record."
+        },
+        "storage_ref": {"type": "string", "description": "Where the record is kept. Optional."}
+      },
+      "x-owner": "shared"
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"authored_by": {"const": "pillar3"}}, "required": ["authored_by"]},
+      "then": {
+        "required": ["decision_started_at", "decided_at", "decided_by_role", "candidates", "chosen"],
+        "properties": {"declared_at": false, "decision_ref": false, "restore": false}
+      }
+    },
+    {
+      "if": {"properties": {"authored_by": {"const": "pillar2"}}, "required": ["authored_by"]},
+      "then": {
+        "required": ["declared_at", "decision_ref", "restore"],
+        "properties": {
+          "decision_started_at": false,
+          "decided_at": false,
+          "decided_by_role": false,
+          "approved_by_role": false,
+          "suspected_compromise_window": false,
+          "candidates": false,
+          "chosen": false,
+          "evidence_refs": false,
+          "preservation": false
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["chosen"],
+        "properties": {
+          "chosen": {
+            "required": ["rationale_codes"],
+            "properties": {"rationale_codes": {"contains": {"const": "before-compromise-window"}}}
+          }
+        }
+      },
+      "then": {"required": ["suspected_compromise_window"]}
+    }
+  ]
+}

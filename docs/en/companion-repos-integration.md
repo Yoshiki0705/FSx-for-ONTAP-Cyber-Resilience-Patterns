@@ -18,6 +18,7 @@ outlives the one that was corrected.
 | Choosing among ARP, TrendAI File Security and Deep Instinct | Here, [`docs/comparison-security-layers.md`](../comparison-security-layers.md) |
 | Working implementation from detection to blocking (Lambda, EMS webhook, FPolicy server) | [FSx-for-ONTAP-Observability-integrations](https://github.com/Yoshiki0705/FSx-for-ONTAP-Observability-integrations) |
 | S3 access point lifecycle and serverless integration | [FSx for ONTAP S3 Access Points Serverless Patterns](https://github.com/Yoshiki0705/FSx-for-ONTAP-S3AccessPoints-Serverless-Patterns) |
+| Earlier recovery measurements (shared-vault lab, SnapMirror lag collector) and how this repository relates its own to them | Here, [recovery measurement results](recovery-measurement-results.md#relation-to-earlier-records) |
 
 ## Architecture Layer Mapping
 

@@ -4,7 +4,7 @@
 
 ## この文書の目的
 
-3 本の柱の全体方針を 1 か所に置き、各柱の位置づけと順序を取り違えないようにする。柱ごとの手順は、各柱の公開文書が持つ。第 1 の柱の導入手順は導入ガイド（`supply-chain-adoption-guide.md`。[ja](supply-chain-adoption-guide.md)）にある。第 2 と第 3 の柱の手順は、まだ公開していない。
+3 本の柱の全体方針を 1 か所に置き、各柱の位置づけと順序を取り違えないようにする。柱ごとの手順は、各柱の公開文書が持つ。第 1 の柱の導入手順は導入ガイド（`supply-chain-adoption-guide.md`。[ja](supply-chain-adoption-guide.md)）にある。第 2 の柱の手順は[復旧時間と復旧点の目標のガイド](recovery-objectives-guide.md)にあり、第 3 の柱の手順はまだ公開していない。
 
 この文書が引く指針は、すべてガバナンス上の指針である。法務、コンプライアンス、規制上の判断ではない。サービスレベルの契約上の約束はサービス提供者自身が決めることで、このプロジェクトは法務・契約上の判断を示さない。
 
@@ -37,7 +37,7 @@
 2026-11-17 時点の状態は次のとおり。
 
 - 第 1 の柱: 導入ガイドと検証ゲートがある。Hub の集約ジョブは、2026-11-13 以降の 22 回の実行のうち 17 回が成功し、直近 5 回（2026-11-16 18:15Z〜2026-11-17 09:11Z）は成功した。Renovate の共有プリセットは Hub のタグとして公開済みである。Spoke への採用は済んでいない。詳細は[導入ガイドの「現在の状態」](supply-chain-adoption-guide.md#現在の状態)にある。spec は `cyber-resilience-phase4-supply-chain` で、完了している
-- 第 2 の柱: 着手済みで、spec（`cyber-resilience-phase5-recovery-objectives`）を作成中である。公開する文書は未作成
+- 第 2 の柱: 着手済み（2026-11-20 時点）。[復旧時間と復旧点の目標のガイド](recovery-objectives-guide.md)と[測定結果](recovery-measurement-results.md)がある。測定は進行中で、Snapshot の復元とクローン作成（M1）だけ結果が出ている。FSx のバックアップの復元（M2）は測定中で、他は未着手
 - 第 3 の柱: 未着手である。spec は `cyber-resilience-phase6-forensics` の名前で予定している。公開する文書は未作成
 
 ## 背景となる傾向
@@ -54,7 +54,7 @@
 | 柱 | 目的 | 範囲 | 導入手順 | 状態（2026-11-17 時点） |
 |---|---|---|---|---|
 | 第 1: ソフトウェアサプライチェーンの可視化と対応 | 使っている構成要素を把握し、脆弱性と悪意のあるパッケージへの対応を、目標時間つきで回す | 対象リポジトリの SBOM、集約ジョブによる Issue 化、Renovate による更新、VEX、来歴証明、ONTAP の[アップグレード手順](../ontap-native/ontap-upgrade-for-security-advisories.md)。SBOM の最小要素は [1]、[2] を、保管と脆弱性管理の手順は [3] の 6.2 と第 7 章を参照する | [導入ガイド](supply-chain-adoption-guide.md) | 着手済み（spec `cyber-resilience-phase4-supply-chain` は完了） |
-| 第 2: RTO/RPO と SLA/SLO/SLI | サービス提供者が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | 未作成 | 着手済み（spec `cyber-resilience-phase5-recovery-objectives` を作成中） |
+| 第 2: RTO/RPO と SLA/SLO/SLI | サービス提供者が復旧時間と復旧点の目標を定め、満たせているかを測る | 目標の設定方法、参照構成（Snapshot、SnapMirror、AWS Backup などの組み合わせ）、リストア訓練 | [ガイド](recovery-objectives-guide.md)、[測定結果](recovery-measurement-results.md) | 着手済み（2026-11-20 時点。測定は進行中で、M1 の結果だけ公開） |
 | 第 3: フォレンジック | 侵害のあとに、何が起きたかを再構成できる証跡を残す | 証跡の取得手順、インシデント後のレビュー | 未作成 | 未着手（spec `cyber-resilience-phase6-forensics` は未作成） |
 
 第 1 の柱が参照する資料は次のとおり。
