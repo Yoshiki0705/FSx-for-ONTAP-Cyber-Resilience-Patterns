@@ -1,12 +1,12 @@
 # Snapshot restore and clone creation took seconds on large files and about 3 minutes on 10 GiB of about 80,000 files (one file system, 4 runs each)
-> **Summary**: This document gives the time of Snapshot restore (`volume snapshot restore`, `restore-file`) and clone creation (FlexClone) measured on one verification file system in the Tokyo Region. The measurements of FSx backups, AWS Backup, clean rebuild and SnapMirror are in progress or not started, and carry no numbers. The values are a sample run, not a production estimate. Usage and definitions are in the [guide to recovery time and recovery point objectives](recovery-objectives-guide.md).
+> **Summary**: This document gives the time of Snapshot restore (`volume snapshot restore`, `restore-file`) and clone creation (FlexClone) measured on one verification file system in the Tokyo Region. The restore of FSx backups (M2) is also included. The measurements of AWS Backup, clean rebuild and SnapMirror are in progress or not started, and carry no numbers. The values are a sample run, not a production estimate. Usage and definitions are in the [guide to recovery time and recovery point objectives](recovery-objectives-guide.md).
 ## Conclusions
 - What was measured: Snapshot restore and clone creation, 4 runs each, at 1, 10 and 50 GiB of large files and at 10 GiB of about 80,000 small files.
 - On large files, restore took 1.0 to 15.0 seconds and clone creation 1.0 to 6.0 seconds. At 10 GiB in the small-file shape, restore took 168.0 to 170.0 seconds and clone creation 175.0 to 202.0 seconds.
 - At the same 10 GiB, the ranges of the two file shapes do not overlap ([differences by data size and file shape](#differences-by-data-size-and-file-shape)).
 - This is a sample run on one file system, repeating one configuration. It is not a production estimate and not a value for other configurations.
 - During the measurement, ONTAP on the file system went from 9.18.1P6 to 9.19.1P4. Four of the 10 GiB clone creations are affected ([effect of the ONTAP version change](#effect-of-the-ontap-version-change)).
-- The restore of FSx backups (M2) is in progress. AWS Backup (M3), clean rebuild (M4), SnapMirror (M5) and CloudWatch metrics (M6) have no numbers.
+- The restore of FSx backups (M2) is in the section below. AWS Backup (M3), clean rebuild (M4), SnapMirror (M5) and CloudWatch metrics (M6) have no numbers.
 ## Measurement conditions
 The following conditions are common to every M1 measurement.
 | Item | Value |
@@ -71,7 +71,22 @@ The two 10 GiB clone creation groups each have two runs on each side of the chan
 With n=2 on each version, the effect of the version cannot be separated. In both groups, the values after the update lie inside the group range that includes the values before it. The maintainer decided not to remeasure with 4 runs each on 9.19.1P4. Read the values in the table with the version note.
 This update is a real example of the version not being user-selectable [E-058]. The only thing a user sets on a file system is the start time of the weekly maintenance window, and the version can change in the middle of a measurement.
 ## M2 results: restore of FSx backups
-In progress. Numbers will be added once final.
+Measured on one file system in Tokyo (ap-northeast-1; first generation SINGLE_AZ_1, 128 MBps, ONTAP 9.19.1P4 in all 32 records) on 2026-11-20 and 2026-11-21 (the date basis has not been confirmed to be the same as in the M1 table). The driver ran on an EC2 instance in the VPC (t4g.small) and the client was a c7gn.large. The client was stopped during a restore, and that interval is not part of the time. Unit: seconds. n is the number of usable successful records, 4 in each group. The range is the minimum and the maximum, not a confidence interval. The values are a sample run on one file system, not a production estimate.
+| Measurement | Data size (GiB) | File shape | n | Median | Min–max | Median to CREATED |
+|---|---|---|---|---|---|---|
+| Backup creation | 1 | Large files | 4 | 192 | 162–242 | none |
+| Backup creation | 10 | Large files | 4 | 272 | 222–312 | none |
+| Backup creation | 10 | Small files | 4 | 247 | 212–272 | none |
+| Backup creation | 50 | Large files | 4 | 388 | 353–463 | none |
+| Restore from backup | 1 | Large files | 4 | 353 | 344–354 | 352 |
+| Restore from backup | 10 | Large files | 4 | 368 | 354–374 | 368 |
+| Restore from backup | 10 | Small files | 4 | 1023 | 1004–1056 | 860 |
+| Restore from backup | 50 | Large files | 4 | 552 | 537–577 | 549 |
+- The restore time is the sum of the time from the restore call until CREATED is seen and the time from mount to the quick check. CREATED is detected by reading every 10 seconds, so the resolution is 10 seconds.
+- For large files from 1 to 50 GiB, most of the time is a fixed part of about 350 seconds until CREATED. With 50 times the data, the restore took about 1.6 times as long (353 and 552 seconds). For the same 10 GiB, about 80,000 small files took about 2.8 times as long as large files (1023 and 368 seconds). The reason is a `hypothesis`: the amount of metadata that the number of files creates. A run that varies only the number of files was not done.
+- The first restore at 50 GiB is a re-run after an attempt was invalidated when the lid of the Mac closed during the measurement, so it is the second restore from the same backup.
+- Whether the read-back after a restore was served from storage-side cache is a caveat, given the S3-Burst record (98.5% to 99.9% of reads of a 280 GiB data set did not reach the disk). A restored volume is a new volume, so the effect is thought to be small, but it was not checked.
+- The earlier record (the Hub copy and restore, 2026-08-28, about 9.4 MiB of data) has a different environment and number of runs, so it is not placed side by side with these values.
 ## M3 results: AWS Backup restore testing
 Not started. Numbers will be added after the measurement.
 ## M4 results: clean rebuild
@@ -93,5 +108,5 @@ None. The values in this document are a sample run on one file system and are no
 - Data sizes above 50 GiB, and file counts other than the one 10 GiB small-file set. A comparison that changes only the number of files.
 - Concurrent read and write load during restore or clone creation.
 - The 10 GiB clone creations remeasured on 9.19.1P4 (not remeasured, by the maintainer's decision).
-- The items of M2 to M6 (the sections above).
+- The items of M3 to M6 (the sections above).
 - From detection to the recovery declaration, the choice of recovery point, and the cutover (S_detect, S_decide, S_prepare and S_cutover of RTO).
