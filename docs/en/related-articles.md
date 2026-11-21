@@ -66,4 +66,15 @@ If you are deploying this repo's cyber-resilience stack and want the automated b
 4. Test with `automated-response-cli.sh test` (dry-run, no actual block)
 5. Run a full drill with a test user on a test SVM
 
+## Backup Copies and Shared Vaults (Recovery Records)
+
+These articles report measurements that the [recovery measurement results](recovery-measurement-results.md#relation-to-earlier-records) build on. They are cited as sources; their values are not copied here.
+
+| Article | Language | Platform | Published |
+|---------|----------|----------|-----------|
+| [AWS Backup now copies FSx for ONTAP backups across Regions and accounts — a new option, measured Tokyo to Osaka](https://dev.to/aws-builders/aws-backup-now-copies-fsx-for-ontap-backups-across-regions-and-accounts-a-new-option-measured-3f60) | EN | dev.to (AWS Builders) | 2026-08 |
+| [FSx for ONTAP のバックアップを AWS Backup で別リージョン・別アカウントへコピーする — 東京から大阪で実測](https://hakobiya.hatenablog.com/entry/FSx-for-ONTAP-cross-region-backup-copy) | JA | hatena blog | 2026-08 |
+| [Seeing and restoring a RAM-shared logically air-gapped vault from another account and Region — measured](https://dev.to/aws-builders/seeing-and-restoring-a-ram-shared-logically-air-gapped-vault-from-another-account-and-region--2jbe) | EN | dev.to (AWS Builders) | 2026-10 |
+| [RAM 共有した AWS Backup 論理エアギャップボールトを別アカウント・別リージョンから見て復元する（FSx for ONTAP 実機検証）](https://hakobiya.hatenablog.com/entry/FSx-for-ONTAP-shared-backup-vault-visibility) | JA | hatena blog | 2026-10 |
+
 See [companion-repos-integration.md](companion-repos-integration.md) for the complete deployment sequence and layer mapping.
