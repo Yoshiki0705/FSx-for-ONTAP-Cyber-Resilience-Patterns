@@ -368,7 +368,7 @@
         "docs/en/cyber-resilience-programme.md",
         "docs/management-planes-cyber-resilience.md"
       ],
-      "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020."
+      "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020. A manual StartCopyJob of such a backup was observed to fail; see E-060."
     },
     {
       "id": "E-010",
@@ -1821,6 +1821,33 @@
         "docs/en/recovery-objectives-guide.md"
       ],
       "note": "Stated for the page read on 2026-11-20. This project did not try to create a synchronous or SVM DR relationship."
+    },
+    {
+      "id": "E-060",
+      "claim": "A manual AWS Backup copy job (StartCopyJob) of an FSx for ONTAP volume backup, from a file system encrypted with the AWS managed key to a logically air-gapped vault, fails with MessageCategory KMS_KEY_ERROR and the message \"Cannot share backup ..., it is not Customer KMS key Encrypted\". This is a different path from the backup plan copy rule in E-009, where the backup job ends \"Completed with issues\".",
+      "subject": "AWS Backup logically air-gapped vault, manual copy job from an AWS managed key file system (FSx for ONTAP)",
+      "tier": "verified",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/lag-vault-primary-backup.html",
+          "retrieved": "2026-10-08",
+          "read": "full",
+          "note": "The page describes the plan-based path and its \"Completed with issues - Unsupported encryption key\" status. It does not describe the status of a manual copy job."
+        }
+      ],
+      "observation": "2026-11-22, ap-northeast-1, one observation (n=1). A 1 GiB volume on a short-lived FSx for ONTAP file system encrypted with the AWS managed key was backed up with AWS Backup into a standard vault; the backup job ended COMPLETED/SUCCESS (BackupSizeInBytes 0). A StartCopyJob of that recovery point to a logically air-gapped vault (compliance-locked) ended FAILED after about 4 minutes, with MessageCategory KMS_KEY_ERROR. The copy-rule path of E-009 was not exercised in this run.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "The failure message states the cause directly and matches the developer guide's encryption constraint."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+      ],
+      "note": "One observation on one file system. Whether the failure is the same for every ONTAP version, Region or vault configuration was not tested."
     }
   ]
 }
