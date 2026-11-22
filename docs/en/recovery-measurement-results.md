@@ -6,7 +6,7 @@
 - At the same 10 GiB, the ranges of the two file shapes do not overlap ([differences by data size and file shape](#differences-by-data-size-and-file-shape)).
 - This is a sample run on one file system, repeating one configuration. It is not a production estimate and not a value for other configurations.
 - During the measurement, ONTAP on the file system went from 9.18.1P6 to 9.19.1P4. Four of the 10 GiB clone creations are affected ([effect of the ONTAP version change](#effect-of-the-ontap-version-change)).
-- The restore of FSx backups (M2) is in the section below. AWS Backup (M3), clean rebuild (M4), SnapMirror (M5) and CloudWatch metrics (M6) have no numbers.
+- The restore of FSx backups (M2) is in the section below. AWS Backup (M3) has interim numbers (in progress, n=1). Clean rebuild (M4), SnapMirror (M5) and CloudWatch metrics (M6) have no numbers.
 ## Measurement conditions
 The following conditions are common to every M1 measurement.
 | Item | Value |
@@ -88,7 +88,17 @@ Measured on one file system in Tokyo (ap-northeast-1; first generation SINGLE_AZ
 - Whether the read-back after a restore was served from storage-side cache is a caveat, given the S3-Burst record (98.5% to 99.9% of reads of a 280 GiB data set did not reach the disk). A restored volume is a new volume, so the effect is thought to be small, but it was not checked.
 - The earlier record (the Hub copy and restore, 2026-08-28, about 9.4 MiB of data) has a different environment and number of runs, so it is not placed side by side with these values.
 ## M3 results: AWS Backup restore testing
-Not started. Numbers will be added after the measurement.
+**In progress.** The plan is to measure restore testing four times against one recovery point of a 1 GiB volume (one large file) backed up with AWS Backup. One run has been recorded so far. Unit is seconds. Environment: Tokyo Region, generation 1 SINGLE_AZ_1, throughput capacity 128 MBps, ONTAP 9.19.1P4, measured 2026-11-21 (UTC).
+| Measurement | n | Value (seconds) | Interval definition |
+|---|---|---|---|
+| Backup creation (`backup-create`) | 1 | 241.4 | Backup job creation to completion |
+| Restore job (`restore_job_seconds`) | 1 | 496.1 | Restore job creation to completion (AWS Backup timestamps) |
+| Start wait (`start_wait_seconds`) | 1 | 594.2 | From the scheduled time (22:50 UTC) to the creation of the restore job |
+- The start wait is the time from the time set by the restore testing plan to AWS Backup creating the restore job, and it is not included in `restore_job_seconds`. This is one observation; whether the wait is this long each time was not checked.
+- The restored volume belongs to AWS Backup. It was not mounted, and its content was not checked (no full SHA-256 check). No validation is written by design, so the validation status is expected to end as TIMED_OUT (it is not in the run record). The value is the restore job duration, not the time until the data can be read after a restore (`S_restore`). The tier for the content of this group is `hypothesis`.
+- After the restore job completed, AWS Backup took 4373.9 seconds to delete the restored volume automatically.
+- The first attempt failed at plan creation because the driver role lacked an IAM permission (`backup:TagResource`). That record was kept apart as invalid. The record of the second attempt was written after a resume, because the process that created the plan stopped before it wrote the record. The environment clocks were read at the resume, not at the start of the test.
+- Of the four planned runs, the rest are in progress or not yet recorded, and a range cannot be given for n=1. This table is interim until all four are in.
 ## M4 results: clean rebuild
 Not started. Numbers will be added after the measurement.
 ## M5 results: SnapMirror
@@ -108,5 +118,5 @@ None. The values in this document are a sample run on one file system and are no
 - Data sizes above 50 GiB, and file counts other than the one 10 GiB small-file set. A comparison that changes only the number of files.
 - Concurrent read and write load during restore or clone creation.
 - The 10 GiB clone creations remeasured on 9.19.1P4 (not remeasured, by the maintainer's decision).
-- The items of M3 to M6 (the sections above).
+- The remaining M3 runs and the items of M4 to M6 (the sections above).
 - From detection to the recovery declaration, the choice of recovery point, and the cutover (S_detect, S_decide, S_prepare and S_cutover of RTO).
