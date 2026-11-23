@@ -30,9 +30,13 @@ Parameters:
       - SINGLE_AZ_2
       - MULTI_AZ_1
       - MULTI_AZ_2
+      - SINGLE_AZ_3
+      - MULTI_AZ_3
     Description: >
       FSx for ONTAP deployment type.
-      Use SINGLE_AZ_1/2 for dev (cost saving), MULTI_AZ_1/2 for staging/production.
+      Use SINGLE_AZ_1/2/3 for dev (cost saving), MULTI_AZ_1/2/3 for staging/production.
+      Third generation (_3) was offered in us-east-1, us-east-2 and us-west-2 as of 2026-11;
+      this template has not been deployed with it.
 
   ThroughputCapacity:
     Type: Number
@@ -44,8 +48,17 @@ Parameters:
       - 1024
       - 2048
       - 4096
+      - 384
+      - 768
+      - 1536
+      - 3072
+      - 6144
+      - 12288
+      - 18432
     Description: >
       Throughput capacity in MB/s.
+      First generation takes 128-4096; second and third generation take 384, 768,
+      1536, 3072, 6144 (and 12288, 18432 for third generation).
       128 for dev/PoC, 256-512 for staging, 512+ for production.
 
   StorageCapacity:
@@ -161,6 +174,7 @@ Conditions:
   IsMultiAz: !Or
     - !Equals [!Ref DeploymentType, 'MULTI_AZ_1']
     - !Equals [!Ref DeploymentType, 'MULTI_AZ_2']
+    - !Equals [!Ref DeploymentType, 'MULTI_AZ_3']
 
 # -------------------------------------------------------------------
 # Resources
