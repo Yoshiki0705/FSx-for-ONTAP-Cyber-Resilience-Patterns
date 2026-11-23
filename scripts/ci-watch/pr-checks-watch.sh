@@ -2,6 +2,8 @@
 # PR check-run terminal-detection watch for run_workflow 'command' handler.
 # Reads ONE JSON object on stdin {cursor, config:{pr, repo, min_checks?, grace_seconds?, require_names?}}
 # Prints ONE JSON object on stdout {outcome, cursor, payload} and exits 0.
+# `payload` is a JSON-ENCODED STRING, not a nested object: the handler rejects an object
+# there and fails the node. Read it downstream as the text of {{<watchId>.output}}.
 # Terminal detection keys on CHECK-RUN buckets, never on the REST combined status.
 #
 # -----------------------------------------------------------------------------
@@ -26,13 +28,17 @@
 #                 "min_checks": 1, "grace_seconds": 180, "require_names": [] },
 #     "workspacePath": "...", "additionalDirectories": [] }
 #
-# stdout (ONE JSON object, exit 0):
+# stdout (ONE JSON object, exit 0). `payload` is a string holding this JSON object:
 #   { "outcome": "idle" | "new-activity" | "terminal-state",
 #     "cursor": { "completed": ["check-a","check-b"], "digest": "<sha>" },
-#     "payload": { "result": "success" | "failure" | null,
-#                  "pr": 464, "repo": "...",
-#                  "passed": 29, "failed": 1, "pending": 0, "skipped": 1,
-#                  "failing": ["python-lint"], "merge_state": "CLEAN" } }
+#     "payload": "{\"result\":\"success\"|\"failure\"|null,\"pr\":464,\"repo\":\"...\",
+#                  \"passed\":29,\"failed\":1,\"pending\":0,\"skipped\":1,
+#                  \"failing\":[\"python-lint\"],\"merge_state\":\"CLEAN\"}" }
+#   (shown unescaped for readability; on the wire it is one escaped string)
+#
+# stdin `config.pr` must be a bare integer. Anything else (for example a step's whole
+# prose message from `{{<step>.output}}`) exits 2, which the handler treats as a rejected
+# input: the node fails at once instead of idling until the loop budget runs out.
 #
 #   - terminal-state + payload.result == "success" -> downstream merge step proceeds.
 #   - terminal-state + payload.result == "failure" -> downstream respond step reads
@@ -68,7 +74,15 @@
 # -----------------------------------------------------------------------------
 set -uo pipefail
 
-emit() { printf '%s\n' "$1"; exit 0; }
+# The handler requires "payload" to be a STRING, so every object payload built below is
+# encoded to a JSON string here, in one place. If jq itself fails, print the input as is:
+# the handler then fails the node loudly rather than the script guessing.
+emit() {
+  local out
+  out="$(jq -c 'if (.payload | type) == "object" then .payload |= tojson else . end' <<<"$1" 2>/dev/null)" || out="$1"
+  printf '%s\n' "$out"
+  exit 0
+}
 # Fail safe: any unexpected error returns a valid idle object so the loop keeps polling.
 trap 'emit "{\"outcome\":\"idle\",\"cursor\":null,\"payload\":{\"result\":null,\"error\":\"script_error\"}}"' ERR
 
@@ -85,8 +99,12 @@ GRACE="$(jq -r '.config.grace_seconds // 180'     <<<"$IN")"
 PREV_COMPLETED="$(jq -c '.cursor.completed // []' <<<"$IN")"
 REQUIRE="$(jq -c '.config.require_names // []'     <<<"$IN")"
 
-if [[ -z "$PR" || "$PR" == "null" || -z "$REPO" || "$REPO" == "null" ]]; then
-  emit '{"outcome":"idle","cursor":null,"payload":{"result":null,"error":"missing pr/repo in config"}}'
+# Bad input is a configuration error, not a transient one. Exit 2 makes the handler fail
+# the watch node without a retry; idling here would hide a wrong config for hours.
+if [[ ! "$PR" =~ ^[0-9]+$ || -z "$REPO" || "$REPO" == "null" ]]; then
+  printf 'pr-checks-watch: config.pr must be a bare integer and config.repo must be set (pr=%s)\n' \
+    "$(printf '%s' "$PR" | tr '\n' ' ' | cut -c1-80)" >&2
+  exit 2
 fi
 
 # --- read check runs via gh (check-run conclusions, NOT combined status) ---
