@@ -48,6 +48,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--show-names", action="store_true", help="show file system ID and remote names unmasked")
     p.add_argument("--max-volumes", type=int, default=50)
     p.add_argument("--deadline-seconds", type=float, default=300.0)
+    p.add_argument("--read-timeout", type=float, default=90.0, help="seconds to wait for each ONTAP answer")
     p.add_argument("--skip-aws", action="store_true")
     p.add_argument("--skip-ontap", action="store_true")
     args = p.parse_args(argv)
@@ -90,7 +91,14 @@ def _boto_factory(region: str | None) -> ClientFactory:
 
 
 def _ontap_transport(args: argparse.Namespace, username: str, password: str) -> Transport:
-    return OntapTransport(args.base_url, username, password, args.fingerprint, deadline_seconds=args.deadline_seconds)
+    return OntapTransport(
+        args.base_url,
+        username,
+        password,
+        args.fingerprint,
+        read_timeout=args.read_timeout,
+        deadline_seconds=args.deadline_seconds,
+    )
 
 
 def run(

@@ -203,8 +203,14 @@ def _vol_resource(vol: dict[str, Any]) -> str:
 
 
 def _rw_volumes(volumes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Read-write volumes, without SVM root volumes (recognised by the ``_root`` name suffix)."""
-    return [v for v in volumes if (v.get("type") or "rw") == "rw" and not str(v.get("name", "")).endswith("_root")]
+    """Read-write volumes, without SVM root volumes (``_root`` name suffix) and FlexCache cache volumes."""
+    return [
+        v
+        for v in volumes
+        if (v.get("type") or "rw") == "rw"
+        and not str(v.get("name", "")).endswith("_root")
+        and v.get("flexcache_endpoint_type") != "cache"
+    ]
 
 
 def _svms(col: Collection) -> list[str]:
@@ -255,10 +261,13 @@ def check_arp_auto_enable(col: Collection) -> list[dict[str, Any]]:
     if fetch.outcome != "ok" or not fetch.records:
         return [_unreadable("ARP-002", "arp_auto_enable", fetch, DATA, cap)]
     rec = fetch.records[0]
-    value = rec.get("enabled")
+    # 9.19.1P4 answers {"new_volume_auto_enable": false, ...}; "enabled" is kept for other versions.
+    value = rec.get("new_volume_auto_enable", rec.get("enabled"))
     if not isinstance(value, bool):
         return [
-            _finding("ARP-002", "arp_auto_enable", "cluster", "unknown", DATA, cap, "no boolean 'enabled' field", fetch)
+            _finding(
+                "ARP-002", "arp_auto_enable", "cluster", "unknown", DATA, cap, "no boolean auto-enable field", fetch
+            )
         ]
     status = "pass" if value else "finding"
     return [_finding("ARP-002", "arp_auto_enable", "cluster", status, DATA, cap, f"enabled={value}", fetch)]
@@ -427,6 +436,9 @@ def check_cifs_acls(col: Collection) -> list[dict[str, Any]]:
     for share in fetch.records:
         res = f"{_dig(share, 'svm.name') or '?'}/{share.get('name', '?')}"
         acls = share.get("acls")
+        if str(share.get("name", "")).lower() == "ipc$":
+            # The IPC$ share carries no file data and ONTAP returns no ACL for it.
+            continue
         if not isinstance(acls, list):
             out.append(
                 _finding(

@@ -41,7 +41,7 @@ class Endpoint:
 VOLUME_FIELDS = (
     "name,uuid,svm.name,type,style,anti_ransomware.state,snapshot_policy.name,snapshot_locking_enabled,"
     "snaplock.type,nas.export_policy.name,nas.security_style,encryption.enabled,encryption.type,"
-    "encryption.state,space.snapshot.autodelete_enabled"
+    "encryption.state,space.snapshot.autodelete_enabled,flexcache_endpoint_type"
 )
 
 CONTROL = Endpoint("cluster", "/api/cluster", "fields=name,version")
@@ -58,7 +58,7 @@ ENDPOINTS: tuple[Endpoint, ...] = (
     Endpoint("compliance_clocks", "/api/storage/snaplock/compliance-clocks", "fields=*"),
     Endpoint("export_policies", "/api/protocols/nfs/export-policies", "fields=name,svm.name,rules"),
     Endpoint("cifs_shares", "/api/protocols/cifs/shares", "fields=name,svm.name,path,acls"),
-    Endpoint("fpolicy", "/api/protocols/fpolicy", "fields=svm.name,enabled,policies,engines"),
+    Endpoint("fpolicy", "/api/protocols/fpolicy", "fields=svm.name,policies,engines"),
     Endpoint("vscan", "/api/protocols/vscan", "fields=svm.name,enabled,scanner_pools,on_access_policies"),
     Endpoint("audit", "/api/protocols/audit", "fields=svm.name,enabled,events,log_path"),
     Endpoint("audit_destinations", "/api/security/audit/destinations", "fields=*"),
@@ -182,7 +182,12 @@ def collect(transport: Transport, *, max_volumes: int = 50) -> Collection:
         volumes = [
             v
             for v in out.get("volumes").records
-            if isinstance(v.get("uuid"), str) and _UUID_RE.fullmatch(v["uuid"]) and v.get("type", "rw") == "rw"
+            if isinstance(v.get("uuid"), str)
+            and _UUID_RE.fullmatch(v["uuid"])
+            and v.get("type", "rw") == "rw"
+            # A FlexCache volume refused the Snapshot list (HTTP 400, ONTAP code 9437613, 9.19.1P4);
+            # its recovery points are those of the origin volume.
+            and v.get("flexcache_endpoint_type") != "cache"
         ]
         for i, vol in enumerate(volumes):
             if i >= max_volumes:

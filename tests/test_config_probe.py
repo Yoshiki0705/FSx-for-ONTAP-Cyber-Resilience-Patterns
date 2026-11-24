@@ -614,7 +614,9 @@ class StubS3ControlClosed(StubS3Control):
         return {"NetworkOrigin": "VPC"}
 
     def get_access_point_policy(self, AccountId: str, Name: str) -> dict[str, Any]:
-        raise ClientError("NoSuchAccessPointPolicy")
+        arn = f"arn:aws:s3:ap-northeast-1:{AccountId}:accesspoint/{Name}"
+        deny = {"Effect": "Deny", "Principal": "*", "Action": "s3:GetObject", "Resource": f"{arn}/object/.snapshot/*"}
+        return {"Policy": json.dumps({"Statement": [deny]})}
 
 
 def clients_for(secrets: StubSecrets, manager: str = "CUSTOMER") -> Any:
@@ -779,3 +781,79 @@ def test_entry_points(cmd: list[str]) -> None:
         [sys.executable, *cmd], cwd=ROOT / "solutions" / "config-probe", capture_output=True, text=True, check=False
     )
     assert result.returncode == 0 and "--fail-on" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Shapes seen in the first run against a real file system (ONTAP 9.19.1P4)
+# ---------------------------------------------------------------------------
+
+
+def test_arp_auto_enable_reads_new_volume_auto_enable() -> None:
+    col = collected(
+        "good",
+        **{"/api/security/anti-ransomware/auto-enable": {"status": 200, "body": {"new_volume_auto_enable": False}}},
+    )
+    (f,) = checks.check_arp_auto_enable(col)
+    assert f["status"] == "finding"
+    col = collected(
+        "good",
+        **{"/api/security/anti-ransomware/auto-enable": {"status": 200, "body": {"new_volume_auto_enable": True}}},
+    )
+    (f,) = checks.check_arp_auto_enable(col)
+    assert f["status"] == "pass"
+
+
+def test_ipc_share_without_acl_is_not_reported() -> None:
+    body = {"records": [{"name": "ipc$", "svm": {"name": "svm1"}}], "num_records": 1}
+    col = collected("good", **{"/api/protocols/cifs/shares": {"status": 200, "body": body}})
+    assert checks.check_cifs_acls(col) == []
+
+
+def test_flexcache_cache_volume_is_not_asked_for_snapshots() -> None:
+    answers = load("good")
+    cache = dict(answers["/api/storage/volumes"]["body"]["records"][0])
+    cache.update({"name": "cache1", "uuid": "11111111-2222-3333-4444-5555aaaabbbb", "flexcache_endpoint_type": "cache"})
+    answers["/api/storage/volumes"]["body"]["records"].append(cache)
+    fake = FakeOntap(answers)
+    col = collect.collect(fake)
+    assert cache["uuid"] not in col.snapshots
+    assert not any(cache["uuid"] in p for p in fake.requests)
+    assert all(f["resource"].split("/")[-1] != "cache1" for f in checks.run_checks(col, now=NOW))
+
+
+def test_fpolicy_is_read_without_a_top_level_enabled_field() -> None:
+    (ep,) = [e for e in collect.ENDPOINTS if e.name == "fpolicy"]
+    assert "enabled" not in ep.query.split("fields=")[1].split(",")
+
+
+def test_old_botocore_without_the_attachment_operation_is_not_assessable() -> None:
+    class OldSdkFsx(StubFsx):
+        def __getattribute__(self, name: str) -> Any:
+            if name == "describe_s3_access_point_attachments":
+                raise AttributeError(name)
+            return super().__getattribute__(name)
+
+    findings, _ = aws_side.collect_aws(OldSdkFsx(), StubKms("CUSTOMER"), StubS3Control(), FS_ID)
+    (f,) = by_id(findings, "S3AP-001")
+    assert f["status"] == "not_assessable" and "botocore" in f["observed"]
+
+
+def test_snapshot_dir_read_path_is_reported_until_denied() -> None:
+    findings, _ = aws_side.collect_aws(StubFsx(), StubKms("CUSTOMER"), StubS3Control(), FS_ID)
+    got = by_id(findings, "S3AP-003")
+    assert got and all(f["status"] == "finding" and f["ledger"] == ["E-061"] for f in got)
+
+    arn = "arn:aws:s3:ap-northeast-1:123456789012:accesspoint/ap-open"
+    deny = {
+        "Statement": [
+            {"Effect": "Deny", "Principal": "*", "Action": "s3:GetObject", "Resource": f"{arn}/object/.snapshot/*"}
+        ]
+    }
+
+    class Denying(StubS3Control):
+        def get_access_point_policy(self, AccountId: str, Name: str) -> dict[str, Any]:
+            return {"Policy": json.dumps(deny)}
+
+    findings, _ = aws_side.collect_aws(StubFsx(), StubKms("CUSTOMER"), Denying(), FS_ID)
+    assert all(f["status"] == "pass" for f in by_id(findings, "S3AP-003"))
+    assert not aws_side._denies_snapshot_dir(json.dumps({"Statement": [{**deny["Statement"][0], "Effect": "Allow"}]}))

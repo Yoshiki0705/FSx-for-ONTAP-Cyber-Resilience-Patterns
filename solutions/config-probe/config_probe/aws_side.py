@@ -16,6 +16,8 @@ from .collect import Fetch
 
 logger = logging.getLogger(__name__)
 
+DATA_AP = "IAM credentials allowed s3:GetObject on the access point (an application or agent role)"
+
 
 def _error_code(exc: Exception) -> str:
     return str(getattr(exc, "response", {}).get("Error", {}).get("Code", type(exc).__name__))
@@ -80,6 +82,35 @@ def _policy_is_open(policy_text: str) -> list[str]:
         if principal == "*" or aws == "*" or (isinstance(aws, list) and "*" in aws):
             open_.append(str(st.get("Sid") or i))
     return open_
+
+
+def _denies_snapshot_dir(policy_text: str) -> bool:
+    """True when a Deny statement covers ``s3:GetObject`` on ``.../object/.snapshot/*``."""
+    try:
+        doc = json.loads(policy_text)
+    except ValueError:
+        return False
+    statements = doc.get("Statement") or []
+    if isinstance(statements, dict):
+        statements = [statements]
+    for st in statements:
+        if not isinstance(st, dict) or st.get("Effect") != "Deny":
+            continue
+        actions = st.get("Action") or []
+        actions = [actions] if isinstance(actions, str) else actions
+        resources = st.get("Resource") or []
+        resources = [resources] if isinstance(resources, str) else resources
+        if any(a in ("s3:GetObject", "s3:*", "*") for a in actions) and any(
+            str(r).endswith("/object/.snapshot/*") or str(r).endswith("/object/*") for r in resources
+        ):
+            return True
+    return False
+
+
+SNAPDIR_CAP = (
+    "read, through this access point, files that were deleted from the volume while a Snapshot copy still "
+    "holds them, with GetObject on the key .snapshot/<snapshot>/<path> (ListObjectsV2 does not show that prefix)"
+)
 
 
 KMS_CAP = (
@@ -190,6 +221,22 @@ def collect_aws(
         residency["backup_count"] = None
         residency["backup_error"] = _error_code(exc)
 
+    if not hasattr(fsx, "describe_s3_access_point_attachments"):
+        # botocore releases older than the S3 Access Points for FSx for ONTAP API do not have the operation.
+        findings.append(
+            _f(
+                "S3AP-001",
+                "s3_access_point_origin",
+                "-",
+                "not_assessable",
+                "high",
+                NET,
+                "-",
+                "the installed botocore has no DescribeS3AccessPointAttachments; run with a newer boto3",
+                "fsx:DescribeS3AccessPointAttachments",
+            )
+        )
+        return findings, residency
     try:
         attachments = _pages(
             fsx.describe_s3_access_point_attachments,
@@ -256,6 +303,7 @@ def _access_point_findings(s3control: Any, att: dict[str, Any], owner: str, show
         )
     try:
         policy = s3control.get_access_point_policy(AccountId=account, Name=name).get("Policy") or ""
+        out.append(_snapdir_finding(res, _denies_snapshot_dir(policy)))
         open_ = _policy_is_open(policy)
         status = "finding" if open_ else "pass"
         observed = f"Allow to Principal * without Condition in {open_}" if open_ else "no unconditioned Principal *"
@@ -275,6 +323,7 @@ def _access_point_findings(s3control: Any, att: dict[str, Any], owner: str, show
     except Exception as exc:  # noqa: BLE001
         code = _error_code(exc)
         if code == "NoSuchAccessPointPolicy":
+            out.append(_snapdir_finding(res, False))
             out.append(
                 _f(
                     "S3AP-002",
@@ -303,6 +352,26 @@ def _access_point_findings(s3control: Any, att: dict[str, Any], owner: str, show
                 )
             )
     return out
+
+
+def _snapdir_finding(res: str, denied: bool) -> dict[str, Any]:
+    """S3AP-003: the access point policy does not deny GetObject under ``.snapshot/``.
+
+    The ONTAP volume setting ``snapshot_directory_access_enabled=false`` closes the same path; this
+    check reads only the AWS side, so a pass here is not required when that setting is off.
+    """
+    return _f(
+        "S3AP-003",
+        "s3_access_point_snapshot_dir",
+        res,
+        "pass" if denied else "finding",
+        "medium",
+        DATA_AP,
+        SNAPDIR_CAP,
+        "Deny on .snapshot/* present" if denied else "no Deny on .snapshot/*",
+        "s3:GetAccessPointPolicy",
+        ["E-061"],
+    )
 
 
 def ontap_residency(snapmirror_out: Fetch, cluster_peers: Fetch, show_names: bool = False) -> dict[str, Any]:
