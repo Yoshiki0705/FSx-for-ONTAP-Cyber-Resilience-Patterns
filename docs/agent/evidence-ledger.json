@@ -366,7 +366,10 @@
         "docs/articles/04-operating-at-scale.md",
         "docs/ja/cyber-resilience-programme.md",
         "docs/en/cyber-resilience-programme.md",
-        "docs/management-planes-cyber-resilience.md"
+        "docs/management-planes-cyber-resilience.md",
+        "docs/ontap-native/adversarial-configuration-probe.md",
+        "docs/architecture/continuum-security-agent-and-storage.md",
+        "docs/agent-prompts/adversarial-review.md"
       ],
       "note": "This is about the source file system's key. The vault's own encryption key is a separate choice (AWS owned key by default, or a customer managed key) and is covered by E-020. A manual StartCopyJob of such a backup was observed to fail; see E-060."
     },
@@ -627,7 +630,9 @@
         "AGENTS.md",
         "docs/articles/02-ontap-native-security.md",
         "docs/articles/03-event-driven-response.md",
-        "docs/articles/04-operating-at-scale.md"
+        "docs/articles/04-operating-at-scale.md",
+        "docs/ontap-native/adversarial-configuration-probe.md",
+        "docs/agent-prompts/adversarial-review.md"
       ],
       "note": "Recorded on one build (re-checked on 9.18.1P5 for the protocol enumeration in the Playbook note). Recheck on a later ONTAP release before relying on it."
     },
@@ -658,7 +663,9 @@
         "docs/ja/cyber-resilience-framework-mapping.md",
         "docs/en/cyber-resilience-framework-mapping.md",
         "docs/ja/operational-considerations.md",
-        "docs/en/operational-considerations.md"
+        "docs/en/operational-considerations.md",
+        "docs/ontap-native/adversarial-configuration-probe.md",
+        "docs/agent-prompts/adversarial-review.md"
       ],
       "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
     },
@@ -870,7 +877,9 @@
         "docs/ontap-native/mav-configuration.md",
         "docs/ontap-native/ontap-command-api-snapshot.md",
         "docs/quickstart-deployment.md",
-        "llms.txt"
+        "llms.txt",
+        "docs/ontap-native/adversarial-configuration-probe.md",
+        "docs/agent-prompts/adversarial-review.md"
       ],
       "note": "Observed once on one file system and one version, as fsxadmin. Other ONTAP versions, Multi-AZ, other roles and AWS-side routes were not checked. The multi-admin-verify command reference describes ONTAP in general and carries no run on fsxadmin; the documents here cite this entry wherever they list the feature. Data: docs/ontap-native/ontap-command-api-snapshot.md and docs/ontap-native/data/."
     },
@@ -903,7 +912,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/architecture/continuum-security-agent-and-storage.md"
+        "docs/architecture/continuum-security-agent-and-storage.md",
+        "docs/ontap-native/adversarial-configuration-probe.md"
       ],
       "note": "Absence from a feature description is not a statement of absence. Treated as unknown, and the document says so."
     },
@@ -1845,7 +1855,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/ontap-native/adversarial-configuration-probe.md"
       ],
       "note": "One observation on one file system. Whether the failure is the same for every ONTAP version, Region or vault configuration was not tested."
     }
