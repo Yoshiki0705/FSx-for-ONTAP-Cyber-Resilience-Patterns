@@ -96,6 +96,18 @@ check-pinned-sha-exist: ## Ask GitHub that pinned Action SHAs exist (network + t
 test-cov: ## Run tests with coverage report
 	$(PYTEST) tests/ shared/tests/ -v --cov=solutions --cov-report=term-missing --cov-fail-under=80
 
+# Read-only adversarial configuration probe (docs/ontap-native/adversarial-configuration-probe.md).
+# Needs the network (an SSM port forward to the management endpoint) and AWS credentials, so it is
+# NOT part of `make test`. Exit 2 means a finding at or above FAIL_ON; exit 3 means the run stopped.
+BASE_URL ?= https://localhost:18443
+FAIL_ON ?= high
+OUT ?= config-probe.json
+.PHONY: probe-config
+probe-config: ## Run the read-only configuration probe (network; BASE_URL FINGERPRINT FS_ID SECRET_ID OUT)
+	@test -n "$(FINGERPRINT)" && test -n "$(FS_ID)" && test -n "$(SECRET_ID)" || \
+		{ echo "set FINGERPRINT, FS_ID and SECRET_ID (BASE_URL defaults to $(BASE_URL))"; exit 64; }
+	$(PYTHON) solutions/config-probe/probe.py --base-url "$(BASE_URL)" --fingerprint "$(FINGERPRINT)" \
+		--file-system-id "$(FS_ID)" --secret-id "$(SECRET_ID)" --fail-on "$(FAIL_ON)" --out "$(OUT)"
 # -------------------------------------------------------------------
 # Security
 # -------------------------------------------------------------------
