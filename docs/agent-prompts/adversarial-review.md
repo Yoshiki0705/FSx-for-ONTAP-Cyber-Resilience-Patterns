@@ -50,7 +50,9 @@ Both prompts carry the rule to label inference separately from what a document s
 1. 表: 攻撃経路 | 攻撃者の前提 | できること | 根拠の箇所 | 止める/検知する制御 | 成果物での有無 | 重大度 | ラベル
    重大度は前提で決める。データ用インターフェイスへの到達だけ = high、データプロトコルの認証情報 = medium、
    管理者の認証情報 = low。ただし復旧点（スナップショット、バックアップ）を消せるものは high。
-   ラベルは「文書（出典 URL か evidence-ledger.json の ID）」「推測」「成果物からは判断できない」のどれか。
+   IAM やアクセスポイントへの権限が前提のもの = medium。前提がなく構成の欠陥であるもの = medium。
+   ラベルは「文書（出典 URL か evidence-ledger.json の ID）」「推測」「成果物からは判断できない」から選ぶ。
+   1 行に複数の根拠が混ざるときは、主張ごとにラベルを分けて書いてよい。
 2. ライン停止の条件に当たる項目の一覧（下の「停止条件」）。
 3. 実装後に読み取り専用の設定プローブで確かめる検査 ID（ARP-001、SNAP-002、KMS-001 など）の対応。
 
@@ -63,11 +65,14 @@ Both prompts carry the rule to label inference separately from what a document s
 
 ## 停止条件（アンドン: 1 つでも当たればマージさせない）
 - ファイルシステムの KMS キーが AWS マネージドキー、または KmsKeyId がない（KMS-001）
-- 0.0.0.0/0 に AUTH_SYS の書き込みか superuser を許すエクスポートルール（NFS-001）
+- 0.0.0.0/0 に AUTH_SYS の書き込みか superuser を許すエクスポートルール。`any` は AUTH_SYS を含むものとして扱う（NFS-001）
 - 条件なしで Principal "*" を許すアクセスポイントポリシー、または NetworkOrigin が Internet（S3AP-001/002）
 - 復旧点を管理者 1 人で消せる構成で、ロックされたスナップショットもボールトのコピーもない（SNAP-002）
 - スナップショットの自動削除がオン（SNAP-003）
-- 判断できない項目が停止条件に関わる場合は、停止として扱い、何が分かれば判断できるかを書く
+- 判定は 3 つに分ける。「停止」は成果物が停止条件に当たると読めるもの。「実装後に確認」は、その設定を成果物が
+  持たないため判断できないもの（例: CloudFormation にプロパティのない ONTAP の設定）で、マージは止めず、
+  リリース前に設定プローブの該当 ID を通すことを条件にする。成果物が持つはずの設定を読み取れないときは「停止」とし、
+  何が分かれば判断できるかを書く
 ```
 
 ```text
@@ -102,7 +107,9 @@ the artifact below from an attacker's viewpoint. Write no code and change nothin
    detects it | present in the artifact | severity | label.
    Severity follows the precondition: network reach to a data interface only = high; data-protocol credentials =
    medium; administrator credentials = low, but high when recovery points (snapshots, backups) can be destroyed.
-   The label is one of "documented (source URL or evidence-ledger.json ID)", "inference", "cannot be told from the artifact".
+   A precondition of IAM or access point permissions = medium; a configuration defect with no attacker precondition = medium.
+   The label is taken from "documented (source URL or evidence-ledger.json ID)", "inference", "cannot be told from the
+   artifact". When one row mixes several grounds, label each claim separately.
 2. The items that meet a stop condition (below).
 3. The probe check IDs (ARP-001, SNAP-002, KMS-001 and so on) to run after implementation, per row.
 
@@ -115,11 +122,14 @@ the artifact below from an attacker's viewpoint. Write no code and change nothin
 
 ## Stop conditions (Andon: any one blocks the merge)
 - The file system KMS key is the AWS managed key, or KmsKeyId is missing (KMS-001)
-- An export rule gives 0.0.0.0/0 AUTH_SYS write or superuser (NFS-001)
+- An export rule gives 0.0.0.0/0 AUTH_SYS write or superuser; treat `any` as including AUTH_SYS (NFS-001)
 - An access point policy allows Principal "*" with no condition, or NetworkOrigin is Internet (S3AP-001/002)
 - One administrator can delete every recovery point, with no locked snapshot and no vault copy (SNAP-002)
 - Snapshot autodelete is on (SNAP-003)
-- If an item that cannot be decided bears on a stop condition, treat it as a stop and state what would decide it
+- Use three verdicts. "Stop": the artifact can be read as meeting a stop condition. "Check after implementation": the
+  artifact does not hold that setting at all (for example an ONTAP setting with no CloudFormation property), so the
+  merge goes ahead on the condition that the matching probe check passes before release. When the artifact should
+  hold the setting but it cannot be read, use "stop" and state what would decide it
 ```
 
 ---
@@ -135,13 +145,14 @@ the artifact below from an attacker's viewpoint. Write no code and change nothin
   docs/agent-prompts/adversarial-review.md のプロンプト A の「停止条件」を先に読む）
 
 ## やること
-1. 差分に含まれる AWS::FSx::FileSystem、AWS::FSx::Volume、AWS::FSx::S3AccessPointAttachment、IAM ポリシー、
-   アクセスポイントのポリシー、ONTAP の設定（エクスポートポリシー、共有 ACL、スナップショットポリシー、
-   ARP、FPolicy、監査）を列挙する。
+1. 差分で追加・変更・削除された AWS::FSx::FileSystem、AWS::FSx::Volume、AWS::FSx::S3AccessPointAttachment、
+   IAM ポリシー、アクセスポイントのポリシー、ONTAP の設定（エクスポートポリシー、共有 ACL、スナップショットポリシー、
+   ARP、FPolicy、監査）を列挙する。これらを設定する `Custom::` リソースも含める。差分が触れていないリソースは判定しない。
 2. 各項目をプロンプト A の停止条件に照らし、「停止」「通過」「判断できない」のどれかを付ける。根拠の行番号を付ける。
-3. 「判断できない」が停止条件に関わる場合は「停止」として扱う。
+3. 判定はプロンプト A の停止条件の最後の項目に従い、「停止」「実装後に確認」「通過」に分ける。
 4. 実行してよいのは、静的なテスト（pytest tests/test_fsx_kms_customer_key.py、cfn-lint）だけ。AWS や ONTAP への
-   接続、デプロイはしない。
+   接続、デプロイはしない。静的なテストはリポジトリのファイルを読むので、差分を当てた写しを一時ディレクトリに作って
+   その写しに対して実行する。cfn-lint は構文の検査で、停止条件は検出しない。
 
 ## 出力
 - 1 行目に「判定: 停止」または「判定: 通過」
@@ -163,11 +174,13 @@ Decide whether the diff below may merge. Only decide; do not change code or temp
 
 ## What to do
 1. List every AWS::FSx::FileSystem, AWS::FSx::Volume, AWS::FSx::S3AccessPointAttachment, IAM policy, access point
-   policy and ONTAP setting (export policy, share ACL, snapshot policy, ARP, FPolicy, audit) in the diff.
+   policy and ONTAP setting (export policy, share ACL, snapshot policy, ARP, FPolicy, audit) that the diff adds,
+   changes or removes, including `Custom::` resources that set them. Do not judge resources the diff does not touch.
 2. Mark each against the stop conditions of Prompt A as "stop", "pass" or "cannot decide", with line numbers.
-3. Treat "cannot decide" on a stop condition as "stop".
+3. Follow the last stop condition of Prompt A: mark each item "stop", "check after implementation" or "pass".
 4. You may run static tests only (pytest tests/test_fsx_kms_customer_key.py, cfn-lint). Do not connect to AWS or
-   ONTAP and do not deploy.
+   ONTAP and do not deploy. The static tests read repository files, so apply the diff to a copy in a temporary
+   directory and run them on the copy. cfn-lint checks syntax and detects none of the stop conditions.
 
 ## Output
 - First line: "Verdict: stop" or "Verdict: pass"
@@ -184,7 +197,11 @@ Decide whether the diff below may merge. Only decide; do not change code or temp
 ## プロンプトの確認方法 / How These Prompts Were Checked
 
 - 停止条件は、[設定プローブ](../ontap-native/adversarial-configuration-probe.md) の検査 ID と、`tests/test_fsx_kms_customer_key.py` が静的に確かめる項目に対応させています。
-- **エージェントにこのプロンプトを実際に与えて、レビューの結果を確かめたことはありません。** プロンプトの質は、使う環境で確かめてください。
+- 2026-11-24 に、プロンプト A をこのリポジトリの `templates/storage.yaml` に、プロンプト B を故意に 3 つの欠陥（`KmsKeyId` の削除、`0.0.0.0/0` に `any` を許すエクスポートルール、条件なしの `Principal: "*"`）を入れた差分に、それぞれ別のエージェントで 1 回ずつ与えた。プロンプト B は 3 つとも停止として検出した。KMS キーの欠陥は `tests/test_fsx_kms_customer_key.py` の判定関数でも確かめた。プロンプト A は 9 つの攻撃経路（必須の 5 つと追加の 4 つ）を挙げ、16 の台帳 ID を引いた。
+- その試行で次が分かり、プロンプトを直した。テンプレートに書かれていない ONTAP の設定まで「判断不能 = 停止」として扱うと、どのテンプレートも止まる（「実装後に確認」を追加）。差分が触れていないリソースまで判定していた（差分だけに限定）。`any` が AUTH_SYS を含むか、`Custom::` リソースが対象かが曖昧だった。IAM の権限が前提の経路に重大度の段がなかった。
+- 試行で分かった、プロンプトでは直していない点: 鍵ポリシー（`kms:*` をアカウントのルートに与えるなど）を見る設定プローブの検査はない。1 回ずつの試行で、ほかのモデルや成果物での再現は確かめていない。
 
 - The stop conditions map to the probe's check IDs and to what `tests/test_fsx_kms_customer_key.py` checks statically.
-- **Giving these prompts to an agent and checking the review it produces has not been done.** Judge the prompts in your own environment.
+- On 2026-11-24, Prompt A was given to one agent with this repository's `templates/storage.yaml`, and Prompt B to another agent with a diff that carried three planted defects (removal of `KmsKeyId`, an export rule giving `0.0.0.0/0` `any`, an unconditioned `Principal: "*"`), once each. Prompt B stopped on all three; the key defect was also confirmed with the decision function in `tests/test_fsx_kms_customer_key.py`. Prompt A listed nine attack paths (the five required and four more) and cited 16 ledger IDs.
+- The trial led to these changes: treating every ONTAP setting absent from the template as "undecided = stop" stopped every template ("check after implementation" was added); resources the diff did not touch were judged (now limited to the diff); whether `any` includes AUTH_SYS and whether `Custom::` resources are in scope were unclear; paths that need IAM permissions had no severity step.
+- Not fixed in the prompts: no probe check reads the key policy (for example `kms:*` for the account root). Each prompt was tried once; other models and artifacts were not tried.

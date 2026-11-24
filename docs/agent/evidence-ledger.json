@@ -484,7 +484,8 @@
         "status": "not-applicable"
       },
       "appears_in": [
-        "docs/data-protection/aws-backup-logically-air-gapped-vault.md"
+        "docs/data-protection/aws-backup-logically-air-gapped-vault.md",
+        "docs/data-protection/deletion-requests-and-retained-copies.md"
       ],
       "note": "Both are irreversible decisions made at vault creation; the approval for them is routed to the Adoption Playbook."
     },
@@ -665,7 +666,8 @@
         "docs/ja/operational-considerations.md",
         "docs/en/operational-considerations.md",
         "docs/ontap-native/adversarial-configuration-probe.md",
-        "docs/agent-prompts/adversarial-review.md"
+        "docs/agent-prompts/adversarial-review.md",
+        "docs/data-protection/deletion-requests-and-retained-copies.md"
       ],
       "note": "The audit records require a SACL on the objects; enabling auditing alone records nothing."
     },
@@ -1188,7 +1190,8 @@
       },
       "appears_in": [
         "docs/ontap-native/gcnv-ontap-mode-security-features.md",
-        "docs/articles/01-architecture-overview.md"
+        "docs/articles/01-architecture-overview.md",
+        "docs/data-protection/deletion-requests-and-retained-copies.md"
       ],
       "note": "General ONTAP SnapLock property; applies on both GCNV ONTAP-mode and FSx for ONTAP."
     },
@@ -1859,6 +1862,41 @@
         "docs/ontap-native/adversarial-configuration-probe.md"
       ],
       "note": "One observation on one file system. Whether the failure is the same for every ONTAP version, Region or vault configuration was not tested."
+    },
+    {
+      "id": "E-061",
+      "claim": "Through an S3 Access Point attached to an FSx for ONTAP volume, a file deleted from the active file system stays readable with GetObject at the key .snapshot/<snapshot name>/<path> while a Snapshot copy that holds it exists; ListObjectsV2 on the root or on the prefix .snapshot/ returned no key for it. Deleting the Snapshot copy, setting the volume's snapshot_directory_access_enabled to false, or an access point policy that denies s3:GetObject on <access point ARN>/object/.snapshot/* each made the same GetObject fail.",
+      "subject": "FSx for ONTAP S3 Access Points, read path to Snapshot copies (.snapshot directory)",
+      "tier": "verified",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/snapshots-ontap.html",
+          "retrieved": "2026-11-24",
+          "read": "full",
+          "note": "States that Snapshot copies are stored in the .snapshot directory at the root of a volume and that users can view and restore files from them. It does not mention S3 Access Points."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/access-points-for-fsxn-object-api-support.html",
+          "retrieved": "2026-11-24",
+          "read": "full",
+          "note": "Lists supported S3 operations for access points attached to FSx for ONTAP volumes. The word snapshot does not appear on the page."
+        }
+      ],
+      "observation": "2026-11-24 (UTC), ap-northeast-1, first-generation SINGLE_AZ_1 file system, ONTAP 9.19.1P4, two throwaway 1 GiB UNIX-style volumes with snapshot policy none and an access point whose file system user is UNIX root. Three times (1 MiB, 512 KiB and 256 KiB random files): PutObject, ONTAP REST POST of a Snapshot copy, DeleteObject; HeadObject or GetObject on the original key returned 404 or NoSuchKey; GetObject on .snapshot/<name>/<key> returned the file with the same SHA-256 as the original. ListObjectsV2 with no prefix and with prefix .snapshot/ returned no keys (first volume). The Snapshot copy held 1,269,760 bytes for the deleted 1 MiB file. After DELETE of the Snapshot copy, the GetObject returned NoSuchKey (twice). With snapshot_directory_access_enabled=false the GetObject returned NoSuchKey and a GetObject of a live control object still succeeded; after setting it back to true the read succeeded again. With an access point policy Deny on s3:GetObject for <ARN>/object/.snapshot/* the GetObject returned AccessDenied and the control object was still readable. Each mitigation was observed once.",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Behaviour observed directly; the documents describe the .snapshot directory but not its visibility through access points."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/data-protection/deletion-requests-and-retained-copies.md",
+        "docs/ontap-native/adversarial-configuration-probe.md",
+        "AGENTS.md"
+      ],
+      "note": "UNIX-style volumes and a root file system user only. NTFS-style volumes, a non-root UNIX user, FlexGroup volumes and other ONTAP versions were not tested. Whether the hidden .snapshot prefix is by design is not stated in the documents read."
     }
   ]
 }

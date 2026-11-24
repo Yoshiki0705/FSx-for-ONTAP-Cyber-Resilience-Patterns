@@ -6,13 +6,13 @@
 
 AWS Security Agent と AWS Continuum は、アプリケーションとコードを対象にします。ここで読んだ AWS の文書には、ストレージ設定を入力に挙げた記載がありません [E-026]。このプローブはストレージ側を補う位置にあり、両者を置き換えるものではありません。
 
-状態: 単体テスト（合成データ）だけを通しています。実機のファイルシステムに対しては、まだ実行していません（[実機での確認](#実機での確認--run-against-a-real-file-system)）。
+状態: 単体テスト（合成データ）に加えて、東京リージョンの検証用ファイルシステム（ONTAP 9.19.1P4）に対して 2026-11-24 に実行しました（[実機での確認](#実機での確認--run-against-a-real-file-system)）。
 
 `solutions/config-probe/` reads the ONTAP settings of Amazon FSx for NetApp ONTAP with REST GET requests only, reads the AWS side (encryption key, backups, S3 Access Points) with read-only API calls, and writes JSON that states, for each setting, what an attacker who already holds a given precondition could do. It is not a penetration test: it sends no write, exploits nothing and stores no response body.
 
 AWS Security Agent and AWS Continuum work on applications and code; the AWS documents read here list no storage configuration among their inputs [E-026]. The probe covers the storage side and replaces neither.
 
-Status: unit-tested against synthetic data only; not yet run against a real file system (see the last section).
+Status: unit-tested against synthetic data, and run on 2026-11-24 against a verification file system in the Tokyo Region (ONTAP 9.19.1P4); see the last section.
 
 ---
 
@@ -62,10 +62,11 @@ Every REST path below is a GET endpoint of ONTAP 9.18.1P6 on FSx for ONTAP in th
 | KMS-001 | ファイルシステムの KMS キーが AWS マネージドキー / File system KMS key is AWS managed | `fsx:DescribeFileSystems`, `kms:DescribeKey` | バックアップが論理エアギャップボールトへコピーされない [E-009] [E-060]。同じアカウントでバックアップを消されると、隔離されたコピーが残らない / Backups are not copied to a logically air-gapped vault; deleting them in the account leaves no isolated copy | 管理者の認証情報（AWS）/ Administrator credentials (AWS) | high |
 | S3AP-001 | インターネットを起点にできる S3 Access Points / S3 Access Points with Internet network origin | `s3:GetAccessPoint` | VPC の外から S3 要求を送れる / S3 requests can come from outside the VPC | 到達だけ / Network reach only | high |
 | S3AP-002 | 条件なしで `Principal: "*"` を許すアクセスポイントポリシー / Access point policy allowing `Principal: "*"` without a condition | `s3:GetAccessPointPolicy` | ポリシーだけで任意の AWS プリンシパルを許す。ポリシーがないときは info / The policy alone allows any AWS principal; info when there is no policy | 到達だけ / Network reach only | high |
+| S3AP-003 | `.snapshot/*` への `s3:GetObject` を拒否しないアクセスポイントポリシー / Access point policy with no Deny on `s3:GetObject` for `.snapshot/*` | `s3:GetAccessPointPolicy` | ボリュームから削除したファイルを、Snapshot が残る間 `.snapshot/<名前>/<パス>` で読める [E-061]。ボリューム側で `snapshot_directory_access_enabled=false` にしていれば同じ経路は閉じるが、このプローブはその値を読まない / Files deleted from the volume stay readable at `.snapshot/<name>/<path>` while a Snapshot copy holds them; `snapshot_directory_access_enabled=false` on the volume closes the same path, and the probe does not read that value | アクセスポイントへの `s3:GetObject` を持つ IAM 認証情報 / IAM credentials with `s3:GetObject` on the access point | medium |
 
-SVM のルートボリューム（名前が `_root` で終わるもの）は、ボリューム単位の検査から外します。名前で判定しているので、ルートでないボリュームにこの名前を付けている環境では、そのボリュームが検査されません。
+SVM のルートボリューム（名前が `_root` で終わるもの）は、ボリューム単位の検査から外します。名前で判定しているので、ルートでないボリュームにこの名前を付けている環境では、そのボリュームが検査されません。FlexCache のキャッシュボリューム（`flexcache_endpoint_type=cache`）も外します。キャッシュボリュームの Snapshot 一覧の GET は、ONTAP 9.19.1P4 で HTTP 400（ONTAP コード 9437613）を返しました。復旧点はオリジンのボリューム側で見ます。
 
-SVM root volumes (names ending in `_root`) are left out of the per-volume checks. The test is the name, so a non-root volume with such a name is not checked.
+SVM root volumes (names ending in `_root`) are left out of the per-volume checks. The test is the name, so a non-root volume with such a name is not checked. FlexCache cache volumes (`flexcache_endpoint_type=cache`) are left out too: a GET of a cache volume's Snapshot list returned HTTP 400 (ONTAP code 9437613) on ONTAP 9.19.1P4. Check recovery points on the origin volume.
 
 ---
 
@@ -243,7 +244,33 @@ Every string in the output has cluster names (`FsxId...`), IPv4 addresses and 12
 
 ## 実機での確認 / Run Against a Real File System
 
-<!-- live-run: pending -->
+2026-11-24（UTC）に、東京リージョン（ap-northeast-1）の検証用ファイルシステムに対して、Mac から SSM のポートフォワード越しに実行しました。ファイルシステムは第 1 世代 SINGLE_AZ_1、ONTAP 9.19.1P4、6 つの SVM と 9 つの S3 Access Points を持つ検証環境です。所見の件数は検証用に作った設定を反映しており、本番の傾向を示すものではありません。
+
+| 項目 / Item | 結果 / Result |
+|---|---|
+| 全体 / Overall | 196 件。finding 140、pass 55、not_assessable 1（MAV-001、HTTP 403 code 6 [E-025]）、unknown 0、inconclusive 0。`--fail-on high` で終了コード 2 / 196 records: 140 finding, 55 pass, 1 not_assessable (MAV-001), 0 unknown, 0 inconclusive; exit code 2 with `--fail-on high` |
+| 秘密情報 / Secrets | 出力とログにパスワードの値は含まれず、クラスタ名、IP アドレス、アカウント ID はマスクされていた / No password value in output or log; cluster names, IP addresses and account IDs were masked |
+| 暗号化 / Encryption | 26 の読み書きボリュームはすべて `encryption.enabled=false` を返し、ONTAP のキーマネージャーはなかった。ファイルシステムは AWS マネージドキーで暗号化されていた（KMS-001）/ All 26 read-write volumes returned `encryption.enabled=false`; there was no ONTAP key manager; the file system is encrypted with the AWS managed key (KMS-001) |
+
+1 回目の実行で、コードを次のように直しました。直したあとの 3 回目の実行で、`unknown` は 0 件になりました。
+
+- ARP の自動有効化の応答は `{"new_volume_auto_enable": false, ...}` で、`enabled` というフィールドはなかった。両方を読むようにした。
+- `/api/protocols/fpolicy` は `fields=enabled` を HTTP 400（ONTAP コード 262197）で拒否した。ポリシーごとの `enabled` から判定するようにした。
+- FlexCache のキャッシュボリュームは Snapshot 一覧を HTTP 400（9437613）で拒否した。検査の対象から外した。
+- `IPC$` 共有は ACL を返さなかった。検査の対象から外した。
+- SnapMirror 関係の一覧に 20.6 秒かかり、1 回は 30 秒の読み取りタイムアウトを超えた。既定を 90 秒にし、`--read-timeout` で変えられるようにした。
+- このリポジトリが固定している botocore 1.35.99 には `DescribeS3AccessPointAttachments` がなかった。その場合は S3AP-001 を `not_assessable` にする。実機の実行には boto3 1.44.10（botocore 1.44.10）を使った。
+
+On 2026-11-24 (UTC) the probe ran from a Mac through an SSM port forward against a verification file system in the Tokyo Region (ap-northeast-1): first-generation SINGLE_AZ_1, ONTAP 9.19.1P4, six SVMs and nine S3 Access Points. The counts reflect settings made for testing and say nothing about production trends.
+
+The first run led to these code changes; after them the third run had no `unknown` record.
+
+- The ARP auto-enable answer was `{"new_volume_auto_enable": false, ...}` with no `enabled` field; both are now read.
+- `/api/protocols/fpolicy` rejected `fields=enabled` with HTTP 400 (ONTAP code 262197); the check now uses each policy's `enabled`.
+- FlexCache cache volumes rejected the Snapshot list with HTTP 400 (9437613); they are left out.
+- The `IPC$` share returned no ACL; it is left out.
+- The SnapMirror relationship list took 20.6 seconds and once exceeded the 30-second read timeout; the default is now 90 seconds and `--read-timeout` changes it.
+- botocore 1.35.99, pinned in this repository, has no `DescribeS3AccessPointAttachments`; S3AP-001 then becomes `not_assessable`. The live run used boto3 1.44.10 (botocore 1.44.10).
 
 ---
 
