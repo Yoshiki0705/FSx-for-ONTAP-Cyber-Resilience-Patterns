@@ -146,10 +146,32 @@ The reasoning of trees 1 and 3 carries over to on-premises ONTAP and ONTAP-based
 
 ---
 
+## 全工程で続ける攻撃側の検査 / Adversarial Checks Through Every Phase
+
+AWS CTO のブログ記事 [Tech predictions for 2027 and beyond](https://www.allthingsdistributed.com/2026/11/tech-predictions-for-2027-and-beyond.html) は、脆弱性の発見から悪用までの期間とコストが下がっているという傾向を挙げています。侵入テストを年に数回行うだけでは、その間に入った設定の変化を見ません。このリポジトリでは、攻撃側の観点の検査を、設計の前、リリースの前、稼働中の 3 か所に置きます。既知の欠陥に当たる項目が 1 つでも見つかれば、その変更はそこで止めます（ライン停止、アンドン）。
+
+The AWS CTO's blog post [Tech predictions for 2027 and beyond](https://www.allthingsdistributed.com/2026/11/tech-predictions-for-2027-and-beyond.html) notes that the time and cost from finding a weakness to exploiting it are falling. A penetration test a few times a year does not look at setting changes made in between. This repository places checks from the attacker's side at three points: before design, before release and while running. A single item that matches a known defect stops the change at that point (stop the line, Andon).
+
+| 段階 / Stage | 道具 / Tool | 止める条件 / What stops the line | 状態 / Status |
+|---|---|---|---|
+| 設計・実装の前 / Before design and code | [攻撃者視点のレビュー用プロンプト](../agent-prompts/adversarial-review.md) / Adversarial review prompts | プロンプトの停止条件（AWS マネージドキー、全開放のエクスポートルール、条件なしの `Principal: "*"` など）/ The prompts' stop conditions | 各プロンプトをエージェントで 1 回試行（2026-11-24）/ Each prompt tried once with an agent (2026-11-24) |
+| テンプレートの静的検査 / Static template check | `tests/test_fsx_kms_customer_key.py` | ONTAP のファイルシステムに顧客管理キーがない [E-009] / An ONTAP file system without a customer managed key | `make test` で実行 / Runs in `make test` |
+| リリース前・変更後・定期 / Before release, after a change, scheduled | [読み取り専用の設定プローブ](../ontap-native/adversarial-configuration-probe.md)（`--fail-on high`）/ Read-only configuration probe | high の所見、または判定できなかった実行（終了コード 2 と 3）/ A high finding, or a run that could not assess (exit 2 and 3) | 単体テストに加え、検証用のファイルシステム（ONTAP 9.19.1P4）で 2026-11-24 に実行 / Unit-tested, and run on 2026-11-24 against a verification file system (ONTAP 9.19.1P4) |
+| 侵入テスト / Penetration test | AWS Security Agent と [クローン隔離の手順書](../runbooks/pentest-clone-isolation.md) / AWS Security Agent with the clone isolation runbook | テストで見つかった、悪用できる脆弱性 / An exploitable flaw the test finds | 手順は文書に基づく。実機では通していない / Based on documentation; not run end to end |
+
+設定プローブは、決定木 2 で扱った検知の前提（ARP、FPolicy、監査）が実際の設定で有効かを読みます。侵入テストの前に実行すれば、テスト中にどの検知が反応しうるかを事前に確かめられます。
+
+The configuration probe reads whether the detection prerequisites of tree 2 (ARP, FPolicy, audit) are on in the actual settings. Run before a penetration test, it shows in advance which detections can react during the test.
+
+---
+
 ## 実装 / Implementation
 
 | 成果物 / Artifact | 内容 / What it does | 状態 / Status |
 |---|---|---|
+| [`solutions/config-probe/`](../../solutions/config-probe/config_probe/cli.py) | ONTAP REST の GET と AWS の読み取り API で、設定ごとに攻撃者の前提と重大度を出す CLI / A CLI that reads ONTAP REST (GET only) and AWS read APIs and reports the attacker precondition and severity per setting | 単体テスト通過。検証用のファイルシステムで 2026-11-24 に実行 / Unit tests pass; run on a verification file system on 2026-11-24 |
+| [`docs/agent-prompts/adversarial-review.md`](../agent-prompts/adversarial-review.md) | 実装前の攻撃者視点レビューと、マージ前のライン停止判定のプロンプト / Prompts for an adversarial review before coding and a stop-the-line check before merge | エージェントで 1 回ずつ試行（2026-11-24）/ Tried once each with an agent (2026-11-24) |
+| `tests/test_fsx_kms_customer_key.py` | テンプレートの ONTAP ファイルシステムに顧客管理キーを求める / Requires a customer managed key on every ONTAP file system in the templates | `make test` で実行 / Runs in `make test` |
 | [`templates/pentest-isolation.yaml`](../../templates/pentest-isolation.yaml) | エージェント用とアプリ用のセキュリティグループ、クローン専用のアプリロール、エージェント用 VPC 権限 / Agent and application security groups, clone-only application role, agent VPC permissions | cfn-lint 通過。未デプロイ。侵入テストでは未使用 / Passes cfn-lint; not deployed; not used in a test |
 | [`docs/runbooks/pentest-clone-isolation.md`](../runbooks/pentest-clone-isolation.md) | クローンの作成、アクセスポイントの接続、テスト前後の確認、撤去 / Clone creation, access point attach, checks before and after, teardown | 手順は ONTAP と AWS の文書に基づく。実機では通していない / Based on documentation; not run end to end |
 
@@ -162,8 +184,9 @@ The reasoning of trees 1 and 3 carries over to on-premises ONTAP and ONTAP-based
 - `fsxadmin` 以外のロールや AWS 側の管理経路で MAV を有効化できるか、他の ONTAP 版で変わるか [E-025]
 - Security Agent の侵入テストを FSx for ONTAP のクローンを使うアプリに実行した結果
 - Google Cloud NetApp Volumes と Azure NetApp Files の ARP、スナップショットのロック、MAV の有無
+- 設定プローブを第 2 世代のファイルシステムや他の ONTAP 版で実行した結果。レビュー用プロンプトを他のモデルや成果物に与えた結果（どちらも 1 環境・1 回ずつしか試していない）
 
-- Whether Continuum ingests FSx for ONTAP settings as context, and how far; whether a clone inherits ARP state; whether `fsxadmin` can enable MAV; the outcome of a real Security Agent test against an application on a clone; and ARP, snapshot locking and MAV on the other two cloud services.
+- Whether Continuum ingests FSx for ONTAP settings as context, and how far; whether a clone inherits ARP state; whether `fsxadmin` can enable MAV; the outcome of a real Security Agent test against an application on a clone; ARP, snapshot locking and MAV on the other two cloud services; and results of the configuration probe on second-generation file systems or other ONTAP versions, and of the review prompts with other models and artifacts (each was tried in one environment, once).
 
 ---
 

@@ -1,0 +1,47 @@
+{
+  "$comment": "Synthetic ONTAP REST answers for a configuration where every check passes. Placeholders only.",
+  "/api/cluster": {"status": 200, "body": {"name": "FsxId0123456789abcdef0", "version": {"full": "NetApp Release 9.18.1P6: Fri Aug 07 2026"}}},
+  "/api/storage/volumes": {"status": 200, "body": {"records": [
+    {"name": "vol1", "uuid": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1", "svm": {"name": "svm1"}, "type": "rw", "style": "flexvol",
+     "anti_ransomware": {"state": "enabled"}, "snapshot_policy": {"name": "default"}, "snapshot_locking_enabled": true,
+     "nas": {"export_policy": {"name": "default"}, "security_style": "unix"},
+     "encryption": {"enabled": true, "type": "volume", "state": "encrypted"}, "space": {"snapshot": {"autodelete_enabled": false}}},
+    {"name": "svm1_root", "uuid": "bbbbbbbb-2222-4222-8222-bbbbbbbbbbb2", "svm": {"name": "svm1"}, "type": "rw",
+     "anti_ransomware": {"state": "disabled"}, "snapshot_policy": {"name": "none"}}
+  ], "num_records": 2}},
+  "/api/security/anti-ransomware/auto-enable": {"status": 200, "body": {"enabled": true}},
+  "/api/security/anti-ransomware/suspects": {"status": 200, "body": {"records": [], "num_records": 0}},
+  "/api/storage/snapshot-policies": {"status": 200, "body": {"records": [{"name": "default", "enabled": true, "copies": [{"count": 6, "schedule": {"name": "hourly"}}]}]}},
+  "/api/storage/volumes/aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1/snapshots": {"status": 200, "body": {"records": [
+    {"name": "hourly.2026-11-15_0505", "create_time": "2026-11-15T05:05:00+00:00", "snaplock_expiry_time": "2099-01-01T00:00:00+00:00"},
+    {"name": "hourly.2026-11-15_0405", "create_time": "2026-11-15T04:05:00+00:00"}
+  ]}},
+  "/api/storage/snaplock/compliance-clocks": {"status": 200, "body": {"records": [{"node": {"name": "node-01"}, "time": "2026-11-15T05:00:00+00:00"}]}},
+  "/api/protocols/nfs/export-policies": {"status": 200, "body": {"records": [
+    {"name": "default", "svm": {"name": "svm1"}, "rules": [
+      {"index": 1, "clients": [{"match": "10.0.0.0/16"}], "rw_rule": ["sys"], "ro_rule": ["sys"], "superuser": ["none"]}
+    ]}
+  ]}},
+  "/api/protocols/cifs/shares": {"status": 200, "body": {"records": [
+    {"name": "share1", "svm": {"name": "svm1"}, "path": "/vol1", "acls": [{"user_or_group": "Everyone", "permission": "read", "type": "windows"}]}
+  ]}},
+  "/api/protocols/fpolicy": {"status": 200, "body": {"records": [{"svm": {"name": "svm1"}, "policies": [{"name": "p1", "enabled": true}], "engines": [{"name": "e1"}]}]}},
+  "/api/protocols/vscan": {"status": 200, "body": {"records": [{"svm": {"name": "svm1"}, "enabled": true}]}},
+  "/api/protocols/audit": {"status": 200, "body": {"records": [{"svm": {"name": "svm1"}, "enabled": true, "events": {"file_operations": true}, "log_path": "/audit"}]}},
+  "/api/security/audit/destinations": {"status": 200, "body": {"records": [{"address": "10.0.1.10", "port": 514, "protocol": "tcp_encrypted"}]}},
+  "/api/security/accounts": {"status": 200, "body": {"records": [
+    {"name": "fsxadmin", "owner": {"name": "FsxId0123456789abcdef0"}, "role": {"name": "fsxadmin"}, "locked": false,
+     "applications": [
+       {"application": "ssh", "authentication_methods": ["password"], "second_authentication_method": "none"},
+       {"application": "http", "authentication_methods": ["certificate"], "second_authentication_method": "none"}
+     ]},
+    {"name": "vsadmin", "owner": {"name": "svm1"}, "role": {"name": "vsadmin"}, "locked": true,
+     "applications": [{"application": "http", "authentication_methods": ["password"]}]}
+  ]}},
+  "/api/security/login/totps": {"status": 200, "body": {"records": [{"owner": {"name": "FsxId0123456789abcdef0"}, "account": {"name": "fsxadmin"}}]}},
+  "/api/security/multi-admin-verify": {"status": 200, "body": {"enabled": true, "required_approvers": 2}},
+  "/api/security/key-managers": {"status": 200, "body": {"records": []}},
+  "/api/cluster/peers": {"status": 200, "body": {"records": []}},
+  "/api/snapmirror/relationships": {"status": 200, "body": {"records": []}},
+  "/api/snapmirror/relationships#destinations": {"status": 200, "body": {"records": []}}
+}

@@ -58,3 +58,6 @@ lambda-packages/
 
 # Local cross-repo agent notifications (reviewed by a human, not tracked)
 docs/agent/notifications/
+
+# Output of `make probe-config` (holds volume and SVM names of a real file system)
+config-probe*.json

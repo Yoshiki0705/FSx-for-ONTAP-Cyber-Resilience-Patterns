@@ -21,6 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "solutions" / "trendai-file-security"))
 sys.path.insert(0, str(PROJECT_ROOT / "solutions" / "siem"))
 sys.path.insert(0, str(PROJECT_ROOT / "solutions" / "compliance"))
 sys.path.insert(0, str(PROJECT_ROOT / "solutions" / "supply-chain"))
+sys.path.insert(0, str(PROJECT_ROOT / "solutions" / "config-probe"))
 
 
 @pytest.fixture

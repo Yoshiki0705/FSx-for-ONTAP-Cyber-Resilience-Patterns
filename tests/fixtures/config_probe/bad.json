@@ -1,0 +1,53 @@
+{
+  "$comment": "Synthetic ONTAP REST answers for a configuration where every check has a finding. Placeholders only.",
+  "/api/cluster": {"status": 200, "body": {"name": "FsxId0123456789abcdef0", "version": {"full": "NetApp Release 9.18.1P6: Fri Aug 07 2026"}}},
+  "/api/storage/volumes": {"status": 200, "body": {"records": [
+    {"name": "vol1", "uuid": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1", "svm": {"name": "svm1"}, "type": "rw",
+     "anti_ransomware": {"state": "disabled"}, "snapshot_policy": {"name": "none"},
+     "encryption": {"enabled": false}, "space": {"snapshot": {"autodelete_enabled": true}}},
+    {"name": "vol2", "uuid": "cccccccc-3333-4333-8333-ccccccccccc3", "svm": {"name": "svm1"}, "type": "rw",
+     "anti_ransomware": {"state": "disable-in-progress"}, "snapshot_policy": {"name": "daily"},
+     "encryption": {"enabled": true}, "space": {"snapshot": {"autodelete_enabled": false}}}
+  ]}},
+  "/api/security/anti-ransomware/auto-enable": {"status": 200, "body": {"enabled": false}},
+  "/api/security/anti-ransomware/suspects": {"status": 200, "body": {"records": [
+    {"volume": {"name": "vol2"}, "file": {"name": "a.locked"}}, {"volume": {"name": "vol2"}, "file": {"name": "b.locked"}}
+  ]}},
+  "/api/storage/snapshot-policies": {"status": 200, "body": {"records": [{"name": "daily", "enabled": false, "svm": {"name": "svm1"}}]}},
+  "/api/storage/volumes/aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1/snapshots": {"status": 200, "body": {"records": [
+    {"name": "manual1", "create_time": "2020-01-01T00:00:00+00:00", "snaplock_expiry_time": "2020-02-01T00:00:00+00:00"}
+  ]}},
+  "/api/storage/volumes/cccccccc-3333-4333-8333-ccccccccccc3/snapshots": {"status": 200, "body": {"records": [
+    {"name": "daily.2026-11-14_0010", "create_time": "2026-11-14T00:10:00+00:00"}
+  ]}},
+  "/api/storage/snaplock/compliance-clocks": {"status": 200, "body": {"records": []}},
+  "/api/protocols/nfs/export-policies": {"status": 200, "body": {"records": [
+    {"name": "open", "svm": {"name": "svm1"}, "rules": [
+      {"index": 1, "clients": [{"match": "0.0.0.0/0"}], "rw_rule": ["any"], "ro_rule": ["any"], "superuser": ["sys"]}
+    ]}
+  ]}},
+  "/api/protocols/cifs/shares": {"status": 200, "body": {"records": [
+    {"name": "share1", "svm": {"name": "svm1"}, "path": "/vol1", "acls": [{"user_or_group": "Everyone", "permission": "full_control", "type": "windows"}]}
+  ]}},
+  "/api/protocols/fpolicy": {"status": 200, "body": {"records": []}},
+  "/api/protocols/vscan": {"status": 200, "body": {"records": [{"svm": {"name": "svm1"}, "enabled": false}]}},
+  "/api/protocols/audit": {"status": 200, "body": {"records": []}},
+  "/api/security/audit/destinations": {"status": 200, "body": {"records": []}},
+  "/api/security/accounts": {"status": 200, "body": {"records": [
+    {"name": "fsxadmin", "owner": {"name": "FsxId0123456789abcdef0"}, "role": {"name": "fsxadmin"}, "locked": false,
+     "applications": [
+       {"application": "ssh", "authentication_methods": ["password"], "second_authentication_method": "none"},
+       {"application": "http", "authentication_methods": ["password"], "second_authentication_method": "none"}
+     ]},
+    {"name": "ops", "owner": {"name": "FsxId0123456789abcdef0"}, "role": {"name": "admin"}, "locked": false,
+     "applications": [{"application": "http", "authentication_methods": ["password"]}]}
+  ]}},
+  "/api/security/login/totps": {"status": 200, "body": {"records": []}},
+  "/api/security/multi-admin-verify": {"status": 200, "body": {"enabled": false}},
+  "/api/security/key-managers": {"status": 200, "body": {"records": [{"scope": "cluster", "external": {"servers": [{"server": "10.0.2.20:5696"}]}}]}},
+  "/api/cluster/peers": {"status": 200, "body": {"records": [{"name": "onprem-dr", "remote": {"ip_addresses": ["10.0.3.30"]}, "status": {"state": "available"}}]}},
+  "/api/snapmirror/relationships": {"status": 200, "body": {"records": []}},
+  "/api/snapmirror/relationships#destinations": {"status": 200, "body": {"records": [
+    {"source": {"path": "svm1:vol1"}, "destination": {"path": "svm-dr:vol1_dst", "cluster": {"name": "onprem-dr"}}, "policy": {"name": "MirrorAllSnapshots"}, "state": "snapmirrored"}
+  ]}}
+}

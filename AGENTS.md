@@ -127,6 +127,7 @@ This project compares multiple security technologies. Always:
 | ARP で持ち出しを検知できる前提で書く | ARP の検知条件として文書にあるのは書き込み系の挙動で、読み取りだけで発火する条件は文書にない（推論）[E-012] | 監査ログと SIEM。framework mapping の持ち出し型の節と [持ち出し対応の runbook](docs/runbooks/data-exfiltration-response.md) |
 | FPolicy で S3 Access Points 経由の操作を見られる前提で書く | FPolicy に届くのは NFS / SMB [E-015] | 書き込みは ARP、境界はアクセスポイントポリシーと IAM |
 | AWS マネージドキーで暗号化したファイルシステムを論理エアギャップボールトで守る前提 | ファイルシステムの暗号化キーが AWS マネージドキーだと、バックアップはボールトへコピーされない [E-009]。ジョブは「Completed with issues」で完了する | ファイルシステムを CMK で作る。既存は [`deployment-guide-existing-fsxn.md`](docs/deployment-guide-existing-fsxn.md) の手順でキー種別を確認。ボールト自身のキーとは別の話（AWS 所有キーが既定） |
+| S3 Access Points で削除したファイルはもう読めない前提で書く | Snapshot が残る間は `.snapshot/<名前>/<パス>` の `GetObject` で読める。`ListObjectsV2` には出ない [E-061] | アクセスポイントポリシーで `.snapshot/*` を Deny するか `snapshot_directory_access_enabled=false`。[削除後も残るコピー](docs/data-protection/deletion-requests-and-retained-copies.md) |
 | Tamperproof Snapshot の作成に `expiry_time` / `-expiry-time` を使う | ロックは `snaplock_expiry_time` / `-snaplock-expiry-time` | [`tamperproof-snapshot.md`](docs/ontap-native/tamperproof-snapshot.md) |
 | baseline に載った行を編集して `check-evidence` が stale で落ちる | fingerprint は行の内容から作られる | baseline から手で消し、新しい行に `[E-nnn]` を付けるか肯定形にする |
 | `CAPABILITY_IAM` で InsufficientCapabilitiesException | テンプレートに名前付き IAM ロール含む | `--capabilities CAPABILITY_NAMED_IAM` を使用 |
