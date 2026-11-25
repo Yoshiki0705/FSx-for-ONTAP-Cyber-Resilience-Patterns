@@ -1897,6 +1897,39 @@
         "AGENTS.md"
       ],
       "note": "UNIX-style volumes and a root file system user only. NTFS-style volumes, a non-root UNIX user, FlexGroup volumes and other ONTAP versions were not tested. Whether the hidden .snapshot prefix is by design is not stated in the documents read."
+    },
+    {
+      "id": "E-062",
+      "claim": "NetApp Volume Encryption (NVE) can be used on FSx for ONTAP in addition to the file-system-level AWS KMS encryption, either with ONTAP-generated keys held by an external KMIP key manager or with AWS KMS per data SVM: each volume has its own volume data encryption key, wrapped by an SVM key encryption key, whose protecting key is encrypted with one AWS KMS customer managed key per SVM. Rotating the SVM key encryption key does not re-encrypt volume data; a volume rekey does and can take hours to days. The ONTAP procedure for the AWS KMS key manager on a data SVM asks for an access key ID and a secret key.",
+      "subject": "NetApp Volume Encryption key management on FSx for ONTAP",
+      "tier": "documented",
+      "premise": false,
+      "sources": [
+        {
+          "url": "https://community.netapp.com/community/discussion/461606/encryption-options-for-amazon-fsx-for-netapp-ontap",
+          "retrieved": "2026-11-25",
+          "read": "full",
+          "note": "NetApp Community post (dated 2025-06-17) describing both NVE options on FSx for ONTAP, the key hierarchy (VDEK, SVM-KEK, pDEK, KMS customer managed key, one per SVM), key rotation options, and FlexCache with NVE origins. It does not show how AWS credentials are given to ONTAP and reports no measurement."
+        },
+        {
+          "url": "https://docs.netapp.com/us-en/ontap/encryption-at-rest/manage-keys-azure-google-task.html",
+          "retrieved": "2026-11-24",
+          "read": "full",
+          "note": "ONTAP procedure: cloud-provider key management only on data SVMs, requires the VE and MTEKM licenses (in ONTAP One); security key-manager external aws enable prompts for the secret key after obtaining an access key ID and secret key."
+        }
+      ],
+      "observation": "Not enabled here. The fsxadmin role on ONTAP 9.18.1P6 (catalog read 2026-11-04) grants 'security key-manager external' and 'volume encryption' with access all for data SVMs, and GET /api/security/aws-kms returned 200. On 2026-11-24 the configuration probe read encryption.enabled=false on all 26 read-write volumes and no ONTAP key manager on the verification file system (ONTAP 9.19.1P4).",
+      "support_inquiry": {
+        "status": "not-needed",
+        "topic": "Capability described by a NetApp publication and the ONTAP documentation."
+      },
+      "feature_request": {
+        "status": "not-applicable"
+      },
+      "appears_in": [
+        "docs/ontap-native/adversarial-configuration-probe.md"
+      ],
+      "note": "Enabling NVE on FSx for ONTAP was not tried. A trial with the AWS KMS key manager would need long-term IAM access keys under the documented ONTAP procedure."
     }
   ]
 }
